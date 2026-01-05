@@ -26,6 +26,10 @@
   --input: 0 0% 89.8%;
   --ring: 0 0% 3.9%;
   --radius: 0.5rem;
+  --color-background: #0B0F14;
+  --color-text: #EAF6FF;
+  --font-heading: "Space Grotesk", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, sans-serif;
 }
 
 .dark {
@@ -48,6 +52,9 @@
   --border: 0 0% 14.9%;
   --input: 0 0% 14.9%;
   --ring: 0 0% 83.1%;
+    --color-background: #0B0F14;
+  --color-text: #F6FAFF;
+
 }
 
 /* Force light mode styles */
