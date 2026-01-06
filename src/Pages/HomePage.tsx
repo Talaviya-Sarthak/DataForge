@@ -1,7 +1,8 @@
 import { useTheme } from "@/contexts/ThemeContext";
 import LightRays from "@/components/ui/lightrays";
 import Header from "@/components/layouts/Header";
-import HeroText from "@/components/HeroText";
+import HeroText from "@/components/layouts/HeroText";
+import Features from "@/components/layouts/Features";
 const HomePage = () => {
   const { theme, toggleTheme } = useTheme();
 
@@ -30,6 +31,7 @@ const HomePage = () => {
       <Header />
       {/* Page Content */}
       <HeroText />
+      <Features />
     </div>
   );
 };
