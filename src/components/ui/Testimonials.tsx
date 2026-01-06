@@ -1,6 +1,6 @@
 // This is a demo of a preview
 'use client';
-import { Component } from "@/components/typewriter-testimonial";
+import { Component } from "@/components/ui/typewriter-testimonial";
 
 const Testimonials = () => {
   const testimonials = [

@@ -16,6 +16,7 @@ interface FooterSection {
   links: FooterLink[];
 }
 
+// Footer navigation links organized by sections
 const footerLinks: FooterSection[] = [
   {
     label: 'Product',
@@ -77,7 +78,6 @@ const footerLinks: FooterSection[] = [
         icon: MdOutlineEmail,
       },
     ],
-
   },
 ];
 
@@ -111,7 +111,6 @@ export function Footer() {
                       </a>
                     </li>
                   ))}
-
                 </ul>
               </div>
             </AnimatedContainer>

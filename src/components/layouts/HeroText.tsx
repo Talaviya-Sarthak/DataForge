@@ -62,7 +62,6 @@ const HeroText: React.FC = () => {
 
             <div className="mt-13 text-center">
                 <span className="inline-flex items-center text-lg font-medium tracking-wide">
-
                     <FiBarChart2 className="mr-1 text-violet-300" />
 
                     <GradientText
@@ -70,11 +69,9 @@ const HeroText: React.FC = () => {
                     >
                         Trusted by teams who move faster with their data.
                     </GradientText>
-
                 </span>
             </div>
             <div className="mt-2 w-24 h-[2px] mx-auto bg-gradient-to-r from-transparent via-violet-400 to-transparent opacity-60" />
-
         </div>
     );
 };

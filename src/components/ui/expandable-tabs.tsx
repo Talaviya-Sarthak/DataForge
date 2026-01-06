@@ -13,6 +13,7 @@ export interface Tab {
 export interface ExpandableTabsProps {
   tabs: Tab[];
   defaultTab?: string;
+  activeTab?: string;
   className?: string;
   onTabChange?: (tabId: string) => void;
 }
@@ -20,18 +21,23 @@ export interface ExpandableTabsProps {
 export function ExpandableTabs({
   tabs,
   defaultTab,
+  activeTab: controlledActiveTab,
   className,
   onTabChange,
 }: ExpandableTabsProps) {
-  const [activeTab, setActiveTab] = React.useState<string>(
+  const [internalActiveTab, setInternalActiveTab] = React.useState<string>(
     defaultTab || tabs[0]?.id || "",
   );
   const [hoveredTab, setHoveredTab] = React.useState<string | null>(null);
   const { theme } = useTheme();
   const isDark = theme === "dark";
 
+  const activeTab = controlledActiveTab !== undefined ? controlledActiveTab : internalActiveTab;
+
   const handleTabClick = (tabId: string) => {
-    setActiveTab(tabId);
+    if (controlledActiveTab === undefined) {
+      setInternalActiveTab(tabId);
+    }
     onTabChange?.(tabId);
   };
 
