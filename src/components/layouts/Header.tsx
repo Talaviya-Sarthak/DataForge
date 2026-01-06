@@ -81,7 +81,7 @@ const Header: React.FC = () => {
   return (
     // Header layout with logo, navigation, and user controls
     <nav
-      className={`shadow-sm pt-5 pb-0 relative z-10 transition-colors ${theme === "dark" ? "bg-transparent" : "bg-white"}`}
+      className={`shadow-sm pt-5 pb-0 relative  z-10 transition-colors ${theme === "dark" ? "bg-transparent" : "bg-white"}`}
     >
       {/* Logo positioned at left corner */}
       <Link to="/" className="absolute left-5 top-5 flex items-center cursor-pointer">

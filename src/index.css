@@ -73,3 +73,15 @@ html:not(.dark) body {
 body {
   margin: 0;
 }
+@keyframes gloss {
+  0% {
+    transform: translateX(-60%) rotate(45deg);
+  }
+  100% {
+    transform: translateX(60%) rotate(45deg);
+  }
+}
+
+.animate-gloss {
+  animation: gloss 1s ease-in-out;
+}

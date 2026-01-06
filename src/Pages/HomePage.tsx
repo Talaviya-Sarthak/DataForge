@@ -3,8 +3,12 @@ import LightRays from "@/components/ui/lightrays";
 import Header from "@/components/layouts/Header";
 import HeroText from "@/components/layouts/HeroText";
 import Features from "@/components/layouts/Features";
-import { Footer } from "@/components/layouts/footer-section";
+import { Footer } from "@/components/layouts/Footer";
 import Testimonials from "@/components/ui/Testimonials";
+import Pricing from "@/components/layouts/Pricing";
+import { Case } from "@/components/ui/cases-with-infinite-scroll";
+
+
 const HomePage = () => {
   const { theme, toggleTheme } = useTheme();
 
@@ -30,15 +34,22 @@ const HomePage = () => {
         />
       </div>
       {/* Navbar */}
+      <div className="ml-10">
       <Header />
+      </div>
       {/* Page Content */}
       <HeroText />
       {/*Features Page*/}
       <Features />
+
+      <Pricing />
+ 
       <Testimonials />
+
+      <Case  />
       {/*Footer*/}
       <Footer />
-      
+
     </div>
   );
 };

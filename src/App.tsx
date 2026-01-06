@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import HomePage from "./Pages/HomePage";
-import Dataset from "./Pages/Dataset";
+import Dataset from "./Pages/DataSet";
 
 function App() {
   return (
