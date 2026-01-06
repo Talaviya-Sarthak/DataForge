@@ -4,6 +4,7 @@ import Header from "@/components/layouts/Header";
 import HeroText from "@/components/layouts/HeroText";
 import Features from "@/components/layouts/Features";
 import { Footer } from "@/components/layouts/footer-section";
+import Testimonials from "@/components/ui/Testimonials";
 const HomePage = () => {
   const { theme, toggleTheme } = useTheme();
 
@@ -34,8 +35,10 @@ const HomePage = () => {
       <HeroText />
       {/*Features Page*/}
       <Features />
+      <Testimonials />
       {/*Footer*/}
-      <Footer/>
+      <Footer />
+      
     </div>
   );
 };
