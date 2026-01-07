@@ -83,10 +83,10 @@ const footerLinks: FooterSection[] = [
 
 export function Footer() {
   return (
-    <footer className="md:rounded-t-6xl relative w-full flex flex-col items-center justify-center rounded-t-4xl border-t bg-black text-white px-6 py-8 lg:py-10">
+    <footer className="md:rounded-t-6xl relative w-full flex flex-col items-center justify-center rounded-t-4xl border-t bg-black text-white px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
       <div className="bg-foreground/20 absolute top-0 right-1/2 left-1/2 h-px w-1/3 -translate-x-1/2 -translate-y-1/2 rounded-full blur" />
 
-      <div className="grid w-full gap-4 grid-cols-5">
+      <div className="grid w-full gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
         <AnimatedContainer className="space-y-4">
           <FrameIcon className="size-8 text-white" />
           <p className="text-white mt-4 text-sm md:mt-0">
@@ -94,7 +94,7 @@ export function Footer() {
           </p>
         </AnimatedContainer>
 
-        <div className="grid grid-cols-5 gap-4 col-span-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-6 col-span-1 sm:col-span-1 lg:col-span-4">
           {footerLinks.map((section, index) => (
             <AnimatedContainer key={section.label} delay={0.1 + index * 0.1}>
               <div className="mb-6 md:mb-0">

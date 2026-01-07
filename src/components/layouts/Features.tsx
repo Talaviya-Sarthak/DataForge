@@ -48,7 +48,7 @@ const features = [
 
 const Features: React.FC = () => {
   return (
-    <div className="py-16 bg-black mt-15">
+    <div className="py-12 sm:py-16 md:py-20 bg-black mt-12 sm:mt-16 md:mt-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* HEADING */}
         <div className="text-center mb-14">

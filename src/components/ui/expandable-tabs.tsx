@@ -1,7 +1,6 @@
 import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { useTheme } from "@/contexts/ThemeContext";
 
 export interface Tab {
   id: string;
@@ -29,8 +28,6 @@ export function ExpandableTabs({
     defaultTab || tabs[0]?.id || "",
   );
   const [hoveredTab, setHoveredTab] = React.useState<string | null>(null);
-  const { theme } = useTheme();
-  const isDark = theme === "dark";
 
   const activeTab = controlledActiveTab !== undefined ? controlledActiveTab : internalActiveTab;
 
@@ -47,8 +44,7 @@ export function ExpandableTabs({
     <div className={cn("relative", className)}>
       <div
         className={cn(
-          "flex items-center gap-2 rounded-full p-1 transition-colors",
-          isDark ? "bg-black border border-gray-800" : "bg-gray-100",
+          "flex items-center gap-1 sm:gap-2 rounded-full p-1 transition-colors overflow-x-auto bg-black border border-gray-800",
         )}
       >
         {tabs.map((tab) => {
@@ -61,14 +57,10 @@ export function ExpandableTabs({
               onMouseEnter={() => setHoveredTab(tab.id)}
               onMouseLeave={() => setHoveredTab(null)}
               className={cn(
-                "flex items-center gap-2 px-4 py-2 rounded-full transition-all cursor-pointer",
+                "flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 rounded-full transition-all cursor-pointer shrink-0",
                 isActive
-                  ? isDark
-                    ? "bg-gray-900 shadow-sm text-white"
-                    : "bg-white shadow-sm text-gray-900"
-                  : isDark
-                    ? "text-gray-400 hover:text-white"
-                    : "text-gray-600 hover:text-gray-900",
+                  ? "bg-gray-900 shadow-sm text-white"
+                  : "text-gray-400 hover:text-white",
               )}
             >
               {tab.icon && <span className="w-5 h-5 shrink-0">{tab.icon}</span>}

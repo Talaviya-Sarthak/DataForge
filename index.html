@@ -7,18 +7,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>React App</title>
     <script>
-      // Prevent flash of wrong theme
+      // Always apply dark theme
       (function() {
-        const theme = localStorage.getItem('theme');
-        const root = document.documentElement;
-        // Always remove dark class first
-        root.classList.remove('dark');
-        // Only add dark if explicitly set to dark
-        if (theme === 'dark') {
-          root.classList.add('dark');
-        } else if (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-          root.classList.add('dark');
-        }
+        document.documentElement.classList.add('dark');
       })();
     </script>
   </head>

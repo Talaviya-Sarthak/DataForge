@@ -6,8 +6,8 @@ import { FiBarChart2 } from "react-icons/fi";
 import { FaPlayCircle } from "react-icons/fa";
 const HeroText: React.FC = () => {
     return (
-        <div className="relative ml-50 z-10 max-w-5xl text-center px-6 mt-15">
-            <div className="text-[28px] font-bold">
+        <div className="relative z-10 max-w-5xl mx-auto text-center px-4 sm:px-6 lg:px-8 mt-4 sm:mt-6 md:mt-8">
+            <div className="text-xl sm:text-2xl md:text-[28px] font-bold">
                 <ShinyText
                     text="DataForge — AI-Driven Insights"
                     speed={2}
@@ -43,7 +43,7 @@ const HeroText: React.FC = () => {
                 decisions — all in one platform.
             </p>
 
-            <div className="flex gap-4 justify-center mt-10">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mt-10">
                 <Button className="group relative overflow-hidden rounded-2xl px-6 py-2 text-white border border-white/25 bg-transparent transition-all duration-500 hover:text-cyan-200 hover:border-cyan-300 hover:shadow-[0_0_12px_1px_rgba(34,211,238,0.55)] cursor-pointer">
                     <span className="relative z-10">Get Started</span>
 
@@ -60,7 +60,7 @@ const HeroText: React.FC = () => {
                 </Button>
             </div>
 
-            <div className="mt-13 text-center">
+            <div className="mt-8 sm:mt-10 md:mt-12 text-center">
                 <span className="inline-flex items-center text-lg font-medium tracking-wide">
                     <FiBarChart2 className="mr-1 text-violet-300" />
 

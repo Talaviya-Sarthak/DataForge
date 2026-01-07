@@ -1,4 +1,3 @@
-import { useTheme } from "@/contexts/ThemeContext";
 import LightRays from "@/components/ui/lightrays";
 import Header from "@/components/layouts/Header";
 import HeroText from "@/components/layouts/HeroText";
@@ -10,15 +9,10 @@ import { Case } from "@/components/ui/cases-with-infinite-scroll";
 
 
 const HomePage = () => {
-  const { theme, toggleTheme } = useTheme();
-
   return (
-    <div
-      className={`min-h-screen relative transition-colors ${theme === "dark" ? "bg-black" : "bg-gray-50"}`}
-    >
+    <div className="relative min-h-screen transition-colors bg-black">
       <div
-        className="fixed inset-0 z-0 pointer-events-none"
-        style={{ width: "100%", height: "100%" }}
+        className="fixed inset-0 z-0 pointer-events-none overflow-hidden"
       >
         <LightRays
           raysOrigin="top-center"
@@ -34,9 +28,7 @@ const HomePage = () => {
         />
       </div>
       {/* Navbar */}
-      <div className="ml-10">
       <Header />
-      </div>
       {/* Page Content */}
       <HeroText />
       {/*Features Page*/}
