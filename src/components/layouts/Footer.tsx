@@ -59,12 +59,12 @@ const footerLinks: FooterSection[] = [
     links: [
       {
         title: "LinkedIn",
-        href: "https://www.linkedin.com/company/dataforge",
+        href: "https://www.linkedin.com/in/krish-ramanandi-83622b30b",
         icon: FaLinkedin,
       },
       {
         title: "GitHub",
-        href: "https://github.com/dataforge",
+        href: "https://github.com/Talaviya-Sarthak/DataForge",
         icon: FaGithub,
       },
       {
@@ -74,7 +74,7 @@ const footerLinks: FooterSection[] = [
       },
       {
         title: "Email",
-        href: "mailto:contact@dataforge.com",
+        href: "mailto:krishramanandi30@gmail.com",
         icon: MdOutlineEmail,
       },
     ],
