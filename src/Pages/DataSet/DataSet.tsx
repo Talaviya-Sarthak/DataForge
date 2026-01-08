@@ -1,8 +1,8 @@
-import LightRays from "@/components/ui/lightrays";
 import Header from "@/components/layouts/Header";
 import { Footer } from "@/components/layouts/Footer";
 import { FileUpload } from "@/components/ui/file-upload";
 import { useState } from "react";
+import BgAnimation from "@/components/layouts/BgAnimation";
 const Dataset = () => {
 
   const [files, setFiles] = useState<File[]>([]);
@@ -13,23 +13,7 @@ const Dataset = () => {
 
   return (
     <div className="min-h-screen relative transition-colors bg-black">
-      <div
-        className="fixed inset-0 z-0 pointer-events-none"
-        style={{ width: "100%", height: "100%" }}
-      >
-        <LightRays
-          raysOrigin="top-center"
-          raysColor="#33E6FF"
-          raysSpeed={1.5}
-          lightSpread={2}
-          rayLength={3}
-          followMouse={true}
-          mouseInfluence={0.1}
-          noiseAmount={0}
-          distortion={0}
-          className="custom-rays"
-        />
-      </div>
+      <BgAnimation/>
       <div className="ml-10">
 
         <Header />
