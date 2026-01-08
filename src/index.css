@@ -44,3 +44,10 @@ body {
 .animate-gloss {
   animation: gloss 1s ease-in-out;
 }
+.auth-input:-webkit-autofill,
+.auth-input:-webkit-autofill:hover,
+.auth-input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0px 1000px #0f0f0f inset;
+  -webkit-text-fill-color: #d1d5db;
+  transition: background-color 9999s ease-in-out 0s;
+}

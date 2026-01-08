@@ -78,11 +78,11 @@ const Header: React.FC = () => {
     // Header layout with logo, navigation, and user controls
     <nav className="py-4 relative z-10 transition-colors bg-transparent">
       {/* Logo positioned at left corner */}
-      <Link to="/" className="absolute left-2 sm:left-4 md:left-5 top-1/2 -translate-y-1/2 flex items-center cursor-pointer h-full">
+      <Link to="/" className="absolute left-2 sm:left-4 md:left-5 top-1/2 -translate-y-1/2 flex items-center cursor-pointer">
         <img 
-          src="/ChatGPT Image Jan 4, 2026, 11_32_49 PM.png" 
+          src="/finalLogo (1).png" 
           alt="Logo" 
-          className="h-10 sm:h-12 md:h-14 w-auto object-contain"
+          className="h-32 sm:h-36 md:h-40 w-auto object-contain pb-2"
         />
       </Link>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
@@ -103,6 +103,7 @@ const Header: React.FC = () => {
           </div>
 
           {/* Account Button - Right Side */}
+          <div className="w-24 sm:w-32 md:w-40 flex justify-end">
           <div className="flex items-center gap-2 sm:gap-3">
             {/* User Dropdown Menu */}
             <DropdownMenu>
@@ -145,7 +146,8 @@ const Header: React.FC = () => {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          </div>
+            </div>
+            </div>
         </div>
       </div>
     </nav>

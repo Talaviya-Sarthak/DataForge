@@ -4,7 +4,9 @@ import GradientText from "@/components/ui/GradientText";
 import { Button } from "@/components/ui/button";
 import { FiBarChart2 } from "react-icons/fi";
 import { FaPlayCircle } from "react-icons/fa";
+import { Navigate, useNavigate } from "react-router-dom";
 const HeroText: React.FC = () => {
+    const navigate = useNavigate();
     return (
         <div className="relative z-10 max-w-5xl mx-auto text-center px-4 sm:px-6 lg:px-8 mt-4 sm:mt-6 md:mt-8">
             <div className="text-xl sm:text-2xl md:text-[28px] font-bold">
@@ -44,7 +46,7 @@ const HeroText: React.FC = () => {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mt-10">
-                <Button className="group relative overflow-hidden rounded-2xl px-6 py-2 text-white border border-white/25 bg-transparent transition-all duration-500 hover:text-cyan-200 hover:border-cyan-300 hover:shadow-[0_0_12px_1px_rgba(34,211,238,0.55)] cursor-pointer">
+                <Button className="group relative overflow-hidden rounded-2xl px-6 py-2 text-white border border-white/25 bg-transparent transition-all duration-500 hover:text-cyan-200 hover:border-cyan-300 hover:shadow-[0_0_12px_1px_rgba(34,211,238,0.55)] cursor-pointer" onClick={() => navigate("/SignIn")}>
                     <span className="relative z-10">Get Started</span>
 
                     <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-[#67E8F9] to-transparent opacity-0 group-hover:opacity-100 group-hover:translate-x-full duration-[1500ms] ease-[cubic-bezier(0.45,0,0.2,1)] transition blur-sm" />
