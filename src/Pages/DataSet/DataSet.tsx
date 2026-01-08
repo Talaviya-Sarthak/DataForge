@@ -5,15 +5,28 @@ import { useState } from "react";
 import BgAnimation from "@/components/layouts/BgAnimation";
 const Dataset = () => {
 
-  const [files, setFiles] = useState<File[]>([]);
-  const handleFileUpload = (files: File[]) => {
-    setFiles(files);
-    console.log(files);
-  };
+  const handleFileUpload = async (files: File[]) => {
+  if (!files || files.length === 0) return;
+
+  // Always take ONLY the first file
+  const file = files[0];
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const res = await fetch("http://localhost:8000/upload", {
+    method: "POST",
+    body: formData,
+  });
+
+  const data = await res.json();
+  console.log("CSV INFO:", data);
+};
+
 
   return (
     <div className="min-h-screen relative transition-colors bg-black">
-      <BgAnimation/>
+      <BgAnimation />
       <div className="ml-10">
 
         <Header />
