@@ -14,7 +14,7 @@ export const FileUpload = ({ onChange }: { onChange?: (files: File[]) => void })
 
   // Handle file selection and update state
   const handleFileChange = (newFiles: File[]) => {
-    setFiles((prev) => [...prev, ...newFiles]);
+    setFiles(newFiles.slice(0, 1));
     onChange && onChange(newFiles);
   };
 
@@ -51,6 +51,8 @@ export const FileUpload = ({ onChange }: { onChange?: (files: File[]) => void })
           ref={fileInputRef}
           id="file-upload-handle"
           type="file"
+          accept=".csv"
+          multiple={false}
           onChange={(e) => handleFileChange(Array.from(e.target.files || []))}
           className="hidden"
         />
