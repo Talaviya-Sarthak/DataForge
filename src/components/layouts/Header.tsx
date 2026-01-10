@@ -80,7 +80,7 @@ const Header: React.FC = () => {
       {/* Logo positioned at left corner */}
       <Link to="/" className="absolute left-2 sm:left-4 md:left-5 top-1/2 -translate-y-1/2 flex items-center cursor-pointer">
         <img 
-          src="/FinalLogo.png" 
+          src="/src/assets/FinalLogo.png" 
           alt="Logo" 
           className="h-32 sm:h-36 md:h-40 w-auto object-contain pb-2"
         />

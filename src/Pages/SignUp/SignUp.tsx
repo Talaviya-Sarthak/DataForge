@@ -82,7 +82,7 @@ export default function SignUp() {
                             </span>
                             <input
                                 type="text"
-                                placeholder="Full Name"
+                                placeholder="John Doe"
                                 className="auth-input bg-transparent outline-none w-full text-sm"
                             />
                         </div>
@@ -95,7 +95,7 @@ export default function SignUp() {
                             <input
                                 type="email"
                                 name="email"
-                                placeholder="Email Address"
+                                placeholder="johndoe26@gmail.com"
                                  autoComplete="email"
                                 value={email}
                                 onChange={(e) => {
@@ -141,8 +141,8 @@ export default function SignUp() {
                     </div>
 
                     {/* Terms */}
-                    <div className="ml-15 text-xs text-gray-400 mt-4">
-                        <label className="flex items-center gap-2 cursor-pointer">
+                    <div className="ml-15 text-xs text-gray-400 mt-4 flex gap-2.5">
+                        <label className="flex items-center gap-2 font-semibold cursor-pointer">
                             <input type="checkbox" checked={agree}
                                 onChange={(e) => {
                                     setAgree(e.target.checked);
@@ -152,8 +152,9 @@ export default function SignUp() {
                                         setErrors((prev) => ({ ...prev, agree: undefined }));
                                     }
                                 }} className="accent-blue-500" />
-                            I agree to the <span className="text-white hover:text-blue-500">Terms & Privacy</span>
+                            I agree to the
                         </label>
+                        <span className="text-white hover:text-blue-500 cursor-pointer"><a href="/public/terms/terms_and_condition.pdf">Terms & Conditions</a></span>
                     </div>
                     {errors.agree && (
                         <p className="text-red-500 text-xs mt-1 ml-17">{errors.agree}</p>
