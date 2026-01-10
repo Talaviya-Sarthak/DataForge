@@ -6,6 +6,7 @@ import Signup from "./Pages/SignUp/SignUp";
 import NotFound from "./Pages/NotFound/not-found";
 import FAQDemo from "./Pages/FAQ/demo";
 import Cleaning from "./Pages/Cleaning/Cleaning";
+import { LampDemo } from "./components/layouts/BgLamp";
 
 
 
@@ -17,11 +18,12 @@ function App() {
           <Route index element={<HomePage />} />
           <Route index path='/HomePage' element={<HomePage />} />
           <Route index path='/DataSet' element={<Dataset />} />
-          <Route index path='/Cleaning' element={<Cleaning/>} />
+          <Route index path='/Cleaning' element={<Cleaning />} />
           <Route index path='/SignIn' element={<SignIn />} />
           <Route index path='/SignUp' element={<Signup />} />
-          <Route index path='/FAQ' element={<FAQDemo/>} />
-            <Route index path='*' element={<NotFound/>} />
+          <Route index path='/FAQ' element={<FAQDemo />} />
+          <Route index path='/Lamp' element={<LampDemo />} />
+          <Route index path='*' element={<NotFound />} />
         </Route>
       </Routes>
     </BrowserRouter>
