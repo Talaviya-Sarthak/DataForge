@@ -1,39 +1,3 @@
-# from fastapi import FastAPI
-
-# from app.api.routes import router as api_router
-# from app.core.config import settings
-
-# def create_app() -> FastAPI:
-#     app = FastAPI(
-#         title=settings.APP_NAME,
-#         version=settings.APP_VERSION,
-#         description="ML Service Backend API"
-#     )
-
-#     # Register API routes
-#     app.include_router(api_router, prefix="/api")
-
-#     return app
-
-
-# app = create_app()
-
-
-
-
-
-
-# from fastapi import FastAPI
-# from app.api.routes import router
-
-# app = FastAPI(title="MLService")
-
-# app.include_router(router, prefix="/api")
-
-
-
-
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import router
