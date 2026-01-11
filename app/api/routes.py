@@ -1,20 +1,55 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, UploadFile, File, HTTPException
+from typing import Optional
+import pandas as pd
+
 from app.data.loader import load_Data
 from app.data.preview import preview_Data
 from app.data.stats import dataset_stats
 
+router = APIRouter()
 
-router = APIRouter(tags=["ML Pipeline"])
+# Global variable to store ONLY ONE dataset
+CURRENT_DATASET: Optional[pd.DataFrame] = None
 
 
-@router.post("/data")
-def load_data_route(file_path: str):
-    df = load_Data(file_path)
+@router.post("/api/data/load")
+async def load_dataset(file: UploadFile = File(...)):
+    """
+    Upload dataset once and store it in memory
+    """
+    global CURRENT_DATASET
 
-    preview = preview_Data(df)
-    stats = dataset_stats(df)
+    try:
+        df = load_Data(file)
+        CURRENT_DATASET = df
 
-    return {
-        "preview": preview,
-        "stats": stats
-    }
+        return {
+            "message": "Dataset loaded successfully",
+            "rows": df.shape[0],
+            "columns": df.shape[1]
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/api/data/preview")
+def dataset_preview():
+    """
+    Preview the currently loaded dataset
+    """
+    if CURRENT_DATASET is None:
+        raise HTTPException(status_code=404, detail="No dataset loaded")
+
+    return preview_Data(CURRENT_DATASET)
+
+
+@router.get("/api/data/stats")
+def dataset_statistics():
+    """
+    Get statistics of the currently loaded dataset
+    """
+    if CURRENT_DATASET is None:
+        raise HTTPException(status_code=404, detail="No dataset loaded")
+
+    return dataset_stats(CURRENT_DATASET)
