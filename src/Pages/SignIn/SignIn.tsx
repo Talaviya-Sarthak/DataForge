@@ -12,15 +12,17 @@
 import { FaGithub, FaGoogle, FaLock, FaMicrosoft, FaUser } from "react-icons/fa";
 import { HiEye, HiOutlineMail } from "react-icons/hi";
 import { GradientBars } from "../../components/ui/GradientBars";
-import { Link,useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useState,useEffect } from "react";
+import { useToast } from "@/components/ui/toast/toast"
 /** SignIn: Presentational component for user sign-in screen. */
 export default function SignIn() {
 
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const { show } = useToast()
     const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
-    const navigate=useNavigate()
+    const navigate = useNavigate()
     function validate() {
         const e: typeof errors = {};
 
@@ -39,9 +41,9 @@ export default function SignIn() {
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
         if (!validate()) return;
+        show({type:"success",message:"You Login Sucessfully"})
         navigate("/HomePage");
     }
-
 
     return (
         <form onSubmit={handleSubmit}>
@@ -77,7 +79,7 @@ export default function SignIn() {
                             </span>
                             <input
                                 type="email"
-                                 name="email"
+                                name="email"
                                 autoComplete="email"
                                 placeholder="Email Address"
                                 value={email}
@@ -137,8 +139,8 @@ export default function SignIn() {
                     </div>
 
                     {/* Sign In */}
-                    <button className="relative group w-full h-10 rounded-lg mt-5 text-white bg-[#0f0f10] text-sm font-medium border-white/15 border transition-all overflow-hidden cursor-pointer">
-                        <span className="relative z-10">
+                    <button className="relative group w-full h-10 rounded-lg mt-5 text-white bg-[#0f0f10] text-sm font-medium border-white/15 border transition-all overflow-hidden cursor-pointer" >
+                        <span className="relative z-10" >
                             Sign In
                         </span>
 

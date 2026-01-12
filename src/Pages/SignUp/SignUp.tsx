@@ -14,6 +14,7 @@ import { HiEye, HiOutlineMail, HiUser } from "react-icons/hi";
 import { GradientBars } from "../../components/ui/GradientBars";
 import { Link,useNavigate } from "react-router-dom";
 import { useState } from "react";
+import { useToast } from "@/components/ui/toast/toast"
 /** SignUp: Presentational component for user registration. */
 export default function SignUp() {
 
@@ -21,6 +22,7 @@ export default function SignUp() {
     const [password, setPassword] = useState("");
     const [errors, setErrors] = useState<{ email?: string; password?: string; agree?: string }>({});
     const [agree, setAgree] = useState(false);
+    const { show } = useToast()
     const navigate = useNavigate();
 
     function validate() {
@@ -45,6 +47,7 @@ export default function SignUp() {
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
         if (!validate()) return;
+        show({type:"success",message:"New Account Created Sucessfully"})
         navigate("/HomePage");
     }
 
