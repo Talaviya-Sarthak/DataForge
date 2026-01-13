@@ -1,6 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
-from typing import Optional
 import pandas as pd
+import math
 
 from app.data.loader import load_Data
 from app.data.preview import preview_Data
@@ -8,48 +8,46 @@ from app.data.stats import dataset_stats
 
 router = APIRouter()
 
-# Global variable to store ONLY ONE dataset
-CURRENT_DATASET: Optional[pd.DataFrame] = None
+CURRENT_DATASET = None
 
 
-@router.post("/api/data/load")
-async def load_dataset(file: UploadFile = File(...)):
-    """
-    Upload dataset once and store it in memory
-    """
+@router.post("/data/upload")
+async def upload_dataset(file: UploadFile = File(...)):
     global CURRENT_DATASET
 
     try:
         df = load_Data(file)
+
+        # Clean NaN & inf for JSON safety
+        df = df.replace([float("inf"), float("-inf")], None)
+
         CURRENT_DATASET = df
 
+        # Preview
+        preview = preview_Data(df)
+
+        # Stats
+        stats = dataset_stats(df)
+
+        # Infer numeric vs categorical
+        numeric_cols = []
+        categorical_cols = []
+
+        for col in df.columns:
+            sample = df[col].dropna().iloc[0] if not df[col].dropna().empty else None
+            if isinstance(sample, (int, float)):
+                numeric_cols.append(col)
+            else:
+                categorical_cols.append(col)
+
         return {
-            "message": "Dataset loaded successfully",
-            "rows": df.shape[0],
-            "columns": df.shape[1]
+            "data": preview["rows"],
+            "rows": len(df),
+            "columns": len(df.columns),
+            "numerical_columns": numeric_cols,
+            "categorical_columns": categorical_cols,
+            "statistics": stats
         }
 
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
-
-@router.get("/api/data/preview")
-def dataset_preview():
-    """
-    Preview the currently loaded dataset
-    """
-    if CURRENT_DATASET is None:
-        raise HTTPException(status_code=404, detail="No dataset loaded")
-
-    return preview_Data(CURRENT_DATASET)
-
-
-@router.get("/api/data/stats")
-def dataset_statistics():
-    """
-    Get statistics of the currently loaded dataset
-    """
-    if CURRENT_DATASET is None:
-        raise HTTPException(status_code=404, detail="No dataset loaded")
-
-    return dataset_stats(CURRENT_DATASET)
