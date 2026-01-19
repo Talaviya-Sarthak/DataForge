@@ -6,15 +6,14 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="MLService",
         version="1.0.0",
-        description="ML Service Backend API"
+        description="ML Microservice API"
     )
 
-    # CORS
+    # CORS: allow ONLY Node.js backend
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[
-            "http://localhost:5173",
-            "http://localhost:3000",
+            "http://localhost:5000",  # Node.js backend
         ],
         allow_credentials=True,
         allow_methods=["*"],

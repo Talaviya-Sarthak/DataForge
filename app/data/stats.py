@@ -1,3 +1,18 @@
+import math
+
+
+def _safe_number(value):
+    """Return None for NaN/inf; otherwise a Python float."""
+    if value is None or isinstance(value, str):
+        return None
+    try:
+        if math.isnan(value) or math.isinf(value):
+            return None
+    except TypeError:
+        return None
+    return float(value)
+
+
 def dataset_stats(df):
     """
     Calculate statistics for numeric columns:
@@ -24,11 +39,11 @@ def dataset_stats(df):
             }
         else:
             stats[column] = {
-                "min": float(col_data.min()),
-                "q1": float(col_data.quantile(0.25)),
-                "median": float(col_data.median()),
-                "q3": float(col_data.quantile(0.75)),
-                "max": float(col_data.max())
+                "min": _safe_number(col_data.min()),
+                "q1": _safe_number(col_data.quantile(0.25)),
+                "median": _safe_number(col_data.median()),
+                "q3": _safe_number(col_data.quantile(0.75)),
+                "max": _safe_number(col_data.max())
             }
 
     return stats
