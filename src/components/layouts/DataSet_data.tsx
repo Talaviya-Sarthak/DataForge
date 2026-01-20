@@ -8,11 +8,13 @@ const uploadDataset = async (file: File) => {
   const formData = new FormData()
   formData.append("file", file)
 
-  const res = await fetch(`http://localhost:5000/api/datasets/upload`, {
-    method: "POST",
-    body: formData,
-  })
-
+  const res = await fetch(`${import.meta.env.VITE_NODE_API_URL}/api/datasets/upload`,
+    {
+      method: "POST",
+      body: formData,
+    }
+  );
+  
   if (!res.ok) throw new Error("Upload failed")
   return res.json()
 }
