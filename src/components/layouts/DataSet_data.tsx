@@ -8,7 +8,7 @@ const uploadDataset = async (file: File) => {
   const formData = new FormData()
   formData.append("file", file)
 
-  const res = await fetch("http://localhost:8000/api/data/upload", {
+  const res = await fetch(`http://localhost:5000/api/datasets/upload`, {
     method: "POST",
     body: formData,
   })
@@ -39,17 +39,20 @@ export const useDatasetUpload = () => {
   }
 }
 
-// ---------------- UI BELOW (unchanged) ----------------
+// ---------------- UI BELOW ----------------
 
 const fmt = (v: any) => (typeof v === "number" ? v.toFixed(2) : "—")
 
 const Dataset_tabledata = ({
   handleFileUpload,
   uploadMutation,
+  file,
 }: {
   handleFileUpload: (files: File[]) => void
   uploadMutation: any
+  file: File | null
 }) => {
+
   const dataset = uploadMutation.data
   const loading = uploadMutation.isPending
   const Error = uploadMutation.isError
@@ -87,7 +90,7 @@ const Dataset_tabledata = ({
           </div>
         )}
 
-        {dataset && <DataTable data={dataset.data} />}
+        {dataset && <DataTable data={dataset.data ?? []} />}
 
         {dataset && (
           <div className="mt-4 flex justify-end max-w-6xl mx-auto">
@@ -102,17 +105,17 @@ const Dataset_tabledata = ({
 
         {dataset && (
           <div className="max-w-6xl mx-auto mt-10 grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Stat label="Total Rows" value={dataset.rows} />
-            <Stat label="Total Columns" value={dataset.columns} />
-            <Stat label="Numeric Columns" value={dataset.numerical_columns.length} />
-            <Stat label="Categorical Columns" value={dataset.categorical_columns.length} />
+            <Stat label="Total Rows" value={dataset.rows ?? 0} />
+            <Stat label="Total Columns" value={dataset.columns ?? 0} />
+            <Stat label="Numeric Columns" value={dataset.numerical_columns?.length ?? 0} />
+            <Stat label="Categorical Columns" value={dataset.categorical_columns?.length ?? 0} />
           </div>
         )}
 
         {dataset && (
           <div className="max-w-6xl mx-auto mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-            <ColumnBox title="Numeric Columns" data={dataset.numerical_columns} />
-            <ColumnBox title="Categorical Columns" data={dataset.categorical_columns} />
+            <ColumnBox title="Numeric Columns" data={dataset.numerical_columns ?? []} />
+            <ColumnBox title="Categorical Columns" data={dataset.categorical_columns ?? []} />
           </div>
         )}
 
