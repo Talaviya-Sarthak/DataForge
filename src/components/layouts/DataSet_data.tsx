@@ -8,8 +8,13 @@ const uploadDataset = async (file: File) => {
   const formData = new FormData()
   formData.append("file", file)
 
+  const apiBase =
+    import.meta.env.VITE_API_URL ||
+    import.meta.env.VITE_NODE_API_URL ||
+    "http://localhost:5000"
+
   const res = await fetch(
-    `${import.meta.env.VITE_NODE_API_URL}/api/datasets/upload`,
+    `${apiBase}/api/datasets/upload`,
     {
       method: "POST",
       body: formData,
