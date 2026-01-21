@@ -1,18 +1,24 @@
 const mysql = require("mysql2");
 
-const db = mysql.createConnection({
-  host: "localhost",
-  user: "root",
-  password: "Root@280",       // change if you set password
-  database: "dataforge",
-});
+let db = null;
 
-db.connect((err) => {
-  if (err) {
-    console.error("❌ MySQL Connection Failed:", err);
-  } else {
-    console.log("✅ MySQL connected successfully");
-  }
-});
+if (process.env.USE_DB === "true") {
+  db = mysql.createConnection({
+    host: process.env.DB_HOST || "localhost",
+    user: process.env.DB_USER || "root",
+    password: process.env.DB_PASSWORD || "",
+    database: process.env.DB_NAME || "dataforge",
+  });
+
+  db.connect((err) => {
+    if (err) {
+      console.error("❌ MySQL Connection Failed:", err.message);
+    } else {
+      console.log("✅ MySQL connected successfully");
+    }
+  });
+} else {
+  console.log("⚠️ MySQL disabled (USE_DB=false)");
+}
 
 module.exports = db;
