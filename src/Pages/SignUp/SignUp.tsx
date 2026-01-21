@@ -18,6 +18,7 @@ import { useToast } from "@/components/ui/toast/toast"
 /** SignUp: Presentational component for user registration. */
 export default function SignUp() {
 
+    const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [errors, setErrors] = useState<{ email?: string; password?: string; agree?: string }>({});
@@ -47,8 +48,21 @@ export default function SignUp() {
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
         if (!validate()) return;
-        show({type:"success",message:"New Account Created Sucessfully"})
-        navigate("/HomePage");
+
+        fetch("http://localhost:5000/api/users/signup", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name, email, password }),
+        })
+            .then(async (r) => {
+                const data = await r.json().catch(() => ({}));
+                if (!r.ok) throw new Error(data?.error || "Signup failed");
+                show({ type: "success", message: "New account created successfully" });
+                navigate("/SignIn");
+            })
+            .catch((err) => {
+                show({ type: "error", message: err?.message || "Signup failed" });
+            });
     }
 
     return (
@@ -86,6 +100,8 @@ export default function SignUp() {
                             <input
                                 type="text"
                                 placeholder="John Doe"
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
                                 className="auth-input bg-transparent outline-none w-full text-sm"
                             />
                         </div>
