@@ -3,42 +3,47 @@ const bcrypt = require("bcrypt");
 const router = express.Router();
 
 const { findUserByEmail } = require("../Database/signinModel");
+const { insertUser } = require("../Database/signupModel");
 
 // =======================
-// ✅ SIGN IN
+// ✅ SIGN UP
 // =======================
-router.post("/signin", async (req, res) => {
+router.post("/signup", async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { name, email, password } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({ error: "Email and password required" });
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: "Name, email and password are required" });
     }
 
-    const user = await findUserByEmail(email);
-
-    if (!user) {
-      return res.status(401).json({ error: "Invalid email or password" });
+    // 1️⃣ Check if email already exists
+    const existing = await findUserByEmail(email);
+    if (existing) {
+      return res.status(409).json({ error: "Email already registered" });
     }
 
-    const isMatch = await bcrypt.compare(password, user.password);
+    // 2️⃣ Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    if (!isMatch) {
-      return res.status(401).json({ error: "Invalid email or password" });
-    }
-
-    res.json({
-      message: "Login successful",
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email
+    // 3️⃣ Insert user
+    insertUser(name, email, hashedPassword, (err, result) => {
+      if (err) {
+        console.error("❌ Signup Insert Error:", err);
+        return res.status(500).json({ error: "Failed to create account" });
       }
-    });
 
+      return res.status(201).json({
+        message: "Account created",
+        user: {
+          id: result?.insertId,
+          name,
+          email
+        }
+      });
+    });
   } catch (err) {
-    console.error("❌ Signin Error:", err);
-    res.status(500).json({ error: "Login failed" });
+    console.error("❌ Signup Error:", err);
+    res.status(500).json({ error: "Server error during sign up" });
   }
 });
 
