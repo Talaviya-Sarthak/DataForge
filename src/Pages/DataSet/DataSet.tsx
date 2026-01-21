@@ -9,7 +9,7 @@ import { useEffect } from "react"
 
 const Dataset = () => {
   const { show } = useToast()
-  const { handleFileUpload, uploadMutation ,file} = useDatasetUpload()
+  const { handleFileUpload, uploadMutation, file, uploadKey, resetUpload } = useDatasetUpload()
 
   useEffect(() => {
     if (uploadMutation.isError) {
@@ -22,18 +22,20 @@ const Dataset = () => {
 
   return (
     <div className="relative flex flex-col min-h-screen bg-slate-950 overflow-hidden">
-      <div className="absolute top-[-60px] left-0 w-full h-[360px] z-0 pointer-events-none">
+      <div className="absolute top-[-90px] left-0 w-full h-[360px] z-0 pointer-events-none">
         <LampDemo />
       </div>
 
       <div className="relative z-10 flex flex-col min-h-screen">
         <Header />
 
-       <Dataset_tabledata
-  handleFileUpload={handleFileUpload}
-  uploadMutation={uploadMutation}
-  file={file} // <-- pass the uploaded file here
-/>
+        <Dataset_tabledata
+          handleFileUpload={handleFileUpload}
+          uploadMutation={uploadMutation}
+          file={file}
+          uploadKey={uploadKey}
+          resetUpload={resetUpload}
+        />
 
         <Footer />
       </div>

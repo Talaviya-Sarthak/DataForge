@@ -13,19 +13,21 @@ const uploadDataset = async (file: File) => {
     import.meta.env.VITE_NODE_API_URL ||
     "http://localhost:5000"
 
-  const res = await fetch(`${apiBase}/api/datasets/upload`,
+  const res = await fetch(
+    `${apiBase}/api/datasets/upload`,
     {
       method: "POST",
       body: formData,
     }
-  );
-  
+  )
+
   if (!res.ok) throw new Error("Upload failed")
   return res.json()
 }
 
 export const useDatasetUpload = () => {
   const [file, setFile] = useState<File | null>(null)
+  const [uploadKey, setUploadKey] = useState(0)
 
   const uploadMutation = useMutation({
     mutationFn: uploadDataset,
@@ -39,10 +41,18 @@ export const useDatasetUpload = () => {
     uploadMutation.mutate(files[0])
   }
 
+  const resetUpload = () => {
+    uploadMutation.reset()
+    setFile(null)
+    setUploadKey(k => k + 1)
+  }
+
   return {
     handleFileUpload,
     uploadMutation,
     file,
+    uploadKey,
+    resetUpload,
   }
 }
 
@@ -54,10 +64,14 @@ const Dataset_tabledata = ({
   handleFileUpload,
   uploadMutation,
   file,
+  uploadKey,
+  resetUpload,
 }: {
   handleFileUpload: (files: File[]) => void
   uploadMutation: any
   file: File | null
+  uploadKey: number
+  resetUpload: () => void
 }) => {
 
   const dataset = uploadMutation.data
@@ -75,13 +89,13 @@ const Dataset_tabledata = ({
         </p>
 
         <div className="w-full max-w-4xl mx-auto min-h-80 rounded-lg">
-          <FileUpload onChange={handleFileUpload} />
+          <FileUpload key={uploadKey} onChange={handleFileUpload} />
         </div>
       </div>
 
       <div className="mb-12 -mt-16">
         {loading && (
-          <div className="flex justify-center">
+          <div className="flex justify-center mt-15">
             <div className="h-10 w-10 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
           </div>
         )}
@@ -89,7 +103,7 @@ const Dataset_tabledata = ({
         {Error && (
           <div className="flex justify-center">
             <button
-              onClick={() => uploadMutation.reset()}
+              onClick={resetUpload}
               className="px-3 py-2 text-sm rounded-md bg-red-700 text-white hover:bg-red-900"
             >
               Remove
@@ -102,7 +116,7 @@ const Dataset_tabledata = ({
         {dataset && (
           <div className="mt-4 flex justify-end max-w-6xl mx-auto">
             <button
-              onClick={() => uploadMutation.reset()}
+              onClick={resetUpload}
               className="px-3 py-2 text-sm rounded-md bg-red-700 text-white hover:bg-red-900"
             >
               Remove Dataset
