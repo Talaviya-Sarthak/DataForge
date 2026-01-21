@@ -41,8 +41,21 @@ export default function SignIn() {
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
         if (!validate()) return;
-        show({type:"success",message:"You Login Sucessfully"})
-        navigate("/HomePage");
+
+        fetch("http://localhost:5000/api/auth/signin", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password }),
+        })
+            .then(async (r) => {
+                const data = await r.json().catch(() => ({}));
+                if (!r.ok) throw new Error(data?.error || "Login failed");
+                show({ type: "success", message: "You logged in successfully" });
+                navigate("/HomePage");
+            })
+            .catch((err) => {
+                show({ type: "error", message: err?.message || "Login failed" });
+            });
     }
 
     return (
