@@ -40,9 +40,11 @@ def dataset_stats(df):
         else:
             stats[column] = {
                 "min": _safe_number(col_data.min()),
-                "q1": _safe_number(col_data.quantile(0.25)),
+                # "q1": _safe_number(col_data.quantile(0.25)),
+                "mean":_safe_number(col_data.mean()),
                 "median": _safe_number(col_data.median()),
-                "q3": _safe_number(col_data.quantile(0.75)),
+                # "q3": _safe_number(col_data.quantile(0.75)),
+                "std":_safe_number(col_data.std()),
                 "max": _safe_number(col_data.max())
             }
 
