@@ -14,7 +14,7 @@ import { HiEye, HiOutlineMail } from "react-icons/hi";
 import { GradientBars } from "../../components/ui/GradientBars";
 import { Link, useNavigate } from "react-router-dom";
 import { useState,useEffect } from "react";
-import { useToast } from "@/components/ui/toast/toast"
+import { useToast } from "@/components/ui/toast/Toast"
 /** SignIn: Presentational component for user sign-in screen. */
 export default function SignIn() {
 
@@ -42,11 +42,19 @@ export default function SignIn() {
         e.preventDefault();
         if (!validate()) return;
 
-        fetch("http://localhost:5000/api/auth/signin", {
+        const apiBase = import.meta.env.VITE_NODE_API_URL;
+        
+        if (!apiBase) {
+            show({ type: "error", message: "API URL not configured. Please set VITE_NODE_API_URL in .env file" });
+            return;
+        }
+        
+        fetch(`${apiBase}/api/auth/signin`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email, password }),
         })
+        
             .then(async (r) => {
                 const data = await r.json().catch(() => ({}));
                 if (!r.ok) throw new Error(data?.error || "Login failed");
