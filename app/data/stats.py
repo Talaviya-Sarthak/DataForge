@@ -32,9 +32,9 @@ def dataset_stats(df):
         if col_data.empty:
             stats[column] = {
                 "min": None,
-                "q1": None,
+                "mean": None,
                 "median": None,
-                "q3": None,
+                "std": None,
                 "max": None
             }
         else:
