@@ -14,20 +14,24 @@ import { HiEye, HiOutlineMail, HiUser } from "react-icons/hi";
 import { GradientBars } from "../../components/ui/GradientBars";
 import { Link,useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { useToast } from "@/components/ui/toast/toast"
+import { useToast } from "@/components/ui/toast/Toast"
 /** SignUp: Presentational component for user registration. */
 export default function SignUp() {
 
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
-    const [errors, setErrors] = useState<{ email?: string; password?: string; agree?: string }>({});
+    const [errors, setErrors] = useState<{ name?: string; email?: string; password?: string; agree?: string }>({});
     const [agree, setAgree] = useState(false);
     const { show } = useToast()
     const navigate = useNavigate();
 
     function validate() {
         const e: typeof errors = {};
+
+        if (!name || name.trim().length === 0) {
+            e.name = "Name is required";
+        }
 
         if (!email) e.email = "Email is required";
         else if (!/^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,10}$/.test(email))
@@ -37,9 +41,9 @@ export default function SignUp() {
         else if (password.length < 8)
             e.password = "Password must be at least 8 characters";
 
-          if (!agree) {
-    e.agree = "You must accept Terms & Privacy";
-  }
+        if (!agree) {
+            e.agree = "You must accept Terms & Privacy";
+        }
 
         setErrors(e);
         return Object.keys(e).length === 0;
@@ -49,11 +53,19 @@ export default function SignUp() {
         e.preventDefault();
         if (!validate()) return;
 
-        fetch("http://localhost:5000/api/users/signup", {
+        const apiBase = import.meta.env.VITE_NODE_API_URL;
+        
+        if (!apiBase) {
+            show({ type: "error", message: "API URL not configured. Please set VITE_NODE_API_URL in .env file" });
+            return;
+        }
+        
+        fetch(`${apiBase}/api/users/signup`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ name, email, password }),
         })
+        
             .then(async (r) => {
                 const data = await r.json().catch(() => ({}));
                 if (!r.ok) throw new Error(data?.error || "Signup failed");
@@ -93,7 +105,7 @@ export default function SignUp() {
                     <div className="space-y-3 mt-5">
 
                         {/* Name */}
-                        <div className="bg-[#0f0f0f] border border-white/15 rounded-lg px-3 h-10 flex items-center text-gray-300 focus-within:border-white transition">
+                        <div className={`bg-[#0f0f0f] border rounded-lg px-3 h-10 flex items-center text-gray-300 focus-within:border-white transition ${errors.name ? "border-red-500" : "border-white/15"}`}>
                             <span className="mr-2 text-gray-400">
                                 <HiUser />
                             </span>
@@ -101,10 +113,18 @@ export default function SignUp() {
                                 type="text"
                                 placeholder="John Doe"
                                 value={name}
-                                onChange={(e) => setName(e.target.value)}
+                                onChange={(e) => {
+                                    setName(e.target.value);
+                                    if (errors.name) {
+                                        setErrors((prev) => ({ ...prev, name: undefined }));
+                                    }
+                                }}
                                 className="auth-input bg-transparent outline-none w-full text-sm"
                             />
                         </div>
+                        {errors.name && (
+                            <p className="text-red-500 text-xs mt-1">{errors.name}</p>
+                        )}
 
                         {/* Email */}
                         <div className="bg-[#0f0f0f] border border-white/15 rounded-lg px-3 h-10 flex items-center text-gray-300 focus-within:border-white transition">
