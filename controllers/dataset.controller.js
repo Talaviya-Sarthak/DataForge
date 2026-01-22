@@ -11,7 +11,7 @@ exports.uploadDataset = async (req, res) => {
     }
 
     // Forward file to ML service
-    const mlServiceUrl = process.env.ML_SERVICE_URL || "http://localhost:8000";
+    const mlServiceUrl = process.env.ML_SERVICE_URL;
     const filePath = req.file.path;
     
     // Create form data to forward to ML service

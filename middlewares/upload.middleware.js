@@ -2,8 +2,8 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 
-const uploadDir = process.env.UPLOAD_DIR || "uploads";
-const maxSize = process.env.MAX_FILE_SIZE || 52428800;
+const uploadDir = process.env.UPLOAD_DIR;
+const maxSize = process.env.MAX_FILE_SIZE;
 
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
@@ -14,9 +14,11 @@ const storage = multer.diskStorage({
   filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname)),
 });
 
+const allowedMimeTypes = process.env.ALLOWED_FILE_TYPES.split(",").map(t => t.trim());
+
 const fileFilter = (req, file, cb) => {
-  if (file.mimetype === "text/csv") cb(null, true);
-  else cb(new Error("Only CSV files are allowed"), false);
+  if (allowedMimeTypes.includes(file.mimetype)) cb(null, true);
+  else cb(new Error(`Only ${allowedMimeTypes.join(", ")} files are allowed`), false);
 };
 
 // **Export multer factory, not instance**

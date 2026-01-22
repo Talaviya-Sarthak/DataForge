@@ -23,23 +23,19 @@ router.post("/signup", async (req, res) => {
     }
 
     // 2️⃣ Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS);
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
 
     // 3️⃣ Insert user
-    insertUser(name, email, hashedPassword, (err, result) => {
-      if (err) {
-        console.error("❌ Signup Insert Error:", err);
-        return res.status(500).json({ error: "Failed to create account" });
-      }
+    const result = await insertUser(name, email, hashedPassword);
 
-      return res.status(201).json({
-        message: "Account created",
-        user: {
-          id: result?.insertId,
-          name,
-          email
-        }
-      });
+    return res.status(201).json({
+      message: "Account created successfully",
+      user: {
+        id: result.insertId,
+        name,
+        email
+      }
     });
   } catch (err) {
     console.error("❌ Signup Error:", err);
