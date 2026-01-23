@@ -25,3 +25,8 @@ Thumbs.db
 # =========================
 .vscode/
 .idea/
+
+# =========================
+.__init__.pypyc
+.__init__.PY
+# Jupyter Notebook checkpoints
