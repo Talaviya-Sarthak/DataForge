@@ -2,6 +2,7 @@ import pandas as pd
 
 from .missing_values import ColumnWiseMissingValueImputer
 from .encoding import EncodingValue
+from .value_standardization import ValueStandardization
 from .scaling import ScalingValues
 from .outliers import HandlingOutliers
 from .feature_selection import FeatureSelection
@@ -39,6 +40,9 @@ class PreprocessingPipeline:
         if self.missing_value_steps:
             df = ColumnWiseMissingValueImputer(self.missing_value_steps).apply(df)
 
+        if self.value_standardization_steps:
+            df = ValueStandardization(self.value_standardization_steps).apply(df)
+            
         # 2️⃣ Outlier Handling
         if self.outlier_steps:
             df = HandlingOutliers(self.outlier_steps).apply(df)
