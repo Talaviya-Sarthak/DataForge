@@ -15,15 +15,16 @@ import { GradientBars } from "../../components/ui/GradientBars";
 import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { useToast } from "@/components/ui/toast/Toast"
+
 /** SignIn: Presentational component for user sign-in screen. */
 export default function SignIn() {
-
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
     const { show } = useToast()
     const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
     const navigate = useNavigate()
+
     function validate() {
         const e: typeof errors = {};
 
@@ -43,7 +44,14 @@ export default function SignIn() {
         e.preventDefault();
         if (!validate()) return;
 
-        fetch("http://localhost:5000/api/auth/signin", {
+        const apiBase = import.meta.env.VITE_NODE_API_URL;
+        
+        if (!apiBase) {
+            show({ type: "error", message: "API URL not configured. Please set VITE_NODE_API_URL in .env file" });
+            return;
+        }
+        
+        fetch(`${apiBase}/api/auth/signin`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email, password }),
@@ -64,7 +72,6 @@ export default function SignIn() {
             <div className="min-h-screen bg-black flex items-center justify-center">
                 <GradientBars />
                 <div className="bg-[#0c0c0c] border border-white/10 rounded-xl p-6 w-[360px] shadow-2xl z-10">
-
                     {/* Avatar */}
                     <div className="flex justify-center mb-4">
                         <div className="w-14 h-14 rounded-full bg-[#141414] border border-white/10 flex items-center justify-center">
@@ -84,7 +91,6 @@ export default function SignIn() {
 
                     {/* Inputs */}
                     <div className="space-y-3 mt-5">
-
                         {/* Email */}
                         <div className={`bg-[#0f0f0f] border rounded-lg px-3 h-10 flex items-center text-gray-300 focus-within:border-white transition ${errors.email ? "border-red-500" : "border-white/15"
                             }`}>
@@ -99,7 +105,6 @@ export default function SignIn() {
                                 value={email}
                                 onChange={(e) => {
                                     setEmail(e.target.value);
-
                                     // clear email error as soon as user types
                                     if (errors.email) {
                                         setErrors((prev) => ({ ...prev, email: undefined }));
@@ -120,7 +125,7 @@ export default function SignIn() {
                             <input
                                 type={showPassword ? "text" : "password"}
                                 placeholder="Password"
-                                autoComplete="current-password" // signin
+                                autoComplete="current-password"
                                 value={password}
                                 onChange={(e) => {
                                     setPassword(e.target.value);
@@ -128,13 +133,11 @@ export default function SignIn() {
                                         setErrors((prev) => ({ ...prev, password: undefined }));
                                     }
                                 }}
-
                                 className="auth-input bg-transparent outline-none w-full text-sm"
                             />
                             <span className="text-gray-400 cursor-pointer ml-2" onClick={() => setShowPassword(!showPassword)}>
                                 {showPassword ? <HiEyeOff /> : <HiEye />}
                             </span>
-
                         </div>
                         {errors.password && (
                             <p className="text-red-500 text-xs mt-1">{errors.password}</p>
@@ -153,11 +156,10 @@ export default function SignIn() {
                     </div>
 
                     {/* Sign In */}
-                    <button className="relative group w-full h-10 rounded-lg mt-5 text-white bg-[#0f0f10] text-sm font-medium border-white/15 border transition-all overflow-hidden cursor-pointer" >
-                        <span className="relative z-10" >
+                    <button className="relative group w-full h-10 rounded-lg mt-5 text-white bg-[#0f0f10] text-sm font-medium border-white/15 border transition-all overflow-hidden cursor-pointer">
+                        <span className="relative z-10">
                             Sign In
                         </span>
-
                         {/* silver–ruby gloss pass */}
                         <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r via-[#e60a64]/60 to-transparent opacity-0 group-hover:opacity-100 group-hover:translate-x-full duration-[1600ms] ease-[cubic-bezier(0.45,0,0.2,1)] transition blur-sm" />
                     </button>
@@ -165,11 +167,9 @@ export default function SignIn() {
                     {/* Divider */}
                     <div className="flex items-center gap-3 my-4">
                         <div className="h-[1px] bg-white/10 flex-1" />
-
                         <div className="text-center text-xs text-gray-400 leading-snug">
                             Or SignIn With
                         </div>
-
                         <div className="h-[1px] bg-white/10 flex-1" />
                     </div>
 
@@ -178,11 +178,9 @@ export default function SignIn() {
                         <GlossButton>
                             <FaGoogle />
                         </GlossButton>
-
                         <GlossButton>
                             <FaGithub />
                         </GlossButton>
-
                         <GlossButton>
                             <FaMicrosoft />
                         </GlossButton>
@@ -196,7 +194,6 @@ export default function SignIn() {
                                 Sign up
                             </span>
                         </Link>
-
                     </p>
                 </div>
             </div>
@@ -214,7 +211,6 @@ function GlossButton({ children }: { children: React.ReactNode }) {
             <span className="relative z-10 opacity-80 group-hover:opacity-100 transition">
                 {children}
             </span>
-
             {/* ruby–silver premium gloss pass */}
             <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-[#e60a64]/60 to-transparent opacity-0 group-hover:opacity-100 group-hover:translate-x-full duration-[1600ms] ease-[cubic-bezier(0.45,0,0.2,1)] transition blur-sm" />
         </button>

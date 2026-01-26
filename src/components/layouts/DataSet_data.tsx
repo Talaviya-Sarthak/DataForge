@@ -10,10 +10,11 @@ const uploadDataset = async (file: File) => {
   const formData = new FormData()
   formData.append("file", file)
 
-  const apiBase =
-    import.meta.env.VITE_API_URL ||
-    import.meta.env.VITE_NODE_API_URL ||
-    "http://localhost:5000"
+  const apiBase = import.meta.env.VITE_NODE_API_URL;
+  
+  if (!apiBase) {
+    throw new Error("API URL not configured. Please set VITE_NODE_API_URL in .env file");
+  }
 
   const res = await fetch(
     `${apiBase}/api/datasets/upload`,
