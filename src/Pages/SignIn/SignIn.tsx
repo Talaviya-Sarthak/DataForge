@@ -10,16 +10,17 @@
 "use client";
 
 import { FaGithub, FaGoogle, FaLock, FaMicrosoft, FaUser } from "react-icons/fa";
-import { HiEye, HiOutlineMail } from "react-icons/hi";
+import { HiEye, HiEyeOff, HiOutlineMail } from "react-icons/hi";
 import { GradientBars } from "../../components/ui/GradientBars";
 import { Link, useNavigate } from "react-router-dom";
-import { useState,useEffect } from "react";
-import { useToast } from "@/components/ui/toast/toast"
+import { useState } from "react";
+import { useToast } from "@/components/ui/toast/Toast"
 /** SignIn: Presentational component for user sign-in screen. */
 export default function SignIn() {
 
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [showPassword, setShowPassword] = useState(false);
     const { show } = useToast()
     const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
     const navigate = useNavigate()
@@ -117,7 +118,7 @@ export default function SignIn() {
                                 <FaLock />
                             </span>
                             <input
-                                type="password"
+                                type={showPassword ? "text" : "password"}
                                 placeholder="Password"
                                 autoComplete="current-password" // signin
                                 value={password}
@@ -130,8 +131,8 @@ export default function SignIn() {
 
                                 className="auth-input bg-transparent outline-none w-full text-sm"
                             />
-                            <span className="text-gray-400 cursor-pointer ml-2">
-                                <HiEye />
+                            <span className="text-gray-400 cursor-pointer ml-2" onClick={() => setShowPassword(!showPassword)}>
+                                {showPassword ? <HiEyeOff /> : <HiEye />}
                             </span>
 
                         </div>

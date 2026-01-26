@@ -1,8 +1,10 @@
 import { FileUpload } from "@/components/ui/file-upload"
-import { useState } from "react"
-import DataTable from "@/components/ui/DataTable"
+import { useState, Suspense, lazy } from "react"
 import { useMutation } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
+
+// Lazy load DataTable since it's only needed when data is uploaded
+const DataTable = lazy(() => import("@/components/ui/DataTable"))
 
 const uploadDataset = async (file: File) => {
   const formData = new FormData()
@@ -63,17 +65,14 @@ const fmt = (v: any) => (typeof v === "number" ? v.toFixed(2) : "—")
 const Dataset_tabledata = ({
   handleFileUpload,
   uploadMutation,
-  file,
   uploadKey,
   resetUpload,
 }: {
   handleFileUpload: (files: File[]) => void
   uploadMutation: any
-  file: File | null
   uploadKey: number
   resetUpload: () => void
 }) => {
-
   const dataset = uploadMutation.data
   const loading = uploadMutation.isPending
   const Error = uploadMutation.isError
@@ -88,7 +87,7 @@ const Dataset_tabledata = ({
           Choose files and upload them below
         </p>
 
-        <div className="w-full max-w-4xl mx-auto min-h-80 rounded-lg">
+        <div className="w-full max-w-4xl xl:max-w-5xl 2xl:max-w-6xl mx-auto min-h-80 rounded-lg">
           <FileUpload key={uploadKey} onChange={handleFileUpload} />
         </div>
       </div>
@@ -111,10 +110,18 @@ const Dataset_tabledata = ({
           </div>
         )}
 
-        {dataset && <DataTable data={dataset.data ?? []} />}
+        {dataset && (
+          <Suspense fallback={
+            <div className="flex justify-center mt-16">
+              <div className="h-10 w-10 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
+            </div>
+          }>
+            <DataTable data={dataset.data ?? []} />
+          </Suspense>
+        )}
 
         {dataset && (
-          <div className="mt-4 flex justify-end max-w-6xl mx-auto">
+          <div className="mt-4 flex justify-end max-w-6xl xl:max-w-7xl 2xl:max-w-8xl mx-auto">
             <button
               onClick={resetUpload}
               className="px-3 py-2 text-sm rounded-md bg-red-700 text-white hover:bg-red-900"
@@ -125,7 +132,7 @@ const Dataset_tabledata = ({
         )}
 
         {dataset && (
-          <div className="max-w-6xl mx-auto mt-10 grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="max-w-6xl xl:max-w-7xl 2xl:max-w-8xl mx-auto mt-10 grid grid-cols-2 md:grid-cols-4 gap-4">
             <Stat label="Total Rows" value={dataset.rows ?? 0} />
             <Stat label="Total Columns" value={dataset.columns ?? 0} />
             <Stat label="Numeric Columns" value={dataset.numerical_columns?.length ?? 0} />
@@ -134,14 +141,14 @@ const Dataset_tabledata = ({
         )}
 
         {dataset && (
-          <div className="max-w-6xl mx-auto mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="max-w-6xl xl:max-w-7xl 2xl:max-w-8xl mx-auto mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
             <ColumnBox title="Numeric Columns" data={dataset.numerical_columns ?? []} />
             <ColumnBox title="Categorical Columns" data={dataset.categorical_columns ?? []} />
           </div>
         )}
 
         {dataset?.statistics && (
-          <div className="max-w-6xl mx-auto mt-10">
+          <div className="max-w-6xl xl:max-w-7xl 2xl:max-w-8xl mx-auto mt-10">
             <h3 className="text-lg font-semibold text-white mb-4">
               Statistical Summary
             </h3>
@@ -176,7 +183,7 @@ const Dataset_tabledata = ({
             <div className="flex justify-center mt-10 mb-16">
               <Link to="/Cleaning">
                 <button className="group relative w-36 h-10 rounded-lg text-white text-sm font-medium bg-[#0f0f10] border border-white/15 overflow-hidden transition-all duration-300 hover:shadow-[0_0_25px_#33E6FF55] hover:border-[#33E6FF]">
-                  <span className="relative z-10">Start Processing</span>
+                  <span className="relative z-10">Cleaning</span>
                   <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-[#33E6FF]/70 to-transparent opacity-0 group-hover:opacity-100 group-hover:translate-x-full duration-[1600ms] ease-[cubic-bezier(0.45,0,0.2,1)] blur-sm" />
                 </button>
               </Link>

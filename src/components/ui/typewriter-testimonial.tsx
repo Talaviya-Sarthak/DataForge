@@ -18,7 +18,6 @@ export const Component: React.FC<ComponentProps> = ({ testimonials }) => {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null); 
-  const [hasBeenHovered, setHasBeenHovered] = useState<boolean[]>(new Array(testimonials.length).fill(false));
   const [typedText, setTypedText] = useState('');
   const typewriterTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const currentTextRef = useRef('');
@@ -71,11 +70,7 @@ export const Component: React.FC<ComponentProps> = ({ testimonials }) => {
       
     });
     
-    setHasBeenHovered(prev => {
-      const updated = [...prev];
-      updated[index] = true;
-      return updated;
-    });
+    
     startTypewriter(testimonials[index].text);
   }, [testimonials, stopAudio, startTypewriter]); 
 

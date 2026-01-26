@@ -30,7 +30,7 @@ export default function DataTable({ data }: { data: Row[] }) {
   )
 
   return (
-    <div className="mt-16 max-w-6xl mx-auto text-white">
+    <div className="mt-16 max-w-6xl xl:max-w-7xl 2xl:max-w-8xl mx-auto text-white">
       <div className="overflow-hidden rounded-xl border border-neutral-800 bg-gradient-to-b from-neutral-900/80 to-black">
         <table className="w-full border-collapse">
           <thead>

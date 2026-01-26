@@ -100,7 +100,7 @@ const Testimonials = () => {
 
   return (
    <section className="w-full py-12 sm:py-20 md:py-28 bg-transparent">
-  <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+  <div className="max-w-6xl xl:max-w-7xl 2xl:max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
 
     {/* Section Badge */}
     <span className="inline-flex items-center gap-2 px-4 py-1.5

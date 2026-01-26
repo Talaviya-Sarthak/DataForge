@@ -3,12 +3,18 @@
 import React, { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Plus } from "lucide-react";
+import { Faq, FaqCategory, FaqData } from "./types";
 
 const FAQ = ({
   title = "Frequently Asked Questions",
   subtitle = "Let's answer some questions",
   categories,
   faqData,
+}: {
+  title?: string;
+  subtitle?: string;
+  categories: FaqCategory;
+  faqData: FaqData;
 }) => {
   const keys = Object.keys(categories);
   const [selected, setSelected] = useState(keys[0]);
@@ -30,7 +36,7 @@ const FAQ = ({
 
 /* ---------------- HEADER ---------------- */
 
-const FAQHeader = ({ title, subtitle }) => (
+const FAQHeader = ({ title, subtitle }: { title: string; subtitle: string }) => (
   <div className="relative z-10 mb-14 flex flex-col items-center text-center">
     <span className="mb-4 text-sm text-gray-400">{subtitle}</span>
     <h2 className="text-4xl font-bold md:text-5xl">{title}</h2>
@@ -39,7 +45,15 @@ const FAQHeader = ({ title, subtitle }) => (
 
 /* ---------------- TABS ---------------- */
 
-const FAQTabs = ({ categories, selected, setSelected }) => (
+const FAQTabs = ({
+  categories,
+  selected,
+  setSelected,
+}: {
+  categories: FaqCategory;
+  selected: string;
+  setSelected: (key: string) => void;
+}) => (
   <div className="relative z-10 mb-12 flex flex-wrap justify-center gap-4">
     {Object.entries(categories).map(([key, label]) => {
       const active = selected === key;
@@ -48,12 +62,13 @@ const FAQTabs = ({ categories, selected, setSelected }) => (
         <button
           key={key}
           onClick={() => setSelected(key)}
-          className={`relative overflow-hidden rounded-lg px-4 py-2 text-sm font-medium transition ${active
+          className={`relative overflow-hidden rounded-lg px-4 py-2 text-sm font-medium transition ${
+            active
               ? "text-black"
               : "text-gray-400 hover:text-white border border-white/10"
-            }`}
+          }`}
         >
-          <span className="relative z-10">{label}</span>
+          <span className="relative z-10">{label as React.ReactNode}</span>
 
           <AnimatePresence>
             {active && (
@@ -74,7 +89,13 @@ const FAQTabs = ({ categories, selected, setSelected }) => (
 
 /* ---------------- LIST ---------------- */
 
-const FAQList = ({ faqData, selected }) => (
+const FAQList = ({
+  faqData,
+  selected,
+}: {
+  faqData: FaqData;
+  selected: string;
+}) => (
   <div className="relative z-10 mx-auto max-w-3xl">
     <AnimatePresence mode="wait">
       {Object.entries(faqData).map(([key, items]) =>
@@ -87,7 +108,7 @@ const FAQList = ({ faqData, selected }) => (
             transition={{ duration: 0.4 }}
             className="space-y-4"
           >
-            {items.map((faq, i) => (
+            {(items as Faq[]).map((faq, i) => (
               <FAQItem key={i} {...faq} />
             ))}
           </motion.div>
@@ -99,7 +120,7 @@ const FAQList = ({ faqData, selected }) => (
 
 /* ---------------- ITEM ---------------- */
 
-const FAQItem = ({ question, answer }) => {
+const FAQItem = ({ question, answer }: Faq) => {
   const [isOpen, setIsOpen] = useState(false);
   const contentRef = React.useRef<HTMLDivElement>(null);
 
@@ -152,6 +173,5 @@ const FAQItem = ({ question, answer }) => {
     </div>
   );
 };
-
 
 export default FAQ;

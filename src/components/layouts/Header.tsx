@@ -85,7 +85,7 @@ const Header: React.FC = () => {
           className="h-32 sm:h-36 md:h-40 w-auto object-contain pb-2"
         />
       </Link>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+      <div className="max-w-7xl xl:max-w-8xl 2xl:max-w-9xl mx-auto px-4 sm:px-6 lg:px-8 relative">
         <div className="flex justify-between items-center">
           <div className="w-24 sm:w-32 md:w-40" />
 

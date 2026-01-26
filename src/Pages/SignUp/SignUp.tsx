@@ -10,17 +10,18 @@
 "use client";
 
 import { FaGithub, FaGoogle, FaLock, FaMicrosoft, FaUser } from "react-icons/fa";
-import { HiEye, HiOutlineMail, HiUser } from "react-icons/hi";
+import { HiEye, HiEyeOff, HiOutlineMail, HiUser } from "react-icons/hi";
 import { GradientBars } from "../../components/ui/GradientBars";
 import { Link,useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { useToast } from "@/components/ui/toast/toast"
+import { useToast } from "@/components/ui/toast/Toast"
 /** SignUp: Presentational component for user registration. */
 export default function SignUp() {
 
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [showPassword, setShowPassword] = useState(false);
     const [errors, setErrors] = useState<{ email?: string; password?: string; agree?: string }>({});
     const [agree, setAgree] = useState(false);
     const { show } = useToast()
@@ -138,7 +139,7 @@ export default function SignUp() {
                                 <FaLock />
                             </span>
                             <input
-                                type="password"
+                                type={showPassword ? "text" : "password"}
                                 placeholder="Password"
                                 autoComplete="new-password"  
                                 value={password}
@@ -150,8 +151,8 @@ export default function SignUp() {
                                 }}
                                 className="auth-input bg-transparent outline-none w-full text-sm"
                             />
-                            <span className="text-gray-400 cursor-pointer ml-2">
-                                <HiEye />
+                            <span className="text-gray-400 cursor-pointer ml-2" onClick={() => setShowPassword(!showPassword)}>
+                                {showPassword ? <HiEyeOff /> : <HiEye />}
                             </span>
                         </div>
                         {errors.password && (

@@ -1,4 +1,3 @@
-import BgAnimation from "@/components/layouts/BgAnimation";
 import Header from "@/components/layouts/Header";
 import FAQ from "@/components/ui/faq-tabs"
 

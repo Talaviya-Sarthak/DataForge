@@ -7,7 +7,7 @@ import { FaPlayCircle } from "react-icons/fa";
 import { Link } from "react-router-dom";
 const HeroText: React.FC = () => {
     return (
-        <div className="relative z-10 max-w-5xl mx-auto text-center px-4 sm:px-6 lg:px-8 mt-4 sm:mt-6 md:mt-8">
+        <div className="relative z-10 max-w-5xl xl:max-w-6xl 2xl:max-w-7xl mx-auto text-center px-4 sm:px-6 lg:px-8 mt-4 sm:mt-6 md:mt-8">
             <div className="text-xl sm:text-2xl md:text-[28px] font-bold">
                 <ShinyText
                     text="DataForge — AI-Driven Insights"
@@ -26,7 +26,7 @@ const HeroText: React.FC = () => {
                 <span className="inline-flex items-baseline gap-2">
                     Forge
                     <GradientText
-                        gradient={["#67E8F9", "#38BDF8", "#22D3EE"]}
+                        colors={["#67E8F9", "#38BDF8", "#22D3EE"]}
                         className="inline-block align-baseline leading-none"
                     >
                         Intelligence
@@ -68,7 +68,7 @@ const HeroText: React.FC = () => {
                     <FiBarChart2 className="mr-1 text-violet-300" />
 
                     <GradientText
-                        gradient={["#E9D5FF", "#C7D2FE", "#E0E7FF"]}
+                        colors={["#E9D5FF", "#C7D2FE", "#E0E7FF"]}
                     >
                         Trusted by teams who move faster with their data.
                     </GradientText>

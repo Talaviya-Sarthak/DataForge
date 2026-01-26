@@ -49,7 +49,7 @@ const features = [
 const Features: React.FC = () => {
   return (
     <div className="py-12 sm:py-16 md:py-20 bg-black mt-12 sm:mt-16 md:mt-20">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl xl:max-w-8xl 2xl:max-w-9xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* HEADING */}
         <div className="text-center mb-14">
           <div className="inline-block">

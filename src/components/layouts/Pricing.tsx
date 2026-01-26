@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Check } from 'lucide-react';
 
 const Pricing = () => {
@@ -51,7 +51,7 @@ const Pricing = () => {
 
   return (
     <div className="bg-black mt-12 sm:mt-16 md:mt-20">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+      <div className="max-w-7xl xl:max-w-8xl 2xl:max-w-9xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
         <div className="text-center max-w-3xl mx-auto mb-12">
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-black dark:text-white mb-4 tracking-tight">
             Plans and Pricing
@@ -82,8 +82,8 @@ const Pricing = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-7xl mx-auto">
-          {plans.map((plan, index) => (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-7xl xl:max-w-8xl mx-auto">
+          {plans.map((plan) => (
             <div
               key={plan.name}
               className={`relative rounded-2xl border p-6 transition-all duration-300 ${
