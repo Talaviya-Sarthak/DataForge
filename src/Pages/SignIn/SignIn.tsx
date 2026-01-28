@@ -44,6 +44,7 @@ export default function SignIn() {
         e.preventDefault();
         if (!validate()) return;
 
+<<<<<<< Updated upstream
         const apiBase = import.meta.env.VITE_NODE_API_URL;
         
         if (!apiBase) {
@@ -52,10 +53,14 @@ export default function SignIn() {
         }
         
         fetch(`${apiBase}/api/auth/signin`, {
+=======
+        fetch(`${import.meta.env.VITE_NODE_API_URL}/api/auth/signin`, {
+>>>>>>> Stashed changes
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email, password }),
         })
+        
             .then(async (r) => {
                 const data = await r.json().catch(() => ({}));
                 if (!r.ok) throw new Error(data?.error || "Login failed");

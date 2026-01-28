@@ -58,6 +58,7 @@ export default function SignUp() {
         e.preventDefault();
         if (!validate()) return;
 
+<<<<<<< Updated upstream
         const apiBase = import.meta.env.VITE_NODE_API_URL;
         
         if (!apiBase) {
@@ -66,9 +67,13 @@ export default function SignUp() {
         }
         
         fetch(`${apiBase}/api/users/signup`, {
+=======
+        
+        fetch(`${import.meta.env.VITE_NODE_API_URL}/api/auth/signup`, {
+>>>>>>> Stashed changes
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name, email, password }),
+            body: JSON.stringify({ name,email, password }),
         })
         
             .then(async (r) => {
