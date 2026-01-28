@@ -1,10 +1,10 @@
 import pandas as pd
 
-from .missing_values import ColumnWiseMissingValueImputer
-from .encoding import EncodingValue
 from .value_standardization import ValueStandardization
-from .scaling import ScalingValues
+from .missing_values import ColumnWiseMissingValueImputer
 from .outliers import HandlingOutliers
+from .encoding import EncodingValue
+from .scaling import ScalingValues
 from .feature_selection import FeatureSelection
 from .imbalance import HandlingImbalance
 
@@ -12,17 +12,15 @@ from .imbalance import HandlingImbalance
 class PreprocessingPipeline:
     def __init__(
         self,
-        missing_value_steps: list = None,
-        outlier_steps: list = None,
-        encoding_steps: list = None,
-        scaling_steps: list = None,
-        feature_selection_steps: list = None,
-        imbalance_steps: list = None,
+        value_standardization_steps=None,
+        missing_value_steps=None,
+        outlier_steps=None,
+        encoding_steps=None,
+        scaling_steps=None,
+        feature_selection_steps=None,
+        imbalance_steps=None,
     ):
-        """
-        Each argument is a list of transformation dicts
-        """
-
+        self.value_standardization_steps = value_standardization_steps or []
         self.missing_value_steps = missing_value_steps or []
         self.outlier_steps = outlier_steps or []
         self.encoding_steps = encoding_steps or []
@@ -31,36 +29,41 @@ class PreprocessingPipeline:
         self.imbalance_steps = imbalance_steps or []
 
     def run(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Apply preprocessing steps in correct order
-        """
         df = df.copy()
 
-        # 1️⃣ Missing Value Imputation
-        if self.missing_value_steps:
-            df = ColumnWiseMissingValueImputer(self.missing_value_steps).apply(df)
-
         if self.value_standardization_steps:
-            df = ValueStandardization(self.value_standardization_steps).apply(df)
-            
-        # 2️⃣ Outlier Handling
+            df = ValueStandardization(
+                self.value_standardization_steps
+            ).apply(df)
+
+        if self.missing_value_steps:
+            df = ColumnWiseMissingValueImputer(
+                self.missing_value_steps
+            ).apply(df)
+
         if self.outlier_steps:
-            df = HandlingOutliers(self.outlier_steps).apply(df)
+            df = HandlingOutliers(
+                self.outlier_steps
+            ).apply(df)
 
-        # 3️⃣ Encoding
         if self.encoding_steps:
-            df = EncodingValue(self.encoding_steps).apply(df)
+            df = EncodingValue(
+                self.encoding_steps
+            ).apply(df)
 
-        # 4️⃣ Scaling
         if self.scaling_steps:
-            df = ScalingValues(self.scaling_steps).apply(df)
+            df = ScalingValues(
+                self.scaling_steps
+            ).apply(df)
 
-        # 5️⃣ Feature Selection
         if self.feature_selection_steps:
-            df = FeatureSelection(self.feature_selection_steps).apply(df)
+            df = FeatureSelection(
+                self.feature_selection_steps
+            ).apply(df)
 
-        # 6️⃣ Imbalance Handling (TARGET BASED)
         if self.imbalance_steps:
-            df = HandlingImbalance(self.imbalance_steps).apply(df)
+            df = HandlingImbalance(
+                self.imbalance_steps
+            ).apply(df)
 
         return df

@@ -1,77 +1,94 @@
 import pandas as pd
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
+import numpy as np
+from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
 
 
 class ScalingValues:
     def __init__(self, transformations: list):
-        """
-        transformations: list of dicts
-
-        Example:
-        {
-            "column": "age",
-            "operation": "scale",
-            "strategy": "auto" | "standardize" | "normalize",
-            "dtype": "numeric"
-        }
-        """
         self.transformations = transformations
         self.scalers = {}
 
-    def apply(self, df: pd.DataFrame) -> pd.DataFrame:
+    def apply(self, df: pd.DataFrame, fit: bool = True) -> pd.DataFrame:
         df = df.copy()
 
         for t in self.transformations:
-            col = t["column"]
-            strategy = t["strategy"]
-            dtype = t["dtype"]
+            col = t.get("column")
+            strategy = t.get("strategy", "auto")
 
-            # Defensive checks
             if col not in df.columns:
                 continue
 
-            if dtype != "numeric":
+            if not pd.api.types.is_numeric_dtype(df[col]):
                 continue
 
             if strategy == "auto":
-                # Auto → Standardize (safe default)
-                df[col] = self._standardize(df[col], col)
+                df[col] = self._standardize(df[col], col, fit)
 
             elif strategy == "standardize":
-                df[col] = self._standardize(df[col], col)
+                df[col] = self._standardize(df[col], col, fit)
 
             elif strategy == "normalize":
-                df[col] = self._normalize(df[col], col)
+                df[col] = self._normalize(df[col], col, fit)
+
+            elif strategy == "robust":
+                df[col] = self._robust(df[col], col, fit)
+
+            elif strategy == "log":
+                df[col] = self._log_transform(df[col])
 
             else:
                 raise ValueError(f"Unsupported scaling strategy: {strategy}")
 
         return df
 
-    # -------------------------------------------------
-    # STANDARDIZATION
-    # -------------------------------------------------
+    def _standardize(self, series: pd.Series, col: str, fit: bool) -> pd.Series:
+        values = series.values.reshape(-1, 1)
 
-    def _standardize(self, series: pd.Series, col: str) -> pd.Series:
-        scaler = StandardScaler()
+        if fit:
+            scaler = StandardScaler()
+            scaled = scaler.fit_transform(values)
+            self.scalers[col] = scaler
+        else:
+            scaler = self.scalers.get(col)
+            if scaler is None:
+                raise ValueError(f"No fitted scaler for column: {col}")
+            scaled = scaler.transform(values)
 
-        scaled = scaler.fit_transform(
-            series.values.reshape(-1, 1)
-        ).flatten()
+        return pd.Series(scaled.flatten(), index=series.index)
 
-        self.scalers[col] = scaler
-        return scaled
+    def _normalize(self, series: pd.Series, col: str, fit: bool) -> pd.Series:
+        values = series.values.reshape(-1, 1)
 
-    # -------------------------------------------------
-    # NORMALIZATION
-    # -------------------------------------------------
+        if fit:
+            scaler = MinMaxScaler()
+            scaled = scaler.fit_transform(values)
+            self.scalers[col] = scaler
+        else:
+            scaler = self.scalers.get(col)
+            if scaler is None:
+                raise ValueError(f"No fitted scaler for column: {col}")
+            scaled = scaler.transform(values)
 
-    def _normalize(self, series: pd.Series, col: str) -> pd.Series:
-        scaler = MinMaxScaler()
+        return pd.Series(scaled.flatten(), index=series.index)
 
-        scaled = scaler.fit_transform(
-            series.values.reshape(-1, 1)
-        ).flatten()
+    def _robust(self, series: pd.Series, col: str, fit: bool) -> pd.Series:
+        values = series.values.reshape(-1, 1)
 
-        self.scalers[col] = scaler
-        return scaled
+        if fit:
+            scaler = RobustScaler()
+            scaled = scaler.fit_transform(values)
+            self.scalers[col] = scaler
+        else:
+            scaler = self.scalers.get(col)
+            if scaler is None:
+                raise ValueError(f"No fitted scaler for column: {col}")
+            scaled = scaler.transform(values)
+
+        return pd.Series(scaled.flatten(), index=series.index)
+
+    def _log_transform(self, series: pd.Series) -> pd.Series:
+        min_val = series.min()
+        if min_val <= 0:
+            series = series - min_val + 1
+
+        return pd.Series(np.log1p(series), index=series.index)

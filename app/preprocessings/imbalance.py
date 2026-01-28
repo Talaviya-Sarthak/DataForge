@@ -1,58 +1,45 @@
 import pandas as pd
 from sklearn.utils import resample
+from imblearn.over_sampling import SMOTE
 
 
 class HandlingImbalance:
     def __init__(self, transformations: list):
-        """
-        transformations: list of dicts
-
-        Example:
-        {
-            "target": "churn",
-            "operation": "imbalance",
-            "strategy": "auto" | "undersample" | "oversample",
-            "dtype": "categorical"
-        }
-        """
         self.transformations = transformations
 
-    def apply(self, df: pd.DataFrame):
+    def apply(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy()
 
         for t in self.transformations:
-            target = t["target"]
-            strategy = t["strategy"]
-            dtype = t["dtype"]
+            target = t.get("target")
+            strategy = t.get("strategy", "auto")
 
-            # Defensive checks
             if target not in df.columns:
                 continue
 
-            if dtype != "categorical":
+            if strategy == "auto":
                 continue
 
-            # AUTO → safe default (no resampling)
-            if strategy == "auto":
-                return df
-
             elif strategy == "undersample":
-                return self._undersample(df, target)
+                df = self._undersample(df, target)
 
             elif strategy == "oversample":
-                return self._oversample(df, target)
+                df = self._oversample(df, target)
+
+            elif strategy == "smote":
+                df = self._smote(df, target, t)
 
             else:
                 raise ValueError(f"Unsupported imbalance strategy: {strategy}")
 
         return df
 
-    # -------------------------------------------------
-    # UNDERSAMPLING (REMOVE MAJORITY)
-    # -------------------------------------------------
-
     def _undersample(self, df: pd.DataFrame, target: str) -> pd.DataFrame:
         class_counts = df[target].value_counts()
+
+        if len(class_counts) < 2:
+            return df
+
         minority_class = class_counts.idxmin()
         majority_class = class_counts.idxmax()
 
@@ -66,18 +53,16 @@ class HandlingImbalance:
             random_state=42
         )
 
-        df_balanced = pd.concat(
+        return pd.concat(
             [df_minority, df_majority_downsampled]
         ).sample(frac=1, random_state=42).reset_index(drop=True)
 
-        return df_balanced
-
-    # -------------------------------------------------
-    # OVERSAMPLING (DUPLICATE MINORITY)
-    # -------------------------------------------------
-
     def _oversample(self, df: pd.DataFrame, target: str) -> pd.DataFrame:
         class_counts = df[target].value_counts()
+
+        if len(class_counts) < 2:
+            return df
+
         minority_class = class_counts.idxmin()
         majority_class = class_counts.idxmax()
 
@@ -91,8 +76,27 @@ class HandlingImbalance:
             random_state=42
         )
 
-        df_balanced = pd.concat(
+        return pd.concat(
             [df_majority, df_minority_oversampled]
         ).sample(frac=1, random_state=42).reset_index(drop=True)
 
-        return df_balanced
+    def _smote(self, df: pd.DataFrame, target: str, config: dict) -> pd.DataFrame:
+        X = df.drop(columns=[target])
+        y = df[target]
+
+        if y.nunique() < 2:
+            return df
+
+        k_neighbors = config.get("k_neighbors", 5)
+
+        smote = SMOTE(
+            random_state=42,
+            k_neighbors=min(k_neighbors, y.value_counts().min() - 1)
+        )
+
+        X_resampled, y_resampled = smote.fit_resample(X, y)
+
+        df_resampled = X_resampled.copy()
+        df_resampled[target] = y_resampled
+
+        return df_resampled.reset_index(drop=True)

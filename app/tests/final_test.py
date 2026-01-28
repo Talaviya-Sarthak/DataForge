@@ -1,48 +1,45 @@
-import sys
-import os
-from pathlib import Path
-
-# Add parent directory to path for imports to work when running as script
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 import pandas as pd
-from preprocessings.pipeline import PreprocessingPipeline
+from app.preprocessings.pipeline import PreprocessingPipeline
 
-df = pd.DataFrame({
-    "age": [25, None, 35, 100],
-    "salary": [30000, 50000, 70000, 1000000],
-    "gender": ["Male", "Female", "Male", None],
-    "churn": [0, 0, 1, 1]
-})
+data = {
+    "age": [25, None, 30, 25],
+    "gender": ["m", "male", "f", "female"],
+    "salary": [50000, 60000, 70000, 100000],
+    "churn": [0, 1, 0, 1]
+}
 
-pipeline = PreprocessingPipeline(
+df = pd.DataFrame(data)
 
-    missing_value_steps=[
-        {"column": "age", "strategy": "median", "dtype": "numeric"},
-        {"column": "gender", "strategy": "mode", "dtype": "categorical"}
+config = {
+    "value_standardization": [
+        {
+            "column": "gender",
+            "mapping": {
+                "m": "Male",
+                "male": "Male",
+                "f": "Female",
+                "female": "Female"
+            }
+        }
     ],
-
-    outlier_steps=[
-        {"column": "salary", "strategy": "auto", "dtype": "numeric"}
+    "missing": [
+        {"column": "age", "strategy": "median", "dtype": "numeric"}
     ],
-
-    encoding_steps=[
+    "encoding": [
         {"column": "gender", "strategy": "onehot", "dtype": "categorical"}
     ],
-
-    scaling_steps=[
-        {"column": "age", "strategy": "standardize", "dtype": "numeric"},
-        {"column": "salary", "strategy": "normalize", "dtype": "numeric"}
-    ],
-
-    feature_selection_steps=[
-        {"strategy": "auto", "target": "churn"}
-    ],
-
-    imbalance_steps=[
-        {"target": "churn", "strategy": "oversample", "dtype": "categorical"}
+    "scaling": [
+        {"column": "salary", "strategy": "robust"}
     ]
+}
+
+pipeline = PreprocessingPipeline(
+    value_standardization_steps=config["value_standardization"],
+    missing_value_steps=config["missing"],
+    encoding_steps=config["encoding"],
+    scaling_steps=config["scaling"]
 )
 
-df_processed = pipeline.run(df)
-print(df_processed)
+processed_df = pipeline.run(df)
+
+print(processed_df)

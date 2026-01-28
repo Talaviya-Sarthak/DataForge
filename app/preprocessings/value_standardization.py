@@ -3,32 +3,22 @@ import pandas as pd
 
 class ValueStandardization:
     def __init__(self, transformations: list):
-        """
-        transformations: list of dicts
-
-        Example:
-        {
-            "column": "gender",
-            "operation": "replace",
-            "mapping": {
-                "m": "Male",
-                "male": "Male",
-                "f": "Female",
-                "female": "Female",
-                "fe male": "Female"
-            }
-        }
-        """
         self.transformations = transformations
 
     def apply(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy()
 
         for t in self.transformations:
-            col = t["column"]
-            mapping = t["mapping"]
+            col = t.get("column")
+            mapping = t.get("mapping")
 
             if col not in df.columns:
+                continue
+
+            if not isinstance(mapping, dict):
+                continue
+
+            if not pd.api.types.is_object_dtype(df[col]):
                 continue
 
             df[col] = self._standardize_column(df[col], mapping)
@@ -36,22 +26,22 @@ class ValueStandardization:
         return df
 
     def _standardize_column(self, series: pd.Series, mapping: dict) -> pd.Series:
-        """
-        Normalize text and replace values using mapping
-        """
-        # Normalize text first
-        series = (
-            series
+        mask = series.notna()
+
+        normalized_series = (
+            series[mask]
             .astype(str)
             .str.lower()
             .str.strip()
             .str.replace(r"\s+", " ", regex=True)
         )
 
-        # Apply mapping
-        series = series.replace(mapping)
+        normalized_mapping = {
+            str(k).lower().strip().replace(r"\s+", " "): v
+            for k, v in mapping.items()
+        }
 
-        # Convert 'nan' string back to actual NaN
-        series = series.replace("nan", pd.NA)
+        normalized_series = normalized_series.replace(normalized_mapping)
+        series.loc[mask] = normalized_series
 
         return series

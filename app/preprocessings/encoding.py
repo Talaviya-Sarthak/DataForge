@@ -1,97 +1,79 @@
 import pandas as pd
-from sklearn.preprocessing import OneHotEncoder, LabelEncoder, OrdinalEncoder
+import numpy as np
+from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder
 
 
 class EncodingValue:
     def __init__(self, transformations: list):
-        """
-        transformations: list of dicts
-        Example:
-        {
-            "column": "gender",
-            "strategy": "onehot",
-            "dtype": "categorical"
-        }
-
-        For target encoding:
-        {
-            "column": "payment_method",
-            "strategy": "target",
-            "dtype": "categorical",
-            "target": "churn"
-        }
-        """
         self.transformations = transformations
 
     def apply(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy()
 
         for t in self.transformations:
-            col = t["column"]
-            strategy = t["strategy"]
-            dtype = t["dtype"]
+            col = t.get("column")
+            strategy = t.get("strategy", "auto")
+            dtype = t.get("dtype")
 
             if col not in df.columns:
                 continue
 
-            # Target encoding needs full dataframe
             if strategy == "target":
                 df = self._target_encode(df, col, t)
             else:
-                df = self._encode_column(df, col, strategy, dtype)
+                df = self._encode_column(df, col, strategy, dtype, t)
 
         return df
 
-    # -------------------------------------------------
-    # ENCODING METHODS
-    # -------------------------------------------------
-
-    def _encode_column(self, df, col, strategy, dtype):
-
+    def _encode_column(self, df, col, strategy, dtype, config):
         series = df[col]
 
-        # ---------- AUTO ----------
         if strategy == "auto":
             if dtype == "boolean":
-                df[col] = series.astype(int)
+                df[col] = series.map({True: 1, False: 0}).fillna(0)
                 return df
 
             n_unique = series.nunique(dropna=True)
 
             if n_unique <= 10:
                 return self._onehot(df, col)
-            else:
-                df[col] = LabelEncoder().fit_transform(series.astype(str))
-                return df
 
-        # ---------- ONE HOT ----------
+            encoder = OrdinalEncoder(
+                handle_unknown="use_encoded_value",
+                unknown_value=-1
+            )
+            df[col] = encoder.fit_transform(
+                series.astype(str).values.reshape(-1, 1)
+            )
+            return df
+
         if strategy == "onehot":
             return self._onehot(df, col)
 
-        # ---------- LABEL ----------
-        if strategy == "label":
-            df[col] = LabelEncoder().fit_transform(series.astype(str))
-            return df
-
-        # ---------- ORDINAL ----------
         if strategy == "ordinal":
-            encoder = OrdinalEncoder()
-            df[col] = encoder.fit_transform(series.values.reshape(-1, 1))
+            categories = config.get("categories")
+            if not categories:
+                raise ValueError("Ordinal encoding requires 'categories'")
+
+            encoder = OrdinalEncoder(categories=[categories])
+            df[col] = encoder.fit_transform(
+                series.values.reshape(-1, 1)
+            )
             return df
 
         raise ValueError(f"Unsupported encoding strategy: {strategy}")
 
-    # -------------------------------------------------
-    # ONE HOT ENCODER (EXPANDS COLUMNS)
-    # -------------------------------------------------
-
     def _onehot(self, df, col):
-        encoder = OneHotEncoder(sparse_output=False, handle_unknown="ignore")
+        encoder = OneHotEncoder(
+            sparse_output=False,
+            handle_unknown="ignore"
+        )
+
         encoded = encoder.fit_transform(df[[col]])
 
         encoded_df = pd.DataFrame(
             encoded,
-            columns=[f"{col}_{cat}" for cat in encoder.categories_[0]],
+            columns=[f"{col}_{c}" for c in encoder.categories_[0]],
             index=df.index
         )
 
@@ -100,26 +82,23 @@ class EncodingValue:
 
         return df
 
-    # -------------------------------------------------
-    # TARGET ENCODING (SUPERVISED)
-    # -------------------------------------------------
-
     def _target_encode(self, df, col, config):
-
         target_col = config.get("target")
+        smoothing = config.get("smoothing", 10)
 
         if target_col is None or target_col not in df.columns:
-            raise ValueError("Target column must be provided for target encoding")
-
-        # Compute mean target per category
-        mapping = df.groupby(col)[target_col].mean()
+            raise ValueError("Target column must be provided")
 
         global_mean = df[target_col].mean()
 
-        # Replace categories with mean target
-        df[col] = df[col].map(mapping)
+        stats = df.groupby(col)[target_col].agg(["mean", "count"])
 
-        # Handle unseen / missing categories
+        stats["encoded"] = (
+            (stats["count"] * stats["mean"] + smoothing * global_mean)
+            / (stats["count"] + smoothing)
+        )
+
+        df[col] = df[col].map(stats["encoded"])
         df[col] = df[col].fillna(global_mean)
 
         return df

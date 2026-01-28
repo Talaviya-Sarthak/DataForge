@@ -2,34 +2,39 @@ import pandas as pd
 
 
 class ColumnWiseMissingValueImputer:
-
+    
     def __init__(self, transformations: list):
-        """
-        transformations: list of dicts
-        """
+    
         self.transformations = transformations
 
     def apply(self, df: pd.DataFrame) -> pd.DataFrame:
+
         df = df.copy()
 
         for t in self.transformations:
-            col = t["column"]
-            strategy = t["strategy"]
-            dtype = t["dtype"]
+            column = t.get("column")
+            strategy = t.get("strategy", "auto")
+            dtype = t.get("dtype")
 
-            if col not in df.columns:
+            if column not in df.columns:
                 continue
 
-            if df[col].isnull().sum() == 0:
+            if df[column].isna().sum() == 0:
                 continue
 
-            df[col] = self._impute_column(df[col], strategy, dtype, t)
+            df[column] = self._impute_column(
+                series=df[column],
+                strategy=strategy,
+                dtype=dtype,
+                config=t
+            )
 
         return df
 
-    def _impute_column(self, series, strategy, dtype, config):
+    def _impute_column(self, series: pd.Series, strategy: str, dtype: str, config: dict) -> pd.Series:
+  
         if strategy == "auto":
-            return self._auto(series, dtype)
+            return self._auto_impute(series, dtype)
 
         if strategy == "mean":
             return series.fillna(series.mean())
@@ -37,22 +42,30 @@ class ColumnWiseMissingValueImputer:
         if strategy == "median":
             return series.fillna(series.median())
 
-        if strategy == "mode":
-            return series.fillna(series.mode()[0])
-
-        if strategy == "most_frequent":
-            return series.fillna(series.mode()[0])
+        if strategy in ("mode", "most_frequent"):
+            return series.fillna(self._safe_mode(series))
 
         if strategy == "custom":
-            return series.fillna(config.get("value"))
+            if "value" not in config:
+                raise ValueError("Custom strategy requires 'value'")
+            return series.fillna(config["value"])
 
-        raise ValueError(f"Invalid strategy: {strategy}")
+        raise ValueError(f"Invalid missing value strategy: {strategy}")
 
-    def _auto(self, series, dtype):
-        if dtype == "numeric":
+    def _auto_impute(self, series: pd.Series, dtype: str) -> pd.Series:
+
+        if dtype == "numeric" or pd.api.types.is_numeric_dtype(series):
             return series.fillna(series.median())
 
-        if dtype in ["categorical", "boolean", "datetime"]:
-            return series.fillna(series.mode()[0])
+        if dtype == "datetime" or pd.api.types.is_datetime64_any_dtype(series):
+            return series.fillna(method="ffill").fillna(method="bfill")
 
-        return series
+        if dtype == "boolean" or pd.api.types.is_bool_dtype(series):
+            return series.fillna(self._safe_mode(series))
+
+        return series.fillna(self._safe_mode(series))
+
+    def _safe_mode(self, series: pd.Series):
+        
+        mode = series.mode(dropna=True)
+        return mode.iloc[0] if not mode.empty else None
