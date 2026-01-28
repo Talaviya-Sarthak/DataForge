@@ -6,35 +6,33 @@ import { Link } from "react-router-dom"
 // Lazy load DataTable since it's only needed when data is uploaded
 const DataTable = lazy(() => import("@/components/ui/DataTable"))
 
+// ---- API BASE CONFIG ----
+const apiBase = import.meta.env.VITE_NODE_API_URL
+
+if (!apiBase) {
+  throw new Error(
+    "VITE_NODE_API_URL is not configured. Please set it in your .env file"
+  )
+}
+
+// ---- UPLOAD FUNCTION ----
 const uploadDataset = async (file: File) => {
   const formData = new FormData()
   formData.append("file", file)
 
-<<<<<<< Updated upstream
-  const apiBase = import.meta.env.VITE_NODE_API_URL;
-  
-  if (!apiBase) {
-    throw new Error("API URL not configured. Please set VITE_NODE_API_URL in .env file");
+  const res = await fetch(`${apiBase}/api/datasets/upload`, {
+    method: "POST",
+    body: formData,
+  })
+
+  if (!res.ok) {
+    throw new Error("Upload failed")
   }
-=======
-  const apiBase =
-    import.meta.env.VITE_NODE_API_URL 
-    // ||
-    // "http://localhost:5000"
->>>>>>> Stashed changes
 
-  const res = await fetch(
-    `${apiBase}/api/datasets/upload`,
-    {
-      method: "POST",
-      body: formData,
-    }
-  )
-
-  if (!res.ok) throw new Error("Upload failed")
   return res.json()
 }
 
+// ---- CUSTOM HOOK ----
 export const useDatasetUpload = () => {
   const [file, setFile] = useState<File | null>(null)
   const [uploadKey, setUploadKey] = useState(0)
@@ -83,7 +81,7 @@ const Dataset_tabledata = ({
 }) => {
   const dataset = uploadMutation.data
   const loading = uploadMutation.isPending
-  const Error = uploadMutation.isError
+  const error = uploadMutation.isError
 
   return (
     <div className="min-h-screen relative bg-transeperent">
@@ -107,7 +105,7 @@ const Dataset_tabledata = ({
           </div>
         )}
 
-        {Error && (
+        {error && (
           <div className="flex justify-center">
             <button
               onClick={resetUpload}
@@ -119,11 +117,13 @@ const Dataset_tabledata = ({
         )}
 
         {dataset && (
-          <Suspense fallback={
-            <div className="flex justify-center mt-16">
-              <div className="h-10 w-10 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
-            </div>
-          }>
+          <Suspense
+            fallback={
+              <div className="flex justify-center mt-16">
+                <div className="h-10 w-10 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
+              </div>
+            }
+          >
             <DataTable data={dataset.data ?? []} />
           </Suspense>
         )}
@@ -143,15 +143,27 @@ const Dataset_tabledata = ({
           <div className="max-w-6xl xl:max-w-7xl 2xl:max-w-8xl mx-auto mt-10 grid grid-cols-2 md:grid-cols-4 gap-4">
             <Stat label="Total Rows" value={dataset.rows ?? 0} />
             <Stat label="Total Columns" value={dataset.columns ?? 0} />
-            <Stat label="Numeric Columns" value={dataset.numerical_columns?.length ?? 0} />
-            <Stat label="Categorical Columns" value={dataset.categorical_columns?.length ?? 0} />
+            <Stat
+              label="Numeric Columns"
+              value={dataset.numerical_columns?.length ?? 0}
+            />
+            <Stat
+              label="Categorical Columns"
+              value={dataset.categorical_columns?.length ?? 0}
+            />
           </div>
         )}
 
         {dataset && (
           <div className="max-w-6xl xl:max-w-7xl 2xl:max-w-8xl mx-auto mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-            <ColumnBox title="Numeric Columns" data={dataset.numerical_columns ?? []} />
-            <ColumnBox title="Categorical Columns" data={dataset.categorical_columns ?? []} />
+            <ColumnBox
+              title="Numeric Columns"
+              data={dataset.numerical_columns ?? []}
+            />
+            <ColumnBox
+              title="Categorical Columns"
+              data={dataset.categorical_columns ?? []}
+            />
           </div>
         )}
 
@@ -174,16 +186,23 @@ const Dataset_tabledata = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {Object.entries(dataset.statistics).map(([col, stats]: any) => (
-                    <tr key={col} className="border-t border-neutral-800 hover:bg-neutral-800/40">
-                      <td className="px-4 py-2">{col}</td>
-                      <td className="px-4 py-2 text-right">{fmt(stats.min)}</td>
-                      <td className="px-4 py-2 text-right">{fmt(stats.max)}</td>
-                      <td className="px-4 py-2 text-right">{fmt(stats.mean)}</td>
-                      <td className="px-4 py-2 text-right">{fmt(stats.median)}</td>
-                      <td className="px-4 py-2 text-right">{fmt(stats.std)}</td>
-                    </tr>
-                  ))}
+                  {Object.entries(dataset.statistics).map(
+                    ([col, stats]: any) => (
+                      <tr
+                        key={col}
+                        className="border-t border-neutral-800 hover:bg-neutral-800/40"
+                      >
+                        <td className="px-4 py-2">{col}</td>
+                        <td className="px-4 py-2 text-right">{fmt(stats.min)}</td>
+                        <td className="px-4 py-2 text-right">{fmt(stats.max)}</td>
+                        <td className="px-4 py-2 text-right">{fmt(stats.mean)}</td>
+                        <td className="px-4 py-2 text-right">
+                          {fmt(stats.median)}
+                        </td>
+                        <td className="px-4 py-2 text-right">{fmt(stats.std)}</td>
+                      </tr>
+                    )
+                  )}
                 </tbody>
               </table>
             </div>
@@ -192,7 +211,6 @@ const Dataset_tabledata = ({
               <Link to="/Cleaning">
                 <button className="group relative w-36 h-10 rounded-lg text-white text-sm font-medium bg-[#0f0f10] border border-white/15 overflow-hidden transition-all duration-300 hover:shadow-[0_0_25px_#33E6FF55] hover:border-[#33E6FF]">
                   <span className="relative z-10">Cleaning</span>
-                  <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-[#33E6FF]/70 to-transparent opacity-0 group-hover:opacity-100 group-hover:translate-x-full duration-[1600ms] ease-[cubic-bezier(0.45,0,0.2,1)] blur-sm" />
                 </button>
               </Link>
             </div>
@@ -214,7 +232,11 @@ const ColumnBox = ({ title, data }: { title: string; data: string[] }) => (
   <div className="p-4 rounded-lg border border-neutral-800 bg-neutral-900/60">
     <h3 className="text-sm font-semibold text-white mb-2">{title}</h3>
     {data.length > 0 ? (
-      data.map(c => <p key={c} className="text-sm text-neutral-400">• {c}</p>)
+      data.map(c => (
+        <p key={c} className="text-sm text-neutral-400">
+          • {c}
+        </p>
+      ))
     ) : (
       <p className="text-sm text-neutral-500 italic">N/A</p>
     )}
