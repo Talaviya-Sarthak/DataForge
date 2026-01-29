@@ -97,6 +97,7 @@ const Header: React.FC = () => {
               onTabChange={(tabId) => {
                 if (tabId === "home") navigate("/");
                 else if (tabId === "dataset") navigate("/DataSet");
+                else if (tabId === "about us") navigate("/About");
                 // Add more routes as needed
               }}
             />

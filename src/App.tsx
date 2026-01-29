@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Suspense, lazy } from "react";
+import AboutPage from "./Pages/About/About";
 
 // Lazy load all page components for better code splitting
 const HomePage = lazy(() => import("./Pages/HomePage/HomePage"));
@@ -32,6 +33,7 @@ function App() {
             <Route index path='/SignUp' element={<Signup />} />
             <Route index path='/FAQ' element={<FAQDemo />} />
             <Route index path='/Lamp' element={<LampDemo />} />
+            <Route index path='/About' element={<AboutPage />} />
             <Route index path='*' element={<NotFound />} />
           </Route>
         </Routes>

@@ -13,7 +13,7 @@ import { FaGithub, FaGoogle, FaLock, FaMicrosoft, FaUser } from "react-icons/fa"
 import { HiEye, HiOutlineMail } from "react-icons/hi";
 import { GradientBars } from "../../components/ui/GradientBars";
 import { Link, useNavigate } from "react-router-dom";
-import { useState,useEffect } from "react";
+import { useState} from "react";
 import { useToast } from "@/components/ui/toast/Toast"
 /** SignIn: Presentational component for user sign-in screen. */
 export default function SignIn() {
