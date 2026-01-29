@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Suspense, lazy } from "react";
-import AboutPage from "./Pages/About/About";
+
 
 // Lazy load all page components for better code splitting
 const HomePage = lazy(() => import("./Pages/HomePage/HomePage"));
@@ -8,6 +8,7 @@ const Dataset = lazy(() => import("./Pages/DataSet/DataSet"));
 const SignIn = lazy(() => import("./Pages/SignIn/SignIn"));
 const Signup = lazy(() => import("./Pages/SignUp/SignUp"));
 const NotFound = lazy(() => import("./Pages/NotFound/not-found"));
+const AboutPage = lazy(() => import("./Pages/About/About"));
 const FAQDemo = lazy(() => import("./Pages/FAQ/demo"));
 const Cleaning = lazy(() => import("./Pages/Cleaning/Cleaning"));
 const LampDemo = lazy(() => import("./components/layouts/BgLamp").then(module => ({ default: module.LampDemo })));

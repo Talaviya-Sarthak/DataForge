@@ -1,5 +1,6 @@
 import { FileUpload } from "@/components/ui/file-upload"
 import { useState, Suspense, lazy } from "react"
+import * as React from "react"
 import { useMutation } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
 
@@ -41,6 +42,10 @@ export const useDatasetUpload = () => {
     mutationFn: uploadDataset,
     retry: 3,
     retryDelay: 2000,
+    onSuccess: (data) => {
+      // Store dataset in localStorage when upload succeeds
+      localStorage.setItem('dataforge_dataset', JSON.stringify(data))
+    }
   })
 
   const handleFileUpload = (files: File[]) => {
@@ -53,6 +58,8 @@ export const useDatasetUpload = () => {
     uploadMutation.reset()
     setFile(null)
     setUploadKey(k => k + 1)
+    // Clear dataset from localStorage
+    localStorage.removeItem('dataforge_dataset')
   }
 
   return {
@@ -62,6 +69,25 @@ export const useDatasetUpload = () => {
     uploadKey,
     resetUpload,
   }
+}
+
+// ---- DATASET RETRIEVAL HOOK ----
+export const useStoredDataset = () => {
+  const [dataset, setDataset] = useState<any>(null)
+
+  React.useEffect(() => {
+    const storedDataset = localStorage.getItem('dataforge_dataset')
+    if (storedDataset) {
+      try {
+        setDataset(JSON.parse(storedDataset))
+      } catch (error) {
+        console.error('Error parsing stored dataset:', error)
+        localStorage.removeItem('dataforge_dataset')
+      }
+    }
+  }, [])
+
+  return dataset
 }
 
 // ---------------- UI BELOW ----------------

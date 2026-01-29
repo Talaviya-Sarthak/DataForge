@@ -111,7 +111,7 @@ const Testimonials = () => {
     </span>
 
     {/* Heading */}
-    <h2 className="mt-6 text-4xl md:text-5xl font-semibold tracking-tight text-white font-extrabold">
+    <h2 className="mt-6 text-4xl md:text-5xl tracking-tight text-white font-extrabold">
       Trusted by Teams Who Work With Data
     </h2>
 
@@ -122,7 +122,7 @@ const Testimonials = () => {
     </p>
 
     {/* Divider Accent */}
-    <div className="mt-10 w-28 h-[2px] mx-auto 
+    <div className="mt-10 w-28 h-0.5 mx-auto 
       bg-gradient-to-r from-transparent via-yellow-200 to-transparent" 
     />
 

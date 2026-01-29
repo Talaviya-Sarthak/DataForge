@@ -25,7 +25,7 @@ const HomePage = () => {
       <Header />
       {/* Page Content */}
       <HeroText />
-      
+
       {/* Lazy loaded below-the-fold components */}
       <Suspense fallback={<SectionLoader />}>
         {/*Features Page*/}
@@ -33,9 +33,14 @@ const HomePage = () => {
         {/* Pricing Page */}
         <Pricing />
         {/* Testimonials */}
-        <Testimonials />
-        {/* Carousel */}
-        <Case />
+        <Suspense fallback={<div className="py-16 px-4 sm:px-6 lg:px-8 bg-black"><div className="max-w-6xl mx-auto text-center text-white">Loading...</div></div>}>
+          <Testimonials />
+        </Suspense>
+
+        <Suspense fallback={<div className="py-16 px-4 sm:px-6 lg:px-8 bg-black"><div className="max-w-6xl mx-auto text-center text-white">Loading...</div></div>}>
+        <Case/>
+        </Suspense>
+        
         {/*Footer*/}
         <Footer />
       </Suspense>

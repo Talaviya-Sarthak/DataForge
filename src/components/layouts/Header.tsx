@@ -32,6 +32,7 @@ const Header: React.FC = () => {
   const getActiveTab = () => {
     if (location.pathname === "/") return "home";
     if (location.pathname === "/DataSet") return "dataset";
+    if (location.pathname === "/Cleaning") return "cleaning";
     return "home"; // default
   };
 
@@ -98,6 +99,7 @@ const Header: React.FC = () => {
                 if (tabId === "home") navigate("/");
                 else if (tabId === "dataset") navigate("/DataSet");
                 else if (tabId === "about us") navigate("/About");
+                else if (tabId === "cleaning") navigate("/Cleaning");
                 // Add more routes as needed
               }}
             />
