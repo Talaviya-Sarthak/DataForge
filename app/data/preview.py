@@ -1,9 +1,16 @@
 import numpy as np
 
-def preview_Data(df):
+def preview_Data(df, n: int | None = None):
     """
-    Return full dataset as JSON-safe preview
+    Return dataset preview as JSON-safe output
+
+    Args:
+        df (pd.DataFrame): Input dataframe
+        n (int, optional): Number of rows to return. If None, return full dataset.
     """
+
+    if n is not None:
+        df = df.head(n)
 
     safe_df = df.replace([np.nan, np.inf, -np.inf], None)
 

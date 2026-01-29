@@ -10,10 +10,6 @@ router = APIRouter()
 
 CURRENT_DATASET = None
 
-
-# -----------------------------------------
-# DATA UPLOAD & INSPECTION
-# -----------------------------------------
 @router.post("/data/upload")
 async def upload_dataset(file: UploadFile = File(...)):
     global CURRENT_DATASET
@@ -51,9 +47,7 @@ async def upload_dataset(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail=str(e))
 
 
-# -----------------------------------------
-# PREPROCESSING PIPELINE
-# -----------------------------------------
+
 @router.post("/data/preprocess")
 def preprocess_dataset(payload: dict):
     global CURRENT_DATASET
