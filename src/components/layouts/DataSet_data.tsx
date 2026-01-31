@@ -45,6 +45,8 @@ export const useDatasetUpload = () => {
     onSuccess: (data) => {
       // Store dataset in localStorage when upload succeeds
       localStorage.setItem('dataforge_dataset', JSON.stringify(data))
+      // Dispatch custom event to notify other components
+      window.dispatchEvent(new CustomEvent('datasetChanged'))
     }
   })
 
@@ -60,6 +62,8 @@ export const useDatasetUpload = () => {
     setUploadKey(k => k + 1)
     // Clear dataset from localStorage
     localStorage.removeItem('dataforge_dataset')
+    // Dispatch custom event to notify other components
+    window.dispatchEvent(new CustomEvent('datasetChanged'))
   }
 
   return {
@@ -76,14 +80,41 @@ export const useStoredDataset = () => {
   const [dataset, setDataset] = useState<any>(null)
 
   React.useEffect(() => {
-    const storedDataset = localStorage.getItem('dataforge_dataset')
-    if (storedDataset) {
-      try {
-        setDataset(JSON.parse(storedDataset))
-      } catch (error) {
-        console.error('Error parsing stored dataset:', error)
-        localStorage.removeItem('dataforge_dataset')
+    const loadDataset = () => {
+      const storedDataset = localStorage.getItem('dataforge_dataset')
+      if (storedDataset) {
+        try {
+          setDataset(JSON.parse(storedDataset))
+        } catch (error) {
+          console.error('Error parsing stored dataset:', error)
+          localStorage.removeItem('dataforge_dataset')
+          setDataset(null)
+        }
+      } else {
+        setDataset(null)
       }
+    }
+
+    loadDataset()
+
+    // Listen for storage changes to sync across tabs/navigation
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'dataforge_dataset') {
+        loadDataset()
+      }
+    }
+
+    // Listen for custom events for same-tab updates
+    const handleDatasetChange = () => {
+      loadDataset()
+    }
+
+    window.addEventListener('storage', handleStorageChange)
+    window.addEventListener('datasetChanged', handleDatasetChange)
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      window.removeEventListener('datasetChanged', handleDatasetChange)
     }
   }, [])
 
@@ -105,23 +136,28 @@ const Dataset_tabledata = ({
   uploadKey: number
   resetUpload: () => void
 }) => {
-  const dataset = uploadMutation.data
+  const storedDataset = useStoredDataset()
+  const dataset = uploadMutation.data || storedDataset
   const loading = uploadMutation.isPending
   const error = uploadMutation.isError
 
   return (
     <div className="min-h-screen relative bg-transeperent">
       <div className="mt-8">
-        <h1 className="text-4xl mb-2 text-center font-bold text-white">
-          Add Your Files
-        </h1>
-        <p className="mt-2 text-center mb-10 text-neutral-400">
-          Choose files and upload them below
-        </p>
+        {!dataset && (
+          <>
+            <h1 className="text-4xl mb-2 text-center font-bold text-white">
+              Add Your Files
+            </h1>
+            <p className="mt-2 text-center mb-10 text-neutral-400">
+              Choose files and upload them below
+            </p>
 
-        <div className="w-full max-w-4xl xl:max-w-5xl 2xl:max-w-6xl mx-auto min-h-80 rounded-lg">
-          <FileUpload key={uploadKey} onChange={handleFileUpload} />
-        </div>
+            <div className="w-full max-w-4xl xl:max-w-5xl 2xl:max-w-6xl mx-auto min-h-80 rounded-lg">
+              <FileUpload key={uploadKey} onChange={handleFileUpload} />
+            </div>
+          </>
+        )}
       </div>
 
       <div className="mb-12 -mt-16">

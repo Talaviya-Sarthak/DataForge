@@ -291,14 +291,16 @@ const Cleaning = () => {
 
         {/* Table Container */}
         <div className="bg-neutral-950/50 rounded-lg border border-neutral-800 overflow-hidden">
-          <div className="max-h-[60vh] overflow-auto">
-            <Suspense fallback={
-              <div className="flex items-center justify-center py-12">
-                <div className="text-neutral-400">Loading dataset...</div>
-              </div>
-            }>
-              <DataTable data={dataset?.data?.slice(0, 100) || []} />
-            </Suspense>
+          <div className="max-h-[60vh] overflow-y-auto">
+            <div className="overflow-x-auto">
+              <Suspense fallback={
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-neutral-400">Loading dataset...</div>
+                </div>
+              }>
+                <DataTable data={dataset?.data?.slice(0, 100) || []} />
+              </Suspense>
+            </div>
           </div>
         </div>
       </div>
@@ -369,12 +371,11 @@ const Cleaning = () => {
 
   if (!dataset) {
     return (
-      <div className="min-h-screen bg-slate-950">
+      <div className="min-h-screen bg-black">
         <Header />
         <div className="flex items-center justify-center h-96">
           <div className="text-center">
-            <p className="text-neutral-400 text-lg">No dataset loaded</p>
-            <p className="text-neutral-500 text-sm mt-2">Please upload a dataset first</p>
+            <p className="text-neutral-400 text-lg">Upload a dataset first to start cleaning.</p>
           </div>
         </div>
         <Footer />
@@ -666,9 +667,13 @@ const Cleaning = () => {
             {showPreview && (
               <div className="bg-neutral-900/80 rounded-lg border border-neutral-800 p-6 mt-6">
                 <h3 className="font-medium text-white mb-4">Dataset Preview</h3>
-                <Suspense fallback={<div className="text-center py-8 text-neutral-400">Loading...</div>}>
-                  <DataTable data={dataset.data ?? []} />
-                </Suspense>
+                <div className="max-h-96 overflow-y-auto">
+                  <div className="overflow-x-auto">
+                    <Suspense fallback={<div className="text-center py-8 text-neutral-400">Loading...</div>}>
+                      <DataTable data={dataset.data ?? []} />
+                    </Suspense>
+                  </div>
+                </div>
               </div>
             )}
           </div>

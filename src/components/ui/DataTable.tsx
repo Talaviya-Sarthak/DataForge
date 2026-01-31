@@ -31,39 +31,41 @@ export default function DataTable({ data }: { data: Row[] }) {
 
   return (
     <div className="mt-16 max-w-6xl xl:max-w-7xl 2xl:max-w-8xl mx-auto text-white">
-      <div className="overflow-hidden rounded-xl border border-neutral-800 bg-gradient-to-b from-neutral-900/80 to-black">
-        <table className="w-full border-collapse">
-          <thead>
-            <tr className="bg-neutral-900/70">
-              {columns.map(col => (
-                <th
-                  key={col}
-                  className="px-6 py-4 text-left text-sm font-semibold text-neutral-300"
-                >
-                  {col}
-                </th>
-              ))}
-            </tr>
-          </thead>
-
-          <tbody>
-            {paginated.map((row, i) => (
-              <tr
-                key={i}
-                className="border-t border-neutral-800 transition hover:bg-neutral-800/40"
-              >
+      <div className="overflow-x-auto">
+        <div className="overflow-auto rounded-xl border border-neutral-800 bg-gradient-to-b from-neutral-900/80 to-black">
+          <table className="w-full border-collapse min-w-max">
+            <thead>
+              <tr className="bg-neutral-900/70">
                 {columns.map(col => (
-                  <td
+                  <th
                     key={col}
-                    className="px-6 py-4 text-sm text-neutral-200"
+                    className="px-6 py-4 text-left text-sm font-semibold text-neutral-300 whitespace-nowrap"
                   >
-                    {row[col]}
-                  </td>
+                    {col}
+                  </th>
                 ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+
+            <tbody>
+              {paginated.map((row, i) => (
+                <tr
+                  key={i}
+                  className="border-t border-neutral-800 transition hover:bg-neutral-800/40"
+                >
+                  {columns.map(col => (
+                    <td
+                      key={col}
+                      className="px-6 py-4 text-sm text-neutral-200 whitespace-nowrap"
+                    >
+                      {row[col]}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Pagination */}

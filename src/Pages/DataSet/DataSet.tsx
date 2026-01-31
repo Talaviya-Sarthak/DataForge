@@ -2,7 +2,6 @@
 
 import Header from "@/components/layouts/Header"
 import { Footer } from "@/components/layouts/Footer"
-import { LampDemo } from "@/components/layouts/BgLamp"
 import Dataset_tabledata, { useDatasetUpload } from "@/components/layouts/DataSet_data"
 import { useToast } from "@/components/ui/toast/Toast"
 import { useEffect } from "react"
