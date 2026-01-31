@@ -41,6 +41,7 @@ const Cleaning = () => {
   const [selectedColumn, setSelectedColumn] = useState<string | null>(null)
   const [activeDialog, setActiveDialog] = useState<string | null>(null)
   const [showPreview, setShowPreview] = useState<boolean>(false)
+  const [showPreviewDialog, setShowPreviewDialog] = useState<boolean>(false)
   const [showGraphDialog, setShowGraphDialog] = useState<boolean>(false)
   const [showColumnInfo, setShowColumnInfo] = useState<boolean>(false)
 
@@ -74,8 +75,8 @@ const Cleaning = () => {
     const selectedColumnData = columns.find(col => col.name === selectedColumn)
 
     return (
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-        <div className="relative bg-neutral-900 rounded-xl p-6 w-96 max-w-[90vw] border border-neutral-800 shadow-[0_0_0_1px_rgba(255,255,255,0.03),0_20px_40px_rgba(0,0,0,0.6)]">
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
+        <div className="relative bg-neutral-900 rounded-xl p-6 w-96 max-w-[90vw] border border-neutral-800 shadow-[0_0_0_1px_rgba(255,255,255,0.03),0_20px_40px_rgba(0,0,0,0.6)]" onClick={(e) => e.stopPropagation()}>
 
           {/* Header */}
           <div className="flex justify-between items-center mb-5">
@@ -161,8 +162,8 @@ const Cleaning = () => {
 
 
   const GraphDialog = ({ onClose }: { onClose: () => void }) => (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-neutral-900 rounded-xl p-6 w-[500px] max-w-[90vw] border border-neutral-800 shadow-2xl">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-neutral-900 rounded-xl p-6 w-[500px] max-w-[90vw] border border-neutral-800 shadow-2xl" onClick={(e) => e.stopPropagation()}>
 
         {/* Header */}
         <div className="flex justify-between items-center mb-5">
@@ -267,6 +268,43 @@ const Cleaning = () => {
   )
 
 
+  const PreviewDialog = ({ onClose }: { onClose: () => void }) => (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-neutral-900 rounded-xl p-6 w-[90vw] max-w-6xl max-h-[80vh] border border-neutral-800 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex justify-between items-center mb-5">
+          <div>
+            <h3 className="text-xl font-semibold text-white tracking-tight">
+              Dataset Preview
+            </h3>
+            <p className="text-sm text-neutral-400 mt-1">
+              First {Math.min(dataset?.data?.length || 0, 100)} rows of your dataset
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-neutral-400 hover:text-white transition-colors"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Table Container */}
+        <div className="bg-neutral-950/50 rounded-lg border border-neutral-800 overflow-hidden">
+          <div className="max-h-[60vh] overflow-auto">
+            <Suspense fallback={
+              <div className="flex items-center justify-center py-12">
+                <div className="text-neutral-400">Loading dataset...</div>
+              </div>
+            }>
+              <DataTable data={dataset?.data?.slice(0, 100) || []} />
+            </Suspense>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+
   const Dialog = ({
     title,
     strategies,
@@ -276,8 +314,8 @@ const Cleaning = () => {
     strategies: string[]
     onClose: () => void
   }) => (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="relative w-[26rem] max-w-[92vw] rounded-xl border border-neutral-800 bg-gradient-to-b from-neutral-900 to-neutral-950 p-6 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.9)]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className="relative w-[26rem] max-w-[92vw] rounded-xl border border-neutral-800 bg-gradient-to-b from-neutral-900 to-neutral-950 p-6 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.9)]" onClick={(e) => e.stopPropagation()}>
 
         {/* Header */}
         <div className="mb-5 flex items-center justify-between">
@@ -600,10 +638,10 @@ const Cleaning = () => {
                   </div>
                   <p className="text-sm text-neutral-400 mb-3">View processed data</p>
                   <button
-                    onClick={() => setShowPreview(!showPreview)}
+                    onClick={() => setShowPreviewDialog(true)}
                     className="w-full px-3 py-2 bg-neutral-800/60 text-neutral-300 rounded border border-neutral-700 hover:bg-neutral-700/60 text-sm"
                   >
-                    {showPreview ? 'Hide' : 'Preview'}
+                    Preview
                   </button>
                 </div>
 
@@ -640,6 +678,11 @@ const Cleaning = () => {
       {/* Column Info Dialog */}
       {showColumnInfo && selectedColumn && (
         <ColumnInfoDialog onClose={() => setShowColumnInfo(false)} />
+      )}
+
+      {/* Preview Dialog */}
+      {showPreviewDialog && (
+        <PreviewDialog onClose={() => setShowPreviewDialog(false)} />
       )}
 
       {/* Strategy Dialogs */}
