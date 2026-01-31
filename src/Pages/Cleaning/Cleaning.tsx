@@ -4,7 +4,6 @@ import Header from "@/components/layouts/Header"
 import { Footer } from "@/components/layouts/Footer"
 import { useState, Suspense, lazy } from "react"
 import {
-  Settings,
   BarChart3,
   Eye,
   Trash2,
@@ -41,7 +40,6 @@ const Cleaning = () => {
   const dataset = useStoredDataset()
   const [selectedColumn, setSelectedColumn] = useState<string | null>(null)
   const [activeDialog, setActiveDialog] = useState<string | null>(null)
-  const [showPreview, setShowPreview] = useState<boolean>(false)
   const [showPreviewDialog, setShowPreviewDialog] = useState<boolean>(false)
   const [showGraphDialog, setShowGraphDialog] = useState<boolean>(false)
   const [showColumnInfo, setShowColumnInfo] = useState<boolean>(false)
@@ -486,14 +484,14 @@ const Cleaning = () => {
                             {/* Missing badge */}
                             {column.missing > 0 && (
                               <span className="rounded-full flex gap-0.5 border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-400">
-                                <TriangleAlert className="h-3 w-3 pt-0.5"/> {column.missing} missing
+                                <TriangleAlert className="h-3 w-3 pt-0.5" /> {column.missing} missing
                               </span>
                             )}
 
                             {/* Outliers badge */}
                             {column.outliers > 0 && (
                               <span className="rounded-full gap-0.5 border flex border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-400">
-                                <Target className="h-3 w-3 pt-0.5"/> {column.outliers} outliers
+                                <Target className="h-3 w-3 pt-0.5" /> {column.outliers} outliers
                               </span>
                             )}
                           </div>
@@ -677,19 +675,7 @@ const Cleaning = () => {
               </div>
             </div>
 
-            {/* Dataset Preview - Conditional */}
-            {showPreview && (
-              <div className="bg-neutral-900/80 rounded-lg border border-neutral-800 p-6 mt-6">
-                <h3 className="font-medium text-white mb-4">Dataset Preview</h3>
-                <div className="max-h-96 overflow-y-auto">
-                  <div className="overflow-x-auto">
-                    <Suspense fallback={<div className="text-center py-8 text-neutral-400">Loading...</div>}>
-                      <DataTable data={dataset.data ?? []} />
-                    </Suspense>
-                  </div>
-                </div>
-              </div>
-            )}
+            {/* Dataset preview is handled via the Preview dialog */}
           </div>
         </div>
       </div>
@@ -724,44 +710,3 @@ const Cleaning = () => {
 }
 
 export default Cleaning
-
-function SummaryCard({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode
-  label: string
-  value: number
-}) {
-  return (
-    <div
-      className="
-        flex items-center gap-3
-        bg-gradient-to-b from-neutral-900/90 to-neutral-950
-        border border-neutral-800
-        rounded-lg
-        px-4 py-3
-        shadow-[0_8px_30px_rgba(0,0,0,0.45)]
-        hover:border-neutral-700
-        hover:shadow-[0_12px_40px_rgba(0,0,0,0.55)]
-        transition-all duration-200
-      "
-    >
-      {/* Icon badge */}
-      <div className="p-2 rounded-md bg-neutral-800/60">
-        {icon}
-      </div>
-
-      {/* Text */}
-      <div className="flex flex-col">
-        <span className="text-xs text-neutral-500 tracking-wide">
-          {label}
-        </span>
-        <span className="text-xl font-semibold text-white leading-tight">
-          {value}
-        </span>
-      </div>
-    </div>
-  )
-}

@@ -355,26 +355,4 @@ const Dataset_tabledata = ({
   )
 }
 
-const Stat = ({ label, value }: { label: string; value: number }) => (
-  <div className="p-4 rounded-lg border border-neutral-800 bg-neutral-900/60">
-    <p className="text-sm text-neutral-400">{label}</p>
-    <p className="text-2xl font-semibold text-white">{value}</p>
-  </div>
-)
-
-const ColumnBox = ({ title, data }: { title: string; data: string[] }) => (
-  <div className="p-4 rounded-lg border border-neutral-800 bg-neutral-900/60">
-    <h3 className="text-sm font-semibold text-white mb-2">{title}</h3>
-    {data.length > 0 ? (
-      data.map(c => (
-        <p key={c} className="text-sm text-neutral-400">
-          • {c}
-        </p>
-      ))
-    ) : (
-      <p className="text-sm text-neutral-500 italic">N/A</p>
-    )}
-  </div>
-)
-
 export default Dataset_tabledata

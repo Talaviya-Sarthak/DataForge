@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { ExpandableTabs, Tab } from "@/components/ui/expandable-tabs";
 import {
@@ -23,10 +23,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import UserProfileDialog from "@/components/ui/UserProfileDialog";
 
 const Header: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
 
   // Determine active tab based on current path
   const getActiveTab = () => {
@@ -107,50 +109,59 @@ const Header: React.FC = () => {
 
           {/* Account Button - Right Side */}
           <div className="w-24 sm:w-32 md:w-40 flex justify-end">
-          <div className="flex items-center gap-2 sm:gap-3">
-            {/* User Dropdown Menu */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition-colors cursor-pointer bg-black hover:bg-gray-900 text-white border border-gray-800"
+            <div className="flex items-center gap-2 sm:gap-3">
+              {/* User Dropdown Menu */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition-colors cursor-pointer bg-black hover:bg-gray-900 text-white border border-gray-800"
+                  >
+                    <HiUser className="w-4 h-4" />
+                    <span className="hidden sm:inline">Account</span>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  className="w-fit bg-black border-gray-800 text-white"
                 >
-                  <HiUser className="w-4 h-4" />
-                  <span className="hidden sm:inline">Account</span>
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="end"
-                className="w-fit bg-black border-gray-800 text-white"
-              >
-                <DropdownMenuLabel className="text-white px-2 py-1.5">
-                  My Account
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator className="bg-gray-800" />
-                <DropdownMenuItem className="cursor-pointer whitespace-nowrap focus:bg-gray-900 focus:text-white text-white">
-                  <HiUser className="w-4 h-4 mr-2" />
-                  Account
-                </DropdownMenuItem>
-                <DropdownMenuItem className="cursor-pointer whitespace-nowrap focus:bg-gray-900 focus:text-white text-white">
-                  <HiBriefcase className="w-4 h-4 mr-2" />
-                  Billing
-                </DropdownMenuItem>
-                <DropdownMenuItem className="cursor-pointer whitespace-nowrap focus:bg-gray-900 focus:text-white text-white">
-                  <HiQuestionMarkCircle className="w-4 h-4 mr-2" />
-                  Support
-                </DropdownMenuItem>
-                <DropdownMenuItem className="cursor-pointer whitespace-nowrap focus:bg-gray-900 focus:text-white text-white">
-                  <HiCog className="w-4 h-4 mr-2" />
-                  Settings
-                </DropdownMenuItem>
-                <DropdownMenuSeparator className="bg-gray-800" />
-                <DropdownMenuItem className="cursor-pointer whitespace-nowrap focus:bg-gray-900 text-red-400 focus:text-red-400">
-                  <HiLogout className="w-4 h-4 mr-2" />
-                  Logout
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  <DropdownMenuLabel className="text-white px-2 py-1.5">
+                    My Account
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator className="bg-gray-800" />
+                  <DropdownMenuItem 
+                    className="cursor-pointer whitespace-nowrap focus:bg-gray-900 focus:text-white text-white"
+                    onClick={() => setIsProfileDialogOpen(true)}
+                  >
+                    <HiUser className="w-4 h-4 mr-2" />
+                    Profile
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="cursor-pointer whitespace-nowrap focus:bg-gray-900 focus:text-white text-white">
+                    <HiBriefcase className="w-4 h-4 mr-2" />
+                    Billing
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="cursor-pointer whitespace-nowrap focus:bg-gray-900 focus:text-white text-white">
+                    <HiQuestionMarkCircle className="w-4 h-4 mr-2" />
+                    Support
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="cursor-pointer whitespace-nowrap focus:bg-gray-900 focus:text-white text-white">
+                    <HiCog className="w-4 h-4 mr-2" />
+                    Settings
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="bg-gray-800" />
+                  <DropdownMenuItem className="cursor-pointer whitespace-nowrap focus:bg-gray-900 text-red-400 focus:text-red-400">
+                    <HiLogout className="w-4 h-4 mr-2" />
+                    Logout
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              
+              {/* User Profile Dialog */}
+              <UserProfileDialog
+                open={isProfileDialogOpen}
+                onOpenChange={setIsProfileDialogOpen}
+              />
             </div>
-            </div>
+          </div>
         </div>
       </div>
     </nav>

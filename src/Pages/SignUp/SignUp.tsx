@@ -15,6 +15,8 @@ import { GradientBars } from "../../components/ui/GradientBars";
 import { Link,useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { useToast } from "@/components/ui/toast/Toast"
+import { useAuth } from "@/contexts/AuthContext";
+import UserInfoForm from "@/components/ui/UserInfoForm";
 /** SignUp: Presentational component for user registration. */
 export default function SignUp() {
 
@@ -23,8 +25,41 @@ export default function SignUp() {
     const [password, setPassword] = useState("");
     const [errors, setErrors] = useState<{ name?: string; email?: string; password?: string; agree?: string }>({});
     const [agree, setAgree] = useState(false);
+    const [showOnboarding, setShowOnboarding] = useState(false);
+    const [tempUserData, setTempUserData] = useState<any>(null);
     const { show } = useToast()
+    const { login } = useAuth()
     const navigate = useNavigate();
+
+    const handleOnboardingComplete = (formData: any) => {
+        const userData = {
+            id: tempUserData?.id || "USR-2024-001",
+            name: tempUserData?.name || name,
+            email: tempUserData?.email || email,
+            phone: "+1 (555) 123-4567",
+            role: formData.profession || "Data Scientist",
+            organization: formData.company || "DataForge Analytics",
+            status: "active" as const,
+            avatar: null,
+        }
+        
+        login(userData)
+        show({ type: "success", message: "Welcome to DataForge! Your account is ready." });
+        navigate("/HomePage");
+    }
+
+    if (showOnboarding) {
+        return (
+            <div className="min-h-screen bg-black flex items-center justify-center p-4">
+                <div className="relative z-10 w-full">
+                    <UserInfoForm 
+                    onComplete={handleOnboardingComplete} 
+                    initialData={{ name, email }}
+                />
+                </div>
+            </div>
+        )
+    }
 
     function validate() {
         const e: typeof errors = {};
@@ -69,8 +104,10 @@ export default function SignUp() {
             .then(async (r) => {
                 const data = await r.json().catch(() => ({}));
                 if (!r.ok) throw new Error(data?.error || "Signup failed");
-                show({ type: "success", message: "New account created successfully" });
-                navigate("/SignIn");
+                
+                // Store temp user data and show onboarding
+                setTempUserData({ name, email, ...data });
+                setShowOnboarding(true);
             })
             .catch((err) => {
                 show({ type: "error", message: err?.message || "Signup failed" });

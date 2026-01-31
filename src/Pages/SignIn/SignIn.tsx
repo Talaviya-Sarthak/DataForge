@@ -15,12 +15,15 @@ import { GradientBars } from "../../components/ui/GradientBars";
 import { Link, useNavigate } from "react-router-dom";
 import { useState} from "react";
 import { useToast } from "@/components/ui/toast/Toast"
+import { useAuth } from "@/contexts/AuthContext";
+
 /** SignIn: Presentational component for user sign-in screen. */
 export default function SignIn() {
 
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const { show } = useToast()
+    const { login } = useAuth()
     const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
     const navigate = useNavigate()
     function validate() {
@@ -58,6 +61,20 @@ export default function SignIn() {
             .then(async (r) => {
                 const data = await r.json().catch(() => ({}));
                 if (!r.ok) throw new Error(data?.error || "Login failed");
+                
+                // Mock user data - replace with actual API response
+                const userData = {
+                    id: data.id || "USR-2024-001",
+                    name: data.name || "John Doe",
+                    email: email,
+                    phone: data.phone || "+1 (555) 123-4567",
+                    role: data.role || "Data Scientist",
+                    organization: data.organization || "DataForge Analytics",
+                    status: "active" as const,
+                    avatar: data.avatar || null,
+                }
+                
+                login(userData)
                 show({ type: "success", message: "You logged in successfully" });
                 navigate("/HomePage");
             })
