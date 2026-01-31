@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Breadcrumb } from "@/components/ui/step-breadcrumb";
 import { cn } from "@/lib/utils";
 
 const steps = [
@@ -68,7 +69,7 @@ interface UserInfoFormProps {
 }
 
 const UserInfoForm = ({ onComplete, initialData }: UserInfoFormProps) => {
-  const [currentStep, setCurrentStep] = useState(initialData?.name && initialData?.email ? 1 : 0);
+  const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<FormData>({
     name: initialData?.name || "",
@@ -108,7 +109,7 @@ const UserInfoForm = ({ onComplete, initialData }: UserInfoFormProps) => {
   };
 
   const prevStep = () => {
-    if (currentStep > 0) {
+    if (currentStep > 1) {
       setCurrentStep((prev) => prev - 1);
     }
   };
@@ -123,8 +124,6 @@ const UserInfoForm = ({ onComplete, initialData }: UserInfoFormProps) => {
 
   const isStepValid = () => {
     switch (currentStep) {
-      case 0:
-        return formData.name.trim() !== "" && formData.email.trim() !== "";
       case 1:
         return formData.profession.trim() !== "" && formData.industry !== "";
       case 2:
@@ -142,55 +141,42 @@ const UserInfoForm = ({ onComplete, initialData }: UserInfoFormProps) => {
     <div className="w-full max-w-lg mx-auto py-8">
       {/* Progress indicator */}
       <motion.div
-        className="mb-8"
+        className="mb-12"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <div className="flex justify-between mb-2">
-          {steps.map((step, index) => (
-            <motion.div
-              key={index}
-              className="flex flex-col items-center"
-              whileHover={{ scale: 1.1 }}
-            >
-              <motion.div
-                className={cn(
-                  "w-4 h-4 rounded-full cursor-pointer transition-colors duration-300",
-                  index < currentStep
-                    ? "bg-white"
-                    : index === currentStep
-                      ? "bg-white"
-                      : "bg-[#3A3A3A]",
-                )}
-                onClick={() => {
-                  if (index <= currentStep) {
-                    setCurrentStep(index);
-                  }
-                }}
-                whileTap={{ scale: 0.95 }}
-              />
-              <motion.span
-                className={cn(
-                  "text-xs mt-1.5 hidden sm:block",
-                  index === currentStep
-                    ? "text-white font-medium"
-                    : "text-[#9A9A9A]",
-                )}
-              >
-                {step.title}
-              </motion.span>
-            </motion.div>
-          ))}
-        </div>
-        <div className="w-full bg-[#3A3A3A] h-1.5 rounded-full overflow-hidden mt-2">
-          <motion.div
-            className="h-full bg-white"
-            initial={{ width: 0 }}
-            animate={{ width: `${(currentStep / (steps.length - 1)) * 100}%` }}
-            transition={{ duration: 0.3 }}
-          />
-        </div>
+        <Breadcrumb
+          className="overflow-visible -ml-20"
+          steps={steps.map((step, index) => {
+            let status: "complete" | "current" | "upcoming" = "upcoming";
+            
+            if (index === 0) {
+              status = "complete"; // Personal info is always complete
+            } else if (index < currentStep) {
+              status = "complete";
+            } else if (index === currentStep) {
+              // Check if current step has valid data to show as complete
+              const isCurrentStepComplete = (() => {
+                switch (currentStep) {
+                  case 1: return formData.profession.trim() !== "" && formData.industry !== "";
+                  case 2: return formData.dataExperience !== "";
+                  case 3: return formData.primaryGoal !== "";
+                  case 4: return formData.dataTypes.length > 0;
+                  case 5: return true; // Additional info is optional
+                  default: return false;
+                }
+              })();
+              status = isCurrentStepComplete ? "complete" : "current";
+            }
+            
+            return {
+              id: String(index + 1).padStart(2, '0'),
+              name: step.title,
+              status
+            };
+          })}
+        />
       </motion.div>
 
       {/* Form card */}
@@ -214,12 +200,12 @@ const UserInfoForm = ({ onComplete, initialData }: UserInfoFormProps) => {
                   <>
                     <CardHeader>
                       <CardTitle>Welcome to DataForge</CardTitle>
-                      <CardDescription>
+                      <CardDescription className="mt-4">
                         Let's start with some basic information
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-4">
-                      <motion.div variants={fadeInUp} className="space-y-2">
+                    <CardContent className="space-y-8">
+                      <motion.div variants={fadeInUp} className="space-y-4">
                         <Label htmlFor="name">Full Name</Label>
                         <Input
                           id="name"
@@ -231,7 +217,7 @@ const UserInfoForm = ({ onComplete, initialData }: UserInfoFormProps) => {
                           className="bg-[#080808] border-[#2C2C2C] text-white placeholder:text-[#6F6F6F] focus:border-[#4A4A4A] transition-all duration-300"
                         />
                       </motion.div>
-                      <motion.div variants={fadeInUp} className="space-y-2">
+                      <motion.div variants={fadeInUp} className="space-y-4">
                         <Label htmlFor="email">Email Address</Label>
                         <Input
                           id="email"
@@ -244,7 +230,7 @@ const UserInfoForm = ({ onComplete, initialData }: UserInfoFormProps) => {
                           className="bg-[#080808] border-[#2C2C2C] text-white placeholder:text-[#6F6F6F] focus:border-[#4A4A4A] transition-all duration-300"
                         />
                       </motion.div>
-                      <motion.div variants={fadeInUp} className="space-y-2">
+                      <motion.div variants={fadeInUp} className="space-y-4">
                         <Label htmlFor="company">
                           Company/Organization (Optional)
                         </Label>
@@ -267,12 +253,12 @@ const UserInfoForm = ({ onComplete, initialData }: UserInfoFormProps) => {
                   <>
                     <CardHeader>
                       <CardTitle>Professional Background</CardTitle>
-                      <CardDescription>
+                      <CardDescription className="mt-4">
                         Tell us about your professional experience
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-4">
-                      <motion.div variants={fadeInUp} className="space-y-2">
+                    <CardContent className="space-y-10">
+                      <motion.div variants={fadeInUp} className="space-y-4">
                         <Label htmlFor="profession">
                           What's your profession?
                         </Label>
@@ -287,7 +273,7 @@ const UserInfoForm = ({ onComplete, initialData }: UserInfoFormProps) => {
                         />
                       </motion.div>
 
-                      <motion.div variants={fadeInUp} className="space-y-2">
+                      <motion.div variants={fadeInUp} className="space-y-4">
                         <Label htmlFor="industry">
                           What industry do you work in?
                         </Label>
@@ -324,68 +310,70 @@ const UserInfoForm = ({ onComplete, initialData }: UserInfoFormProps) => {
                   <>
                     <CardHeader>
                       <CardTitle>Data Experience</CardTitle>
-                      <CardDescription>
+                      <CardDescription className="mt-4">
                         How familiar are you with data analysis?
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-4">
-                      <motion.div variants={fadeInUp} className="space-y-2">
+                    <CardContent className="space-y-10">
+                      <motion.div variants={fadeInUp} className="space-y-6">
                         <Label>
                           What's your experience level with data analysis?
                         </Label>
-                        <RadioGroup
-                          value={formData.dataExperience}
-                          onValueChange={(value) =>
-                            updateFormData("dataExperience", value)
-                          }
-                          className="space-y-2 mt-2"
-                        >
-                          {[
-                            { value: "beginner", label: "Beginner - New to data analysis" },
-                            { value: "intermediate", label: "Intermediate - Some experience" },
-                            { value: "advanced", label: "Advanced - Experienced analyst" },
-                            { value: "expert", label: "Expert - Data science professional" },
-                          ].map((level, index) => (
-                            <motion.div
-                              key={level.value}
-                              className="flex items-center space-x-2 rounded-md border p-3 cursor-pointer hover:bg-accent transition-colors"
-                              whileHover={{ scale: 1.02 }}
-                              whileTap={{ scale: 0.98 }}
-                              transition={{ duration: 0.2 }}
-                              initial={{ opacity: 0, x: -10 }}
-                              animate={{
-                                opacity: 1,
-                                x: 0,
-                                transition: {
-                                  delay: 0.1 * index,
-                                  duration: 0.3,
-                                },
-                              }}
-                            >
-                              <RadioGroupItem
-                                value={level.value}
-                                id={`level-${index + 1}`}
-                              />
-                              <Label
-                                htmlFor={`level-${index + 1}`}
-                                className="cursor-pointer w-full"
+                        <div className="mt-6">
+                          <RadioGroup
+                            value={formData.dataExperience}
+                            onValueChange={(value) =>
+                              updateFormData("dataExperience", value)
+                            }
+                            className="space-y-4"
+                          >
+                            {[
+                              { value: "beginner", label: "Beginner - New to data analysis" },
+                              { value: "intermediate", label: "Intermediate - Some experience" },
+                              { value: "advanced", label: "Advanced - Experienced analyst" },
+                              { value: "expert", label: "Expert - Data science professional" },
+                            ].map((level, index) => (
+                              <motion.div
+                                key={level.value}
+                                className="flex items-center space-x-3 rounded-md border-[0.5px] px-4 py-4 cursor-pointer hover:bg-accent transition-colors"
+                                whileHover={{ scale: 1.02 }}
+                                whileTap={{ scale: 0.98 }}
+                                transition={{ duration: 0.2 }}
+                                initial={{ opacity: 0, x: -10 }}
+                                animate={{
+                                  opacity: 1,
+                                  x: 0,
+                                  transition: {
+                                    delay: 0.1 * index,
+                                    duration: 0.3,
+                                  },
+                                }}
                               >
-                                {level.label}
-                              </Label>
-                            </motion.div>
-                          ))}
-                        </RadioGroup>
+                                <RadioGroupItem
+                                  value={level.value}
+                                  id={`level-${index + 1}`}
+                                />
+                                <Label
+                                  htmlFor={`level-${index + 1}`}
+                                  className="cursor-pointer w-full"
+                                >
+                                  {level.label}
+                                </Label>
+                              </motion.div>
+                            ))}
+                          </RadioGroup>
+                        </div>
                       </motion.div>
 
-                      <motion.div variants={fadeInUp} className="space-y-2">
+                      <motion.div variants={fadeInUp} className="space-y-6">
                         <Label>Which tools have you used? (Select all that apply)</Label>
-                        <div className="grid grid-cols-2 gap-2 mt-2">
+                        <div className="mt-6 grid grid-cols-2 gap-3">
                           {[
                             "Excel", "Python", "R", "SQL", "Tableau", "Power BI", "SPSS", "SAS"
                           ].map((tool, index) => (
                             <motion.div
                               key={tool}
-                              className="flex items-center space-x-2 rounded-md border p-3 cursor-pointer hover:bg-accent transition-colors"
+                              className="flex items-center space-x-3 rounded-md border-[0.5px] px-4 py-4 cursor-pointer hover:bg-accent transition-colors"
                               whileHover={{ scale: 1.02 }}
                               whileTap={{ scale: 0.98 }}
                               transition={{ duration: 0.2 }}
@@ -528,21 +516,21 @@ const UserInfoForm = ({ onComplete, initialData }: UserInfoFormProps) => {
                   <>
                     <CardHeader>
                       <CardTitle>Data Preferences</CardTitle>
-                      <CardDescription>
+                      <CardDescription className="mt-4">
                         What types of data do you work with?
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-4">
-                      <motion.div variants={fadeInUp} className="space-y-2">
+                    <CardContent className="space-y-10">
+                      <motion.div variants={fadeInUp} className="space-y-6">
                         <Label>What types of data do you typically work with?</Label>
-                        <div className="grid grid-cols-2 gap-2 mt-2">
+                        <div className="mt-6 grid grid-cols-2 gap-3">
                           {[
                             "CSV Files", "Excel Spreadsheets", "Database Tables", "JSON Data",
                             "Time Series", "Survey Data", "Financial Data", "Scientific Data"
                           ].map((dataType, index) => (
                             <motion.div
                               key={dataType}
-                              className="flex items-center space-x-2 rounded-md border p-3 cursor-pointer hover:bg-accent transition-colors"
+                              className="flex items-center space-x-3 rounded-md border-[0.5px] px-4 py-4 cursor-pointer hover:bg-accent transition-colors"
                               whileHover={{ scale: 1.02 }}
                               whileTap={{ scale: 0.98 }}
                               transition={{ duration: 0.2 }}
@@ -573,16 +561,16 @@ const UserInfoForm = ({ onComplete, initialData }: UserInfoFormProps) => {
                         </div>
                       </motion.div>
 
-                      <motion.div variants={fadeInUp} className="space-y-2">
+                      <motion.div variants={fadeInUp} className="space-y-6">
                         <Label>Which features are most important to you?</Label>
-                        <div className="grid grid-cols-1 gap-2 mt-2">
+                        <div className="mt-6 grid grid-cols-1 gap-3">
                           {[
                             "Automated Data Cleaning", "Visual Data Exploration", "Machine Learning Models",
                             "Statistical Analysis", "Data Export Options", "Collaboration Tools"
                           ].map((feature, index) => (
                             <motion.div
                               key={feature}
-                              className="flex items-center space-x-2 rounded-md border p-3 cursor-pointer hover:bg-accent transition-colors"
+                              className="flex items-center space-x-3 rounded-md border-[0.5px] px-4 py-4 cursor-pointer hover:bg-accent transition-colors"
                               whileHover={{ scale: 1.02 }}
                               whileTap={{ scale: 0.98 }}
                               transition={{ duration: 0.2 }}
@@ -621,12 +609,12 @@ const UserInfoForm = ({ onComplete, initialData }: UserInfoFormProps) => {
                   <>
                     <CardHeader>
                       <CardTitle>Additional Information</CardTitle>
-                      <CardDescription>
+                      <CardDescription className="mt-4">
                         Anything else you'd like us to know?
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-4">
-                      <motion.div variants={fadeInUp} className="space-y-2">
+                    <CardContent className="space-y-8">
+                      <motion.div variants={fadeInUp} className="space-y-6">
                         <Label htmlFor="additionalInfo">
                           Tell us more about your data analysis needs
                         </Label>
@@ -637,7 +625,7 @@ const UserInfoForm = ({ onComplete, initialData }: UserInfoFormProps) => {
                           onChange={(e) =>
                             updateFormData("additionalInfo", e.target.value)
                           }
-                          className="min-h-[100px] mt-2 transition-all duration-300 focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                          className="min-h-[100px] transition-all duration-300 focus:ring-2 focus:ring-primary/20 focus:border-primary"
                         />
                       </motion.div>
                     </CardContent>
@@ -655,7 +643,7 @@ const UserInfoForm = ({ onComplete, initialData }: UserInfoFormProps) => {
                   type="button"
                   variant="outline"
                   onClick={prevStep}
-                  disabled={currentStep === 0}
+                  disabled={currentStep === 1}
                   className="flex items-center gap-1 transition-all duration-300 rounded-2xl bg-transparent border border-[#3A3A3A] text-[#9A9A9A] hover:bg-[#1A1A1A]"
                 >
                   <ChevronLeft className="h-4 w-4" /> Back

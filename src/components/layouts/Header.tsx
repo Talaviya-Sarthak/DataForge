@@ -24,11 +24,18 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import UserProfileDialog from "@/components/ui/UserProfileDialog";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Header: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
+  const { logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/SignIn");
+  };
 
   // Determine active tab based on current path
   const getActiveTab = () => {
@@ -148,7 +155,10 @@ const Header: React.FC = () => {
                     Settings
                   </DropdownMenuItem>
                   <DropdownMenuSeparator className="bg-gray-800" />
-                  <DropdownMenuItem className="cursor-pointer whitespace-nowrap focus:bg-gray-900 text-red-400 focus:text-red-400">
+                  <DropdownMenuItem 
+                    className="cursor-pointer whitespace-nowrap focus:bg-gray-900 text-red-400 focus:text-red-400"
+                    onClick={handleLogout}
+                  >
                     <HiLogout className="w-4 h-4 mr-2" />
                     Logout
                   </DropdownMenuItem>
