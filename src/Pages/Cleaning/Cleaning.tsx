@@ -2,289 +2,704 @@
 
 import Header from "@/components/layouts/Header"
 import { Footer } from "@/components/layouts/Footer"
-import { LampDemo } from "@/components/layouts/BgLamp"
 import { useState, Suspense, lazy } from "react"
-import { Trash2, AlertTriangle, Info, Hash, Type, TriangleAlert } from "lucide-react"
+import {
+  Settings,
+  BarChart3,
+  Eye,
+  Trash2,
+  X,
+  Columns,
+  Database,
+  AlertTriangle,
+  Target,
+  Hash,
+  Type,
+  Shuffle,
+  Filter,
+  Scale,
+  LineChart,
+  PieChart,
+  ChartArea
+} from "lucide-react"
 import { useStoredDataset } from "@/components/layouts/DataSet_data"
 
 const DataTable = lazy(() => import("@/components/ui/DataTable"))
 
-const getColumnTypeIcon = (type: string) => {
-  switch (type) {
-    case "numeric":
-      return <Hash className="h-3 w-3" />
-    case "categorical":
-      return <Type className="h-3 w-3" />
-    case "text":
-      return <Type className="h-3 w-3" />
-    default:
-      return <Hash className="h-3 w-3" />
-  }
-}
-
-const getColumnTypeBadge = (type: string) => {
-  const colors = {
-    numeric: "bg-blue-500/20 text-blue-300 border-blue-500/30",
-    categorical: "bg-green-500/20 text-green-300 border-green-500/30",
-    text: "bg-purple-500/20 text-purple-300 border-purple-500/30"
-  }
-  return colors[type as keyof typeof colors] || colors.numeric
-}
-
-const getColumnType = (columnName: string, dataset: any) => {
-  if (dataset?.numerical_columns?.includes(columnName)) return "numeric"
-  if (dataset?.categorical_columns?.includes(columnName)) return "categorical"
-  return "text"
-}
-
-const getColumnStats = (columnName: string, dataset: any) => {
-  const stats = dataset?.statistics?.[columnName]
-  return {
-    missing: stats?.missing_count || 0,
-    outliers: stats?.outliers || 0
-  }
+// Strategy options based on ML service implementations
+const STRATEGIES = {
+  missing: ["auto", "mean", "median", "mode", "custom"],
+  outliers: ["auto", "cap", "remove"],
+  encoding: ["auto", "onehot", "ordinal", "target"],
+  scaling: ["auto", "standardize", "normalize", "robust", "log"],
+  feature_selection: ["auto", "variance", "correlation", "manual"],
+  imbalance: ["auto", "undersample", "oversample", "smote"]
 }
 
 const Cleaning = () => {
   const dataset = useStoredDataset()
-  const [selectedColumn, setSelectedColumn] = useState<any>(null)
+  const [selectedColumn, setSelectedColumn] = useState<string | null>(null)
+  const [activeDialog, setActiveDialog] = useState<string | null>(null)
+  const [showPreview, setShowPreview] = useState<boolean>(false)
+  const [showGraphDialog, setShowGraphDialog] = useState<boolean>(false)
+  const [showColumnInfo, setShowColumnInfo] = useState<boolean>(false)
 
-  const handleColumnSelect = (column: any) => {
-    setSelectedColumn(column)
+  const getColumnStats = (columnName: string) => {
+    const stats = dataset?.statistics?.[columnName]
+    return {
+      missing: stats?.missing_count || 0,
+      outliers: stats?.outliers || 0,
+      unique: stats?.unique_values || 0
+    }
   }
 
-  // Create columns array from dataset
-  const columns = dataset?.data && dataset.data.length > 0 
-    ? Object.keys(dataset.data[0]).map(columnName => {
-        const stats = getColumnStats(columnName, dataset)
-        return {
-          name: columnName,
-          type: getColumnType(columnName, dataset),
-          missing: stats.missing,
-          outliers: stats.outliers
-        }
-      })
+  const getColumnType = (columnName: string) => {
+    if (dataset?.numerical_columns?.includes(columnName)) return "numeric"
+    if (dataset?.categorical_columns?.includes(columnName)) return "categorical"
+    return "text"
+  }
+
+  const columns = dataset?.data && dataset.data.length > 0
+    ? Object.keys(dataset.data[0]).map(name => ({
+      name,
+      type: getColumnType(name),
+      ...getColumnStats(name)
+    }))
     : []
 
-  return (
-    <div className="relative flex flex-col min-h-screen bg-slate-950 overflow-hidden">
-      <div className="absolute inset-x-0 top-[-16vh] lg:top-[-16vh] xl:top-[-10vh] 2xl:top-[-8vh] h-screen lg:h-[120vh] xl:h-[140vh] 2xl:h-[160vh] z-0 pointer-events-none">
-        <LampDemo />
-      </div>
-      <div className="relative z-10 flex flex-col min-h-screen">
-        <Header />
+  const totalMissing = columns.reduce((sum, col) => sum + col.missing, 0)
+  const totalOutliers = columns.reduce((sum, col) => sum + col.outliers, 0)
 
-        <div className="min-h-screen relative bg-transparent">
-          {/* Page Header */}
-          <div className="mt-8 mb-12">
-            <div className="text-center">
-              <h1 className="text-5xl font-bold text-white mb-4 bg-gradient-to-r from-white via-blue-100 to-white bg-clip-text text-transparent">
-                Feature Engineering
-              </h1>
-              <p className="text-lg text-neutral-400 max-w-2xl mx-auto">
-                Transform and prepare your data columns for machine learning workflows
+  const ColumnInfoDialog = ({ onClose }: { onClose: () => void }) => {
+    const selectedColumnData = columns.find(col => col.name === selectedColumn)
+
+    return (
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+        <div className="relative bg-neutral-900 rounded-xl p-6 w-96 max-w-[90vw] border border-neutral-800 shadow-[0_0_0_1px_rgba(255,255,255,0.03),0_20px_40px_rgba(0,0,0,0.6)]">
+
+          {/* Header */}
+          <div className="flex justify-between items-center mb-5">
+            <div>
+              <h3 className="text-lg font-semibold text-white">
+                Column Information
+              </h3>
+              <p className="text-xs text-neutral-500 mt-0.5">
+                Detailed statistics for selected column
               </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-neutral-400 hover:text-white transition-colors"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="space-y-4">
+
+            {/* Column Name */}
+            <div className="flex items-center gap-3 rounded-lg border border-neutral-800 px-3 py-2.5 bg-neutral-900/60">
+              <Type className="h-5 w-5 text-blue-400" />
+              <div>
+                <div className="text-xs text-neutral-500">Column Name</div>
+                <div className="text-white font-medium tracking-wide">
+                  {selectedColumn}
+                </div>
+              </div>
+            </div>
+
+            {/* Data Type */}
+            <div className="flex items-center gap-3 rounded-lg border border-neutral-800 px-3 py-2.5 bg-neutral-900/60">
+              <Hash className="h-5 w-5 text-green-400" />
+              <div>
+                <div className="text-xs text-neutral-500">Data Type</div>
+                <div className="text-white font-medium capitalize">
+                  {selectedColumnData?.type}
+                </div>
+              </div>
+            </div>
+
+            {/* Total Values */}
+            <div className="flex items-center gap-3 rounded-lg border border-neutral-800 px-3 py-2.5 bg-neutral-900/60">
+              <Database className="h-5 w-5 text-neutral-400" />
+              <div>
+                <div className="text-xs text-neutral-500">Total Values</div>
+                <div className="text-white font-medium">
+                  {dataset.rows || 0}
+                </div>
+              </div>
+            </div>
+
+            {/* Missing Values */}
+            <div className="flex items-center gap-3 rounded-lg border border-amber-900/40 bg-amber-950/20 px-3 py-2.5">
+              <AlertTriangle className="h-5 w-5 text-amber-400" />
+              <div>
+                <div className="text-xs text-amber-300/80">Missing Values</div>
+                <div className="text-white font-medium">
+                  {selectedColumnData?.missing || 0}
+                </div>
+              </div>
+            </div>
+
+            {/* Outliers */}
+            <div className="flex items-center gap-3 rounded-lg border border-red-900/40 bg-red-950/20 px-3 py-2.5">
+              <Target className="h-5 w-5 text-red-400" />
+              <div>
+                <div className="text-xs text-red-300/80">Outliers</div>
+                <div className="text-white font-medium">
+                  {selectedColumnData?.outliers || 0}
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+
+  const GraphDialog = ({ onClose }: { onClose: () => void }) => (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="bg-neutral-900 rounded-xl p-6 w-[500px] max-w-[90vw] border border-neutral-800 shadow-2xl">
+
+        {/* Header */}
+        <div className="flex justify-between items-center mb-5">
+          <h3 className="text-xl font-semibold text-white tracking-tight">
+            Select Visualization
+          </h3>
+          <button
+            onClick={onClose}
+            className="text-neutral-400 hover:text-white transition-colors"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Cards */}
+        <div className="grid grid-cols-2 gap-4">
+          {[
+            {
+              title: "Histogram",
+              desc: "Distribution of values",
+              icon: BarChart3,
+              color: "text-blue-400",
+              bg: "bg-blue-500/10",
+            },
+            {
+              title: "Scatter Plot",
+              desc: "Relationship between variables",
+              icon: BarChart3,
+              color: "text-green-400",
+              bg: "bg-green-500/10",
+            },
+            {
+              title: "Box Plot",
+              desc: "Statistical summary",
+              icon: BarChart3,
+              color: "text-purple-400",
+              bg: "bg-purple-500/10",
+            },
+            {
+              title: "Line Chart",
+              desc: "Trends over time",
+              icon: LineChart,
+              color: "text-orange-400",
+              bg: "bg-orange-500/10",
+            },
+            {
+              title: "Pie Chart",
+              desc: "Proportional data",
+              icon: PieChart,
+              color: "text-pink-400",
+              bg: "bg-pink-500/10",
+            },
+            {
+              title: "Heatmap",
+              desc: "Correlation matrix",
+              icon: Hash,
+              color: "text-cyan-400",
+              bg: "bg-cyan-500/10",
+            },
+          ].map(({ title, desc, icon: Icon, color, bg }) => (
+            <button
+              key={title}
+              className="
+              group relative rounded-xl p-4 text-left
+              bg-neutral-900
+              ring-1 ring-neutral-800
+              hover:ring-neutral-600
+              hover:bg-neutral-800/70
+              transition-all duration-200
+              hover:-translate-y-[1px]
+            "
+            >
+              {/* Icon */}
+              <div
+                className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${bg}`}
+              >
+                <Icon className={`h-5 w-5 ${color}`} />
+              </div>
+
+              {/* Text */}
+              <div className="text-sm font-medium text-white">
+                {title}
+              </div>
+              <div className="text-xs text-neutral-400 mt-0.5">
+                {desc}
+              </div>
+
+              {/* Hover glow */}
+              <div
+                className="
+                pointer-events-none absolute inset-0 rounded-xl
+                opacity-0 group-hover:opacity-100
+                transition-opacity
+                ring-1 ring-white/5
+              "
+              />
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+
+
+  const Dialog = ({
+    title,
+    strategies,
+    onClose,
+  }: {
+    title: string
+    strategies: string[]
+    onClose: () => void
+  }) => (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="relative w-[26rem] max-w-[92vw] rounded-xl border border-neutral-800 bg-gradient-to-b from-neutral-900 to-neutral-950 p-6 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.9)]">
+
+        {/* Header */}
+        <div className="mb-5 flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-white tracking-tight">
+              {title}
+            </h3>
+            <p className="text-xs text-neutral-500 mt-0.5">
+              Choose how missing values should be handled
+            </p>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="rounded-md p-1 text-neutral-400 transition hover:bg-neutral-800 hover:text-white"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Strategies */}
+        <div className="space-y-2">
+          {strategies.map((strategy) => (
+            <button
+              key={strategy}
+              className="
+              group w-full rounded-lg border border-neutral-800
+              bg-neutral-900/60 px-4 py-3 text-left
+              text-sm font-medium capitalize text-neutral-200
+              transition-all
+              hover:border-neutral-600
+              hover:bg-neutral-800/70
+              hover:shadow-[0_0_0_1px_rgba(255,255,255,0.04)]
+              active:scale-[0.98]
+              focus:outline-none focus:ring-2 focus:ring-blue-500/40
+            "
+            >
+              <div className="flex items-center justify-between">
+                <span>{strategy.replace("_", " ")}</span>
+                <span className="text-xs text-neutral-500 opacity-0 transition group-hover:opacity-100">
+                  Select
+                </span>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+
+
+  if (!dataset) {
+    return (
+      <div className="min-h-screen bg-slate-950">
+        <Header />
+        <div className="flex items-center justify-center h-96">
+          <div className="text-center">
+            <p className="text-neutral-400 text-lg">No dataset loaded</p>
+            <p className="text-neutral-500 text-sm mt-2">Please upload a dataset first</p>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-black">
+      <Header />
+
+      {/* Page Header */}
+      <div className="max-w-7xl mx-auto px-6 pt-8 pb-6">
+        <h1 className="text-3xl font-semibold tracking-tight text-white">
+          Data Cleaning
+        </h1>
+        <p className="text-sm text-neutral-400 mt-2 max-w-2xl">
+          Inspect, clean, and prepare your dataset by handling missing values,
+          outliers, and improving feature quality before further processing.
+        </p>
+      </div>
+
+
+
+
+
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-6 py-6">
+        <div className="grid grid-cols-3 gap-6">
+
+          {/* Left Panel - Column List */}
+          <div className="col-span-1">
+            <div className="bg-gradient-to-b from-neutral-900/80 to-neutral-950/80 rounded-lg border border-neutral-800/70 p-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.5)] transition-shadow duration-300">
+              <h3 className="font-medium text-white mb-3">Columns</h3>
+              <div className="space-y-2 max-h-135 overflow-y-auto pr-1 custom-scrollbar">
+                {columns.map(column => {
+                  const isActive = selectedColumn === column.name
+                  const isNumeric = column.type === "numeric"
+
+                  return (
+                    <button
+                      key={column.name}
+                      onClick={() => {
+                        setSelectedColumn(column.name)
+                        setShowColumnInfo(true)
+                      }}
+                      className={`
+                        group relative w-full rounded-xl p-3 text-left
+                        border transition-all duration-300
+                        backdrop-blur-sm
+                        ${isActive
+                          ? "bg-gradient-to-r from-blue-500/15 to-transparent border-blue-500/50 shadow-[0_0_0_1px_rgba(59,130,246,0.45),0_8px_30px_rgba(59,130,246,0.15)]"
+                          : "bg-neutral-900/40 border-neutral-700 hover:border-neutral-600 hover:bg-neutral-800/60"
+                        }
+                      `}
+                    >
+                      {/* Accent rail */}
+                      <span
+                        className={`
+                          absolute left-0 top-0 h-full w-[3px] rounded-l-xl transition-all
+                          ${isActive
+                            ? "bg-gradient-to-b from-blue-400 to-blue-600 opacity-100"
+                            : "opacity-0 group-hover:opacity-40 bg-neutral-500"
+                          }
+                        `}
+                      />
+
+                      {/* Inner glow */}
+                      {isActive && (
+                        <span className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-br from-blue-400/10 via-transparent to-transparent" />
+                      )}
+
+                      <div className="relative flex items-start justify-between gap-3">
+                        {/* Left content */}
+                        <div className="min-w-0">
+                          {/* Column name */}
+                          <div
+                            className={`
+                              truncate text-sm font-semibold
+                              ${isActive ? "text-blue-200" : "text-neutral-100"}
+                            `}
+                          >
+                            {column.name}
+                          </div>
+
+                          {/* Meta row */}
+                          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                            {/* Type badge */}
+                            <span
+                              className={`
+                                flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium border
+                                ${isNumeric
+                                  ? "border-blue-500/40 text-blue-400 bg-blue-500/5"
+                                  : "border-emerald-500/40 text-emerald-400 bg-emerald-500/5"
+                                }
+                              `}
+                            >
+                              {isNumeric ? "#" : "Aa"} {column.type}
+                            </span>
+
+                            {/* Missing badge */}
+                            {column.missing > 0 && (
+                              <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-400">
+                                ⚠ {column.missing} missing
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Chevron */}
+                        <span
+                          className={`
+                            mt-1 text-neutral-500 transition-all
+                            ${isActive ? "text-blue-400" : "group-hover:text-neutral-300 group-hover:translate-x-0.5"}
+                          `}
+                        >
+                          →
+                        </span>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+
             </div>
           </div>
 
-          {/* Dataset Preview */}
-          {dataset && (
-            <div className="max-w-7xl mx-auto px-6 mb-12">
-              <Suspense
-                fallback={
-                  <div className="flex justify-center mt-16">
-                    <div className="h-10 w-10 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
-                  </div>
-                }
-              >
-                <DataTable data={dataset.data ?? []} />
-              </Suspense>
-            </div>
-          )}
-
-          {/* Main Layout */}
-          {dataset ? (
-            <div className="max-w-7xl mx-auto px-6 grid grid-cols-12 gap-8">
-              
-              {/* LEFT PANEL - Column Selector */}
-              <div className="col-span-3">
-                <div className="sticky top-8">
-                  <div className="bg-neutral-900/80 backdrop-blur-xl border border-neutral-800/50 rounded-2xl p-6 shadow-2xl">
-                    <h3 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
-                      <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                      Select Column
-                    </h3>
-                    
-                    <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-neutral-700 scrollbar-track-transparent">
-                      {columns.map((column) => (
-                        <button
-                          key={column.name}
-                          onClick={() => handleColumnSelect(column)}
-                          className={`w-full text-left p-4 rounded-xl transition-all duration-300 group ${
-                            selectedColumn?.name === column.name
-                              ? "bg-gradient-to-r from-blue-600/20 to-blue-500/10 border border-blue-500/50 shadow-lg shadow-blue-500/10"
-                              : "bg-neutral-800/40 border border-neutral-700/50 hover:bg-neutral-800/60 hover:border-neutral-600/50 hover:shadow-lg"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between mb-2">
-                            <span className={`font-medium ${
-                              selectedColumn?.name === column.name ? "text-blue-300" : "text-white group-hover:text-blue-200"
-                            }`}>
-                              {column.name}
-                            </span>
-                            {column.missing > 0 && (
-                              <div className="flex items-center gap-1 text-amber-400">
-                                <TriangleAlert className="h-3 w-3" />
-                                <span className="text-xs font-medium">{column.missing}</span>
-                              </div>
-                            )}
-                          </div>
-                          
-                          <div className="flex items-center gap-2">
-                            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium border ${
-                              getColumnTypeBadge(column.type)
-                            }`}>
-                              {getColumnTypeIcon(column.type)}
-                              {column.type}
-                            </span>
-                          </div>
-                        </button>
-                      ))}
+          {/* Right Panel */}
+          <div className="col-span-2">
+            {/* Dataset Summary */}
+            <div className="bg-neutral-900/80 rounded-lg border border-neutral-800 p-4 mb-6">
+              <h3 className="font-medium text-white mb-4">Dataset Summary</h3>
+              <div className="grid grid-cols-6 gap-4 text-sm">
+                {[
+                  { label: "Columns", value: columns.length, icon: Columns },
+                  { label: "Total Values", value: dataset.rows || 0, icon: Database },
+                  { label: "Missing Values", value: totalMissing, icon: AlertTriangle, color: "text-amber-400" },
+                  { label: "Outliers", value: totalOutliers, icon: Target, color: "text-red-400" },
+                  { label: "Numeric", value: dataset.numerical_columns?.length || 0, icon: Hash, color: "text-blue-400" },
+                  { label: "Categorical", value: dataset.categorical_columns?.length || 0, icon: Type, color: "text-emerald-400" },
+                ].map(({ label, value, icon: Icon, color }) => (
+                  <div
+                    key={label}
+                    className="
+                      flex items-center gap-3
+                      rounded-lg px-3 py-2
+                      border border-neutral-800/70
+                      bg-gradient-to-b from-neutral-900/60 to-neutral-950
+                      shadow-[0_6px_20px_rgba(0,0,0,0.35)]
+                      hover:border-neutral-700
+                      transition-all duration-200
+                    "
+                  >
+                    {/* Icon badge */}
+                    <div className="p-2 rounded-md bg-neutral-800/60">
+                      <Icon className={`h-3.5 w-3.5 ${color ?? "text-neutral-300"}`} />
                     </div>
+
+                    {/* Text */}
+                    <div className="leading-tight">
+                      <div className="text-[11px] text-neutral-500 tracking-wide">
+                        {label}
+                      </div>
+                      <div className="text-base font-semibold text-white">
+                        {value}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+
+
+
+            <div className="grid grid-cols-3 gap-4">
+
+              {/* Main Cleaning Actions */}
+              <div className="col-span-2">
+                <div className="bg-gradient-to-b from-neutral-900/80 to-neutral-950/80 rounded-lg border border-neutral-800/70 p-4 h-auto shadow-[0_8px_30px_rgba(0,0,0,0.4)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.5)] transition-shadow duration-300">
+                  <h3 className="font-medium text-white mb-3">Cleaning Actions</h3>
+                  <div className="space-y-4">
+                    <button
+                      onClick={() => setActiveDialog('missing')}
+                      className="w-full p-3 border border-neutral-700/70 rounded-lg bg-gradient-to-r from-neutral-900/40 to-neutral-950/40 hover:from-neutral-800/60 hover:to-neutral-900/60 hover:border-neutral-600/70 hover:shadow-[0_4px_20px_rgba(0,0,0,0.3)] text-left flex items-center gap-3 transition-all duration-200"
+                    >
+                      <AlertTriangle className="h-4 w-4 text-amber-400" />
+                      <div>
+                        <div className="font-medium text-white text-sm">Handle Missing Values</div>
+                        <div className="text-xs text-neutral-400">Fill or remove missing data</div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => setActiveDialog('encoding')}
+                      className="w-full p-3 border border-neutral-700/70 rounded-lg bg-gradient-to-r from-neutral-900/40 to-neutral-950/40 hover:from-neutral-800/60 hover:to-neutral-900/60 hover:border-neutral-600/70 hover:shadow-[0_4px_20px_rgba(0,0,0,0.3)] text-left flex items-center gap-3 transition-all duration-200"
+                    >
+                      <Shuffle className="h-4 w-4 text-green-400" />
+                      <div>
+                        <div className="font-medium text-white text-sm">Encoding</div>
+                        <div className="text-xs text-neutral-400">Convert categorical to numeric</div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => setActiveDialog('feature_selection')}
+                      className="w-full p-3 border border-neutral-700/70 rounded-lg bg-gradient-to-r from-neutral-900/40 to-neutral-950/40 hover:from-neutral-800/60 hover:to-neutral-900/60 hover:border-neutral-600/70 hover:shadow-[0_4px_20px_rgba(0,0,0,0.3)] text-left flex items-center gap-3 transition-all duration-200"
+                    >
+                      <Filter className="h-4 w-4 text-blue-400" />
+                      <div>
+                        <div className="font-medium text-white text-sm">Feature Selection</div>
+                        <div className="text-xs text-neutral-400">Remove irrelevant features</div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => setActiveDialog('imbalance')}
+                      className="w-full p-3 border border-neutral-700/70 rounded-lg bg-gradient-to-r from-neutral-900/40 to-neutral-950/40 hover:from-neutral-800/60 hover:to-neutral-900/60 hover:border-neutral-600/70 hover:shadow-[0_4px_20px_rgba(0,0,0,0.3)] text-left flex items-center gap-3 transition-all duration-200"
+                    >
+                      <Scale className="h-4 w-4 text-purple-400" />
+                      <div>
+                        <div className="font-medium text-white text-sm">Handle Imbalance</div>
+                        <div className="text-xs text-neutral-400">Balance target classes</div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => setActiveDialog('outliers')}
+                      className="w-full p-3 border border-neutral-700/70 rounded-lg bg-gradient-to-r from-neutral-900/40 to-neutral-950/40 hover:from-neutral-800/60 hover:to-neutral-900/60 hover:border-neutral-600/70 hover:shadow-[0_4px_20px_rgba(0,0,0,0.3)] text-left flex items-center gap-3 transition-all duration-200"
+                    >
+                      <Target className="h-4 w-4 text-red-400" />
+                      <div>
+                        <div className="font-medium text-white text-sm">Outliers</div>
+                        <div className="text-xs text-neutral-400">Detect and handle outliers</div>
+                      </div>
+                    </button>
                   </div>
                 </div>
               </div>
 
-              {/* RIGHT PANEL - Column Actions & Info */}
-              <div className="col-span-9">
-                {selectedColumn ? (
-                  <div className="space-y-6">
-                    
-                    {/* Selected Column Header Card */}
-                    <div className="bg-gradient-to-r from-neutral-900/90 to-neutral-800/90 backdrop-blur-xl border border-neutral-700/50 rounded-2xl p-6 shadow-2xl">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h2 className="text-2xl font-bold text-white mb-2">{selectedColumn.name}</h2>
-                          <div className="flex items-center gap-4 text-sm text-neutral-400">
-                            <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-lg border ${
-                              getColumnTypeBadge(selectedColumn.type)
-                            }`}>
-                              {getColumnTypeIcon(selectedColumn.type)}
-                              {selectedColumn.type}
-                            </span>
-                            <span>{selectedColumn.missing} missing • {dataset.rows || 0} total values</span>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-2xl font-bold text-white">100%</div>
-                          <div className="text-sm text-neutral-400">Data Quality</div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Action Cards Grid */}
-                    <div className="grid grid-cols-2 gap-6">
-                      
-                      {/* Card 1: Drop Column */}
-                      <div className="bg-neutral-900/80 backdrop-blur-xl border border-neutral-800/50 rounded-2xl p-6 shadow-2xl hover:border-red-500/30 hover:shadow-red-500/10 transition-all duration-300 group">
-                        <div className="flex items-center gap-3 mb-4">
-                          <div className="p-3 rounded-xl bg-red-500/20 group-hover:bg-red-500/30 transition-colors">
-                            <Trash2 className="h-6 w-6 text-red-400" />
-                          </div>
-                          <h4 className="text-xl font-semibold text-white">Drop Column</h4>
-                        </div>
-                        <p className="text-neutral-400 text-sm mb-6 leading-relaxed">
-                          Permanently remove the "{selectedColumn.name}" column from your dataset. This action cannot be undone.
-                        </p>
-                        <button className="w-full px-6 py-3 bg-gradient-to-r from-red-600/20 to-red-500/20 border border-red-500/50 text-red-300 rounded-xl hover:from-red-600/30 hover:to-red-500/30 hover:border-red-400/60 transition-all duration-300 font-medium">
-                          Drop "{selectedColumn.name}"
-                        </button>
-                      </div>
-
-                      {/* Card 2: Missing Values & Outliers */}
-                      <div className="bg-neutral-900/80 backdrop-blur-xl border border-neutral-800/50 rounded-2xl p-6 shadow-2xl hover:border-amber-500/30 hover:shadow-amber-500/10 transition-all duration-300 group">
-                        <div className="flex items-center gap-3 mb-4">
-                          <div className="p-3 rounded-xl bg-amber-500/20 group-hover:bg-amber-500/30 transition-colors">
-                            <AlertTriangle className="h-6 w-6 text-amber-400" />
-                          </div>
-                          <h4 className="text-xl font-semibold text-white">Missing Values & Outliers</h4>
-                        </div>
-                        <div className="space-y-4 mb-6">
-                          <div className="flex justify-between items-center p-3 bg-neutral-800/50 rounded-lg">
-                            <span className="text-neutral-300 font-medium">Missing Values:</span>
-                            <span className="text-amber-300 font-bold text-lg">{selectedColumn.missing}</span>
-                          </div>
-                          <div className="flex justify-between items-center p-3 bg-neutral-800/50 rounded-lg">
-                            <span className="text-neutral-300 font-medium">Outliers Detected:</span>
-                            <span className="text-amber-300 font-bold text-lg">{selectedColumn.outliers || 0}</span>
-                          </div>
-                        </div>
-                        <button className="w-full px-6 py-3 bg-gradient-to-r from-amber-600/20 to-amber-500/20 border border-amber-500/50 text-amber-300 rounded-xl hover:from-amber-600/30 hover:to-amber-500/30 hover:border-amber-400/60 transition-all duration-300 font-medium">
-                          Handle Data Issues
-                        </button>
-                      </div>
-
-                      {/* Card 3: Column Insights */}
-                      <div className="bg-neutral-900/80 backdrop-blur-xl border border-neutral-800/50 rounded-2xl p-6 shadow-2xl hover:border-blue-500/30 hover:shadow-blue-500/10 transition-all duration-300 group">
-                        <div className="flex items-center gap-3 mb-4">
-                          <div className="p-3 rounded-xl bg-blue-500/20 group-hover:bg-blue-500/30 transition-colors">
-                            <Info className="h-6 w-6 text-blue-400" />
-                          </div>
-                          <h4 className="text-xl font-semibold text-white">Column Insights</h4>
-                        </div>
-                        <p className="text-neutral-400 text-sm leading-relaxed">
-                          Advanced statistical analysis and data profiling insights will appear here. 
-                          This includes distribution patterns, correlation analysis, and data quality metrics.
-                        </p>
-                      </div>
-
-                      {/* Card 4: Transformations */}
-                      <div className="bg-neutral-900/80 backdrop-blur-xl border border-neutral-800/50 rounded-2xl p-6 shadow-2xl hover:border-emerald-500/30 hover:shadow-emerald-500/10 transition-all duration-300 group">
-                        <div className="flex items-center gap-3 mb-4">
-                          <div className="p-3 rounded-xl bg-emerald-500/20 group-hover:bg-emerald-500/30 transition-colors">
-                            <Info className="h-6 w-6 text-emerald-400" />
-                          </div>
-                          <h4 className="text-xl font-semibold text-white">Feature Transformations</h4>
-                        </div>
-                        <p className="text-neutral-400 text-sm leading-relaxed">
-                          Available feature engineering transformations for "{selectedColumn.name}" will be displayed here. 
-                          Including encoding methods, scaling options, and advanced feature creation tools.
-                        </p>
-                      </div>
-
-                    </div>
+              {/* Utility Actions */}
+              <div className="col-span-1 space-y-4">
+                <div className="bg-gradient-to-b from-neutral-900/80 to-neutral-950/80 rounded-lg border border-neutral-800/70 p-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.5)] transition-shadow duration-300">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Trash2 className="h-4 w-4 text-red-400" />
+                    <span className="font-medium text-white">Drop Column</span>
                   </div>
-                ) : (
-                  <div className="flex items-center justify-center h-96 bg-neutral-900/60 backdrop-blur-xl border border-neutral-800/50 rounded-2xl shadow-2xl">
-                    <div className="text-center">
-                      <div className="w-16 h-16 bg-neutral-800/50 rounded-2xl flex items-center justify-center mb-4 mx-auto">
-                        <Info className="h-8 w-8 text-neutral-500" />
-                      </div>
-                      <p className="text-neutral-400 text-lg font-medium">Select a column to view cleaning options</p>
-                      <p className="text-neutral-500 text-sm mt-2">Choose a column from the left panel to get started</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-            </div>
-          ) : (
-            <div className="flex items-center justify-center h-96 max-w-7xl mx-auto px-6">
-              <div className="text-center">
-                <div className="w-16 h-16 bg-neutral-800/50 rounded-2xl flex items-center justify-center mb-4 mx-auto">
-                  <Info className="h-8 w-8 text-neutral-500" />
+                  <p className="text-sm text-neutral-400 mb-3">Remove selected column</p>
+                  <button
+                    disabled={!selectedColumn}
+                    className="w-full px-3 py-2 bg-red-600/20 text-red-300 rounded border border-red-500/50 hover:bg-red-600/30 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                  >
+                    Drop {selectedColumn || 'Column'}
+                  </button>
                 </div>
-                <p className="text-neutral-400 text-lg font-medium">No dataset loaded</p>
-                <p className="text-neutral-500 text-sm mt-2">Please upload a dataset first from the Dataset page</p>
+
+                <div className="bg-gradient-to-b from-neutral-900/80 to-neutral-950/80 rounded-lg border border-neutral-800/70 p-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.5)] transition-shadow duration-300">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Eye className="h-4 w-4 text-blue-400" />
+                    <span className="font-medium text-white">Preview Data</span>
+                  </div>
+                  <p className="text-sm text-neutral-400 mb-3">View processed data</p>
+                  <button
+                    onClick={() => setShowPreview(!showPreview)}
+                    className="w-full px-3 py-2 bg-neutral-800/60 text-neutral-300 rounded border border-neutral-700 hover:bg-neutral-700/60 text-sm"
+                  >
+                    {showPreview ? 'Hide' : 'Preview'}
+                  </button>
+                </div>
+
+                <div className="bg-gradient-to-b from-neutral-900/80 to-neutral-950/80 rounded-lg border border-neutral-800/70 p-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.5)] transition-shadow duration-300">
+                  <h3 className="font-medium flex gap-1 text-white mb-3">
+                    <ChartArea className="text-green-400" />
+                    Visualization
+                  </h3>
+                  <p className="text-sm text-neutral-400 mb-3">View visual representation</p>
+                  <button
+                    onClick={() => setShowGraphDialog(true)}
+                    className="w-full px-3 py-2 bg-neutral-800/60 text-neutral-300 rounded border border-neutral-700 hover:bg-neutral-700/60 text-sm flex items-center justify-center gap-2"
+                  >
+                    <BarChart3 className="h-4 w-4" />
+                    Generate Graph
+                  </button>
+                </div>
               </div>
             </div>
-          )}
+
+            {/* Dataset Preview - Conditional */}
+            {showPreview && (
+              <div className="bg-neutral-900/80 rounded-lg border border-neutral-800 p-6 mt-6">
+                <h3 className="font-medium text-white mb-4">Dataset Preview</h3>
+                <Suspense fallback={<div className="text-center py-8 text-neutral-400">Loading...</div>}>
+                  <DataTable data={dataset.data ?? []} />
+                </Suspense>
+              </div>
+            )}
+          </div>
         </div>
-
-        <Footer />
       </div>
+
+      {/* Column Info Dialog */}
+      {showColumnInfo && selectedColumn && (
+        <ColumnInfoDialog onClose={() => setShowColumnInfo(false)} />
+      )}
+
+      {/* Strategy Dialogs */}
+      {activeDialog && (
+        <Dialog
+          title={`${activeDialog.replace('_', ' ')} Strategies`}
+          strategies={STRATEGIES[activeDialog as keyof typeof STRATEGIES] || []}
+          onClose={() => setActiveDialog(null)}
+        />
+      )}
+
+      {/* Graph Selection Dialog */}
+      {showGraphDialog && (
+        <GraphDialog onClose={() => setShowGraphDialog(false)} />
+      )}
+
+      <Footer />
     </div>
   )
 }
 
 export default Cleaning
+
+function SummaryCard({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode
+  label: string
+  value: number
+}) {
+  return (
+    <div
+      className="
+        flex items-center gap-3
+        bg-gradient-to-b from-neutral-900/90 to-neutral-950
+        border border-neutral-800
+        rounded-lg
+        px-4 py-3
+        shadow-[0_8px_30px_rgba(0,0,0,0.45)]
+        hover:border-neutral-700
+        hover:shadow-[0_12px_40px_rgba(0,0,0,0.55)]
+        transition-all duration-200
+      "
+    >
+      {/* Icon badge */}
+      <div className="p-2 rounded-md bg-neutral-800/60">
+        {icon}
+      </div>
+
+      {/* Text */}
+      <div className="flex flex-col">
+        <span className="text-xs text-neutral-500 tracking-wide">
+          {label}
+        </span>
+        <span className="text-xl font-semibold text-white leading-tight">
+          {value}
+        </span>
+      </div>
+    </div>
+  )
+}

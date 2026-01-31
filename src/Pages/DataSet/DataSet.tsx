@@ -21,10 +21,7 @@ const Dataset = () => {
   }, [uploadMutation.isError, uploadMutation.isSuccess])
 
   return (
-    <div className="relative flex flex-col min-h-screen bg-slate-950 overflow-hidden">
-      <div className="absolute inset-x-0 top-[-16vh] lg:top-[-16vh] xl:top-[-10vh] 2xl:top-[-8vh] h-screen lg:h-[120vh] xl:h-[140vh] 2xl:h-[160vh] z-0 pointer-events-none">
-        <LampDemo />
-      </div>
+    <div className="relative flex flex-col min-h-screen bg-black overflow-hidden">
       <div className="relative z-10 flex flex-col min-h-screen">
         <Header />
 
