@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Suspense, lazy } from "react";
+import { Spinner } from "@/components/ui/spinner";
 
 
 // Lazy load all page components for better code splitting
@@ -16,7 +17,7 @@ const LampDemo = lazy(() => import("./components/layouts/BgLamp").then(module =>
 // Loading component for suspense fallback
 const PageLoader = () => (
   <div className="min-h-screen bg-black flex items-center justify-center">
-    <div className="h-10 w-10 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
+    <Spinner variant="bars" size={40} className="text-white" />
   </div>
 );
 

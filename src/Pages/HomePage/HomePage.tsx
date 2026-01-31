@@ -2,6 +2,7 @@ import { Suspense, lazy } from "react";
 import Header from "@/components/layouts/Header";
 import HeroText from "@/components/layouts/HeroText";
 import BgAnimation from "@/components/layouts/BgAnimation";
+import { Spinner } from "@/components/ui/spinner";
 
 // Lazy load below-the-fold components for better initial load performance
 const Features = lazy(() => import("@/components/layouts/Features"));
@@ -13,7 +14,7 @@ const Case = lazy(() => import("@/components/ui/cases-with-infinite-scroll").the
 // Loading component for below-the-fold sections
 const SectionLoader = () => (
   <div className="flex justify-center py-12">
-    <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
+    <Spinner variant="bars" size={32} className="text-white" />
   </div>
 );
 
@@ -38,9 +39,9 @@ const HomePage = () => {
         </Suspense>
 
         <Suspense fallback={<div className="py-16 px-4 sm:px-6 lg:px-8 bg-black"><div className="max-w-6xl mx-auto text-center text-white">Loading...</div></div>}>
-        <Case/>
+          <Case />
         </Suspense>
-        
+
         {/*Footer*/}
         <Footer />
       </Suspense>

@@ -20,7 +20,8 @@ import {
   Scale,
   LineChart,
   PieChart,
-  ChartArea
+  ChartArea,
+  TriangleAlert
 } from "lucide-react"
 import { useStoredDataset } from "@/components/layouts/DataSet_data"
 
@@ -484,8 +485,15 @@ const Cleaning = () => {
 
                             {/* Missing badge */}
                             {column.missing > 0 && (
-                              <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-400">
-                                ⚠ {column.missing} missing
+                              <span className="rounded-full flex gap-0.5 border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-400">
+                                <TriangleAlert className="h-3 w-3 pt-0.5"/> {column.missing} missing
+                              </span>
+                            )}
+
+                            {/* Outliers badge */}
+                            {column.outliers > 0 && (
+                              <span className="rounded-full gap-0.5 border flex border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-400">
+                                <Target className="h-3 w-3 pt-0.5"/> {column.outliers} outliers
                               </span>
                             )}
                           </div>
