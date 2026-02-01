@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -103,7 +103,7 @@ const UserInfoForm = ({ onComplete, initialData }: UserInfoFormProps) => {
   };
 
   const nextStep = () => {
-    if (currentStep < steps.length - 1) {
+    if (isStepValid() && currentStep < steps.length - 1) {
       setCurrentStep((prev) => prev + 1);
     }
   };
@@ -124,14 +124,16 @@ const UserInfoForm = ({ onComplete, initialData }: UserInfoFormProps) => {
 
   const isStepValid = () => {
     switch (currentStep) {
-      case 1:
-        return formData.profession.trim() !== "" && formData.industry !== "";
-      case 2:
-        return formData.dataExperience !== "";
-      case 3:
-        return formData.primaryGoal !== "";
-      case 4:
-        return formData.dataTypes.length > 0;
+      case 1: // Professional
+        return formData.profession.trim() !== "" && formData.industry.trim() !== "";
+      case 2: // Data Experience
+        return formData.dataExperience.trim() !== "" && formData.toolsUsed.length > 0;
+      case 3: // Goals
+        return formData.primaryGoal.trim() !== "" && formData.projectTypes.length > 0;
+      case 4: // Preferences
+        return formData.dataTypes.length > 0 && formData.preferredFeatures.length > 0;
+      case 5: // Additional (optional)
+        return true;
       default:
         return true;
     }
@@ -150,7 +152,7 @@ const UserInfoForm = ({ onComplete, initialData }: UserInfoFormProps) => {
           className="overflow-visible -ml-20"
           steps={steps.map((step, index) => {
             let status: "complete" | "current" | "upcoming" = "upcoming";
-            
+
             if (index === 0) {
               status = "complete"; // Personal info is always complete
             } else if (index < currentStep) {
@@ -159,17 +161,17 @@ const UserInfoForm = ({ onComplete, initialData }: UserInfoFormProps) => {
               // Check if current step has valid data to show as complete
               const isCurrentStepComplete = (() => {
                 switch (currentStep) {
-                  case 1: return formData.profession.trim() !== "" && formData.industry !== "";
-                  case 2: return formData.dataExperience !== "";
-                  case 3: return formData.primaryGoal !== "";
-                  case 4: return formData.dataTypes.length > 0;
+                  case 1: return formData.profession.trim() !== "" && formData.industry.trim() !== "";
+                  case 2: return formData.dataExperience.trim() !== "" && formData.toolsUsed.length > 0;
+                  case 3: return formData.primaryGoal.trim() !== "" && formData.projectTypes.length > 0;
+                  case 4: return formData.dataTypes.length > 0 && formData.preferredFeatures.length > 0;
                   case 5: return true; // Additional info is optional
                   default: return false;
                 }
               })();
               status = isCurrentStepComplete ? "complete" : "current";
             }
-            
+
             return {
               id: String(index + 1).padStart(2, '0'),
               name: step.title,
@@ -472,7 +474,7 @@ const UserInfoForm = ({ onComplete, initialData }: UserInfoFormProps) => {
                         <Label>What types of projects interest you? (Select all that apply)</Label>
                         <div className="mt-4 grid grid-cols-1 gap-3">
                           {[
-                            "Customer Analytics", "Sales Forecasting", "Risk Assessment", 
+                            "Customer Analytics", "Sales Forecasting", "Risk Assessment",
                             "Market Research", "Quality Control", "Fraud Detection"
                           ].map((project, index) => (
                             <motion.div

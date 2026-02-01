@@ -1,5 +1,5 @@
 import React, { useState } from "react"
-import { Copy, User, Mail, Phone, Building, Shield, LogOut, Edit } from "lucide-react"
+import { Copy, User, Phone, Building, Shield, LogOut, Edit } from "lucide-react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"

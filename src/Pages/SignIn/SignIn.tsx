@@ -13,7 +13,7 @@ import { FaGithub, FaGoogle, FaLock, FaMicrosoft, FaUser } from "react-icons/fa"
 import { HiEye, HiOutlineMail } from "react-icons/hi";
 import { GradientBars } from "../../components/ui/GradientBars";
 import { Link, useNavigate } from "react-router-dom";
-import { useState} from "react";
+import { useState } from "react";
 import { useToast } from "@/components/ui/toast/Toast"
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -22,6 +22,7 @@ export default function SignIn() {
 
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [showPassword, setShowPassword] = useState(false);
     const { show } = useToast()
     const { login } = useAuth()
     const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
@@ -46,22 +47,22 @@ export default function SignIn() {
         if (!validate()) return;
 
         const apiBase = import.meta.env.VITE_NODE_API_URL;
-        
+
         if (!apiBase) {
             show({ type: "error", message: "API URL not configured. Please set VITE_NODE_API_URL in .env file" });
             return;
         }
-        
+
         fetch(`${apiBase}/api/auth/signin`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email, password }),
         })
-        
+
             .then(async (r) => {
                 const data = await r.json().catch(() => ({}));
                 if (!r.ok) throw new Error(data?.error || "Login failed");
-                
+
                 // Mock user data - replace with actual API response
                 const userData = {
                     id: data.id || "USR-2024-001",
@@ -73,7 +74,7 @@ export default function SignIn() {
                     status: "active" as const,
                     avatar: data.avatar || null,
                 }
-                
+
                 login(userData)
                 show({ type: "success", message: "You logged in successfully" });
                 navigate("/HomePage");
@@ -142,7 +143,7 @@ export default function SignIn() {
                                 <FaLock />
                             </span>
                             <input
-                                type="password"
+                                type={showPassword ? "text" : "password"}
                                 placeholder="Password"
                                 autoComplete="current-password" // signin
                                 value={password}
@@ -155,7 +156,10 @@ export default function SignIn() {
 
                                 className="auth-input bg-transparent outline-none w-full text-sm"
                             />
-                            <span className="text-gray-400 cursor-pointer ml-2">
+                            <span
+                                className="text-gray-400 cursor-pointer ml-2"
+                                onClick={() => setShowPassword((prev) => !prev)}
+                            >
                                 <HiEye />
                             </span>
 

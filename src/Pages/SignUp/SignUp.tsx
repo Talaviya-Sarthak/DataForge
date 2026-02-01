@@ -12,11 +12,13 @@
 import { FaGithub, FaGoogle, FaLock, FaMicrosoft, FaUser } from "react-icons/fa";
 import { HiEye, HiOutlineMail, HiUser } from "react-icons/hi";
 import { GradientBars } from "../../components/ui/GradientBars";
-import { Link,useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { useToast } from "@/components/ui/toast/Toast"
 import { useAuth } from "@/contexts/AuthContext";
 import UserInfoForm from "@/components/ui/UserInfoForm";
+
+
 /** SignUp: Presentational component for user registration. */
 export default function SignUp() {
 
@@ -27,6 +29,7 @@ export default function SignUp() {
     const [agree, setAgree] = useState(false);
     const [showOnboarding, setShowOnboarding] = useState(false);
     const [tempUserData, setTempUserData] = useState<any>(null);
+    const [showPassword, setShowPassword] = useState(false);
     const { show } = useToast()
     const { login } = useAuth()
     const navigate = useNavigate();
@@ -40,9 +43,9 @@ export default function SignUp() {
             role: formData.profession || "Data Scientist",
             organization: formData.company || "DataForge Analytics",
             status: "active" as const,
-            avatar: null,
+            avatar: undefined,
         }
-        
+
         login(userData)
         show({ type: "success", message: "Welcome to DataForge! Your account is ready." });
         navigate("/HomePage");
@@ -52,10 +55,10 @@ export default function SignUp() {
         return (
             <div className="min-h-screen bg-black flex items-center justify-center p-4">
                 <div className="relative z-10 w-full">
-                    <UserInfoForm 
-                    onComplete={handleOnboardingComplete} 
-                    initialData={{ name, email }}
-                />
+                    <UserInfoForm
+                        onComplete={handleOnboardingComplete}
+                        initialData={{ name, email }}
+                    />
                 </div>
             </div>
         )
@@ -89,22 +92,22 @@ export default function SignUp() {
         if (!validate()) return;
 
         const apiBase = import.meta.env.VITE_NODE_API_URL;
-        
+
         if (!apiBase) {
             show({ type: "error", message: "API URL not configured. Please set VITE_NODE_API_URL in .env file" });
             return;
         }
-        
+
         fetch(`${apiBase}/api/users/signup`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ name, email, password }),
         })
-        
+
             .then(async (r) => {
                 const data = await r.json().catch(() => ({}));
                 if (!r.ok) throw new Error(data?.error || "Signup failed");
-                
+
                 // Store temp user data and show onboarding
                 setTempUserData({ name, email, ...data });
                 setShowOnboarding(true);
@@ -172,7 +175,7 @@ export default function SignUp() {
                                 type="email"
                                 name="email"
                                 placeholder="johndoe26@gmail.com"
-                                 autoComplete="email"
+                                autoComplete="email"
                                 value={email}
                                 onChange={(e) => {
                                     setEmail(e.target.value);
@@ -195,9 +198,9 @@ export default function SignUp() {
                                 <FaLock />
                             </span>
                             <input
-                                type="password"
+                                type={showPassword ? "text" : "password"}
                                 placeholder="Password"
-                                autoComplete="new-password"  
+                                autoComplete="new-password"
                                 value={password}
                                 onChange={(e) => {
                                     setPassword(e.target.value);
@@ -207,7 +210,10 @@ export default function SignUp() {
                                 }}
                                 className="auth-input bg-transparent outline-none w-full text-sm"
                             />
-                            <span className="text-gray-400 cursor-pointer ml-2">
+                            <span
+                                className="text-gray-400 cursor-pointer ml-2"
+                                onClick={() => setShowPassword((prev) => !prev)}
+                            >
                                 <HiEye />
                             </span>
                         </div>
@@ -215,7 +221,6 @@ export default function SignUp() {
                             <p className="text-red-500 text-xs mt-1">{errors.password}</p>
                         )}
                     </div>
-
                     {/* Terms */}
                     <div className="ml-15 text-xs text-gray-400 mt-4 flex gap-2.5">
                         <label className="flex items-center gap-2 font-semibold cursor-pointer">
@@ -248,15 +253,14 @@ export default function SignUp() {
 
                     {/* Divider */}
                     <div className="flex items-center gap-3 my-4">
-                        <div className="h-[1px] bg-white/10 flex-1" />
+                        <div className="h-px bg-white/10 flex-1" />
 
                         <div className="text-center text-xs text-gray-400 leading-snug">
                             Or SignUp With
                         </div>
 
-                        <div className="h-[1px] bg-white/10 flex-1" />
+                        <div className="h-px bg-white/10 flex-1" />
                     </div>
-
 
                     {/* Social */}
                     <div className="flex justify-center gap-4">
