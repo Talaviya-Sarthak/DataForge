@@ -1,17 +1,18 @@
-const API_BASE = 'http://localhost:5000/api/users';
+const API_BASE = 'http://localhost:5000/api/user';
+const AUTH_BASE = 'http://localhost:5000/api/auth';
 
 export const submitOnboardingData = async (formData: any) => {
   try {
     // Generate a unique email to avoid conflicts
     const timestamp = Date.now();
-    const uniqueEmail = `${formData.username}_${timestamp}@dataforge.com`;
+    const uniqueEmail = `${formData.name.replace(/\s+/g, '_')}_${timestamp}@dataforge.com`;
     
     // 1. First create user account
-    const userResponse = await fetch(`${API_BASE}/signup`, {
+    const userResponse = await fetch(`${AUTH_BASE}/signup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        name: formData.name || formData.username,
+        name: formData.name,
         email: uniqueEmail,
         password: 'temp123'
       })
@@ -22,81 +23,95 @@ export const submitOnboardingData = async (formData: any) => {
     }
 
     const userData = await userResponse.json();
-    const userId = userData.user_id || userData.id;
-
-    // 2. Submit main onboarding data
-    await fetch(`${API_BASE}/onboarding`, {
+    
+    // 2. Sign in to get JWT token
+    const signinResponse = await fetch(`${AUTH_BASE}/signin`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        user_id: userId,
-        company: formData.company,
-        profession: formData.profession,
-        experience: formData.experience,
-        industry: formData.industry,
-        data_experience: formData.dataExperience,
-        primary_goal: formData.primaryGoal,
-        additional_info: formData.additionalInfo
+        email: uniqueEmail,
+        password: 'temp123'
       })
     });
 
-    // 3. Submit tools if any
+    if (!signinResponse.ok) {
+      throw new Error('Failed to sign in');
+    }
+
+    const signinData = await signinResponse.json();
+    const token = signinData.token;
+
+    const authHeaders = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    };
+
+    // 3. Submit main onboarding data (user_id from JWT)
+    const onboardingResponse = await fetch(`${API_BASE}/onboarding`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        company: formData.company || null,
+        profession: formData.profession || null,
+        experience: formData.experience || null,
+        industry: formData.industry || null,
+        dataExperience: formData.dataExperience || null,
+        primaryGoal: formData.primaryGoal || null,
+        additionalInfo: formData.additionalInfo || null
+      })
+    });
+
+    if (!onboardingResponse.ok) {
+      console.error('Onboarding failed:', await onboardingResponse.text());
+    }
+
+    // 4. Submit tools if any
     if (formData.toolsUsed?.length > 0) {
-      await fetch(`${API_BASE}/tools`, {
+      const toolsResponse = await fetch(`${API_BASE}/tools`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders,
         body: JSON.stringify({
-          user_id: userId,
           tools: formData.toolsUsed
         })
       });
+      
+      if (!toolsResponse.ok) {
+        console.error('Tools failed:', await toolsResponse.text());
+      }
     }
 
-    // 4. Submit project types if any
+    // 5. Submit project types if any
     if (formData.projectTypes?.length > 0) {
-      await fetch(`${API_BASE}/project-types`, {
+      const projectResponse = await fetch(`${API_BASE}/project-types`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders,
         body: JSON.stringify({
-          user_id: userId,
-          project_types: formData.projectTypes
+          projectTypes: formData.projectTypes
         })
       });
+      
+      if (!projectResponse.ok) {
+        console.error('Project types failed:', await projectResponse.text());
+      }
     }
 
-    // 5. Submit preferences
-    const preferences = [];
-    
-    if (formData.dataTypes?.length > 0) {
-      formData.dataTypes.forEach((dataType: string) => {
-        preferences.push({
-          preference_type: 'DATA_TYPE',
-          preference_value: dataType
-        });
-      });
-    }
-
-    if (formData.preferredFeatures?.length > 0) {
-      formData.preferredFeatures.forEach((feature: string) => {
-        preferences.push({
-          preference_type: 'FEATURE',
-          preference_value: feature
-        });
-      });
-    }
-
-    if (preferences.length > 0) {
-      await fetch(`${API_BASE}/preferences`, {
+    // 6. Submit preferences
+    if (formData.dataTypes?.length > 0 || formData.preferredFeatures?.length > 0) {
+      const prefResponse = await fetch(`${API_BASE}/preferences`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders,
         body: JSON.stringify({
-          user_id: userId,
-          preferences
+          dataTypes: formData.dataTypes || [],
+          preferredFeatures: formData.preferredFeatures || []
         })
       });
+      
+      if (!prefResponse.ok) {
+        console.error('Preferences failed:', await prefResponse.text());
+      }
     }
 
-    return { success: true, userId };
+    return { success: true };
   } catch (error) {
     console.error('Onboarding submission error:', error);
     throw error;
