@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight, Check, Loader2 } from "lucide-react";
+import { submitOnboardingData } from "@/services/onboarding.service";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -28,7 +29,7 @@ import { Breadcrumb } from "@/components/ui/step-breadcrumb";
 import { cn } from "@/lib/utils";
 
 const steps = [
-  { id: "personal", title: "Personal Info" },
+  { id: "username", title: "Username" },
   { id: "professional", title: "Professional" },
   { id: "experience", title: "Data Experience" },
   { id: "goals", title: "Goals" },
@@ -37,6 +38,7 @@ const steps = [
 ];
 
 interface FormData {
+  username: string;
   name: string;
   email: string;
   company: string;
@@ -72,6 +74,7 @@ const UserInfoForm = ({ onComplete, initialData }: UserInfoFormProps) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<FormData>({
+    username: initialData?.username || "",
     name: initialData?.name || "",
     email: initialData?.email || "",
     company: initialData?.company || "",
@@ -103,7 +106,7 @@ const UserInfoForm = ({ onComplete, initialData }: UserInfoFormProps) => {
   };
 
   const nextStep = () => {
-    if (isStepValid() && currentStep < steps.length - 1) {
+    if (isStepValid() && currentStep < steps.length) {
       setCurrentStep((prev) => prev + 1);
     }
   };
@@ -114,25 +117,36 @@ const UserInfoForm = ({ onComplete, initialData }: UserInfoFormProps) => {
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (!formData.username) {
+      console.error('Username is required for onboarding submission');
+      return;
+    }
+
     setIsSubmitting(true);
-    setTimeout(() => {
+    try {
+      await submitOnboardingData(formData);
       onComplete(formData);
+    } catch (error) {
+      console.error('Failed to submit onboarding data:', error);
+    } finally {
       setIsSubmitting(false);
-    }, 1500);
+    }
   };
 
   const isStepValid = () => {
     switch (currentStep) {
-      case 1: // Professional
+      case 1: // Username
+        return formData.username.trim() !== "";
+      case 2: // Professional
         return formData.profession.trim() !== "" && formData.industry.trim() !== "";
-      case 2: // Data Experience
+      case 3: // Data Experience
         return formData.dataExperience.trim() !== "" && formData.toolsUsed.length > 0;
-      case 3: // Goals
+      case 4: // Goals
         return formData.primaryGoal.trim() !== "" && formData.projectTypes.length > 0;
-      case 4: // Preferences
+      case 5: // Preferences
         return formData.dataTypes.length > 0 && formData.preferredFeatures.length > 0;
-      case 5: // Additional (optional)
+      case 6: // Additional (optional)
         return true;
       default:
         return true;
@@ -153,19 +167,18 @@ const UserInfoForm = ({ onComplete, initialData }: UserInfoFormProps) => {
           steps={steps.map((step, index) => {
             let status: "complete" | "current" | "upcoming" = "upcoming";
 
-            if (index === 0) {
-              status = "complete"; // Personal info is always complete
-            } else if (index < currentStep) {
+            if (index < currentStep - 1) {
               status = "complete";
-            } else if (index === currentStep) {
+            } else if (index === currentStep - 1) {
               // Check if current step has valid data to show as complete
               const isCurrentStepComplete = (() => {
                 switch (currentStep) {
-                  case 1: return formData.profession.trim() !== "" && formData.industry.trim() !== "";
-                  case 2: return formData.dataExperience.trim() !== "" && formData.toolsUsed.length > 0;
-                  case 3: return formData.primaryGoal.trim() !== "" && formData.projectTypes.length > 0;
-                  case 4: return formData.dataTypes.length > 0 && formData.preferredFeatures.length > 0;
-                  case 5: return true; // Additional info is optional
+                  case 1: return formData.username.trim() !== "";
+                  case 2: return formData.profession.trim() !== "" && formData.industry.trim() !== "";
+                  case 3: return formData.dataExperience.trim() !== "" && formData.toolsUsed.length > 0;
+                  case 4: return formData.primaryGoal.trim() !== "" && formData.projectTypes.length > 0;
+                  case 5: return formData.dataTypes.length > 0 && formData.preferredFeatures.length > 0;
+                  case 6: return true; // Additional info is optional
                   default: return false;
                 }
               })();
@@ -197,51 +210,24 @@ const UserInfoForm = ({ onComplete, initialData }: UserInfoFormProps) => {
                 exit="exit"
                 variants={contentVariants}
               >
-                {/* Step 1: Personal Info */}
-                {currentStep === 0 && (
+                {/* Step 1: Username */}
+                {currentStep === 1 && (
                   <>
                     <CardHeader>
-                      <CardTitle>Welcome to DataForge</CardTitle>
+                      <CardTitle>Create Your Username</CardTitle>
                       <CardDescription className="mt-4">
-                        Let's start with some basic information
+                        Choose a unique username for your DataForge account
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-8">
                       <motion.div variants={fadeInUp} className="space-y-4">
-                        <Label htmlFor="name">Full Name</Label>
+                        <Label htmlFor="username">Username</Label>
                         <Input
-                          id="name"
-                          placeholder="John Doe"
-                          value={formData.name}
+                          id="username"
+                          placeholder="your_userid"
+                          value={formData.username}
                           onChange={(e) =>
-                            updateFormData("name", e.target.value)
-                          }
-                          className="bg-[#080808] border-[#2C2C2C] text-white placeholder:text-[#6F6F6F] focus:border-[#4A4A4A] transition-all duration-300"
-                        />
-                      </motion.div>
-                      <motion.div variants={fadeInUp} className="space-y-4">
-                        <Label htmlFor="email">Email Address</Label>
-                        <Input
-                          id="email"
-                          type="email"
-                          placeholder="john@example.com"
-                          value={formData.email}
-                          onChange={(e) =>
-                            updateFormData("email", e.target.value)
-                          }
-                          className="bg-[#080808] border-[#2C2C2C] text-white placeholder:text-[#6F6F6F] focus:border-[#4A4A4A] transition-all duration-300"
-                        />
-                      </motion.div>
-                      <motion.div variants={fadeInUp} className="space-y-4">
-                        <Label htmlFor="company">
-                          Company/Organization (Optional)
-                        </Label>
-                        <Input
-                          id="company"
-                          placeholder="Your Company"
-                          value={formData.company}
-                          onChange={(e) =>
-                            updateFormData("company", e.target.value)
+                            updateFormData("username", e.target.value)
                           }
                           className="bg-[#080808] border-[#2C2C2C] text-white placeholder:text-[#6F6F6F] focus:border-[#4A4A4A] transition-all duration-300"
                         />
@@ -251,7 +237,7 @@ const UserInfoForm = ({ onComplete, initialData }: UserInfoFormProps) => {
                 )}
 
                 {/* Step 2: Professional Background */}
-                {currentStep === 1 && (
+                {currentStep === 2 && (
                   <>
                     <CardHeader>
                       <CardTitle>Professional Background</CardTitle>
@@ -308,7 +294,7 @@ const UserInfoForm = ({ onComplete, initialData }: UserInfoFormProps) => {
                 )}
 
                 {/* Step 3: Data Experience */}
-                {currentStep === 2 && (
+                {currentStep === 3 && (
                   <>
                     <CardHeader>
                       <CardTitle>Data Experience</CardTitle>
@@ -410,7 +396,7 @@ const UserInfoForm = ({ onComplete, initialData }: UserInfoFormProps) => {
                 )}
 
                 {/* Step 4: Goals */}
-                {currentStep === 3 && (
+                {currentStep === 4 && (
                   <>
                     <CardHeader>
                       <CardTitle>Your Goals</CardTitle>
@@ -514,7 +500,7 @@ const UserInfoForm = ({ onComplete, initialData }: UserInfoFormProps) => {
                 )}
 
                 {/* Step 5: Data Preferences */}
-                {currentStep === 4 && (
+                {currentStep === 5 && (
                   <>
                     <CardHeader>
                       <CardTitle>Data Preferences</CardTitle>
@@ -607,7 +593,7 @@ const UserInfoForm = ({ onComplete, initialData }: UserInfoFormProps) => {
                 )}
 
                 {/* Step 6: Additional Information */}
-                {currentStep === 5 && (
+                {currentStep === 6 && (
                   <>
                     <CardHeader>
                       <CardTitle>Additional Information</CardTitle>
@@ -658,7 +644,7 @@ const UserInfoForm = ({ onComplete, initialData }: UserInfoFormProps) => {
                 <Button
                   type="button"
                   onClick={
-                    currentStep === steps.length - 1 ? handleSubmit : nextStep
+                    currentStep === 6 ? handleSubmit : nextStep
                   }
                   disabled={!isStepValid() || isSubmitting}
                   className={cn(
@@ -672,8 +658,8 @@ const UserInfoForm = ({ onComplete, initialData }: UserInfoFormProps) => {
                     </>
                   ) : (
                     <>
-                      {currentStep === steps.length - 1 ? "Complete Setup" : "Next"}
-                      {currentStep === steps.length - 1 ? (
+                      {currentStep === 6 ? "Complete Setup" : "Next"}
+                      {currentStep === 6 ? (
                         <Check className="h-4 w-4" />
                       ) : (
                         <ChevronRight className="h-4 w-4" />
@@ -694,7 +680,7 @@ const UserInfoForm = ({ onComplete, initialData }: UserInfoFormProps) => {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5, delay: 0.4 }}
       >
-        Step {currentStep + 1} of {steps.length}: {steps[currentStep].title}
+        Step {currentStep} of {steps.length}: {steps[currentStep - 1].title}
       </motion.div>
     </div>
   );

@@ -87,28 +87,6 @@ const UserProfileDialog: React.FC<UserProfileDialogProps> = ({ open, onOpenChang
           <div className="p-6 space-y-4 bg-gradient-to-b from-[#0B0D10]/50 to-[#111315]/50 backdrop-blur-sm">
             {/* Inner highlight for glass effect */}
             <div className="absolute inset-x-6 top-[140px] h-px bg-gradient-to-r from-transparent via-[#9FA4B7]/20 to-transparent" />
-            
-            <div className="flex items-center gap-3 group transition-all duration-200 hover:bg-[#111315]/30 rounded-lg p-2 -m-2">
-              <User className="h-4 w-4 text-[#9FA4B7]/60" />
-              <div className="flex-1">
-                <p className="text-xs text-[#9FA4B7]/50 uppercase tracking-widest font-medium">
-                  User ID
-                </p>
-                <div className="flex items-center gap-2">
-                  <p className="text-sm text-[#C9CCD6] font-mono tracking-wide">
-                    {user?.id}
-                  </p>
-                  <button
-                    onClick={() => copyToClipboard(user?.id || "", "id")}
-                    className="opacity-0 group-hover:opacity-100 transition-all duration-200 p-1 hover:bg-[#9FA4B7]/10 rounded border border-transparent hover:border-[#9FA4B7]/20"
-                    aria-label="Copy user ID"
-                  >
-                    <Copy className="h-3 w-3 text-[#9FA4B7]/60" />
-                  </button>
-                  {copiedField === "id" && <span className="text-xs text-emerald-400 font-medium">Copied!</span>}
-                </div>
-              </div>
-            </div>
 
             <div className="flex items-center gap-3 transition-all duration-200 hover:bg-[#111315]/30 rounded-lg p-2 -m-2">
               <Shield className="h-4 w-4 text-[#9FA4B7]/60" />

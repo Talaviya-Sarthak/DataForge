@@ -169,7 +169,7 @@ const Dataset_tabledata = ({
         )}
 
         {error && (
-          <div className="flex justify-center">
+          <div className="flex justify-end mt-16 mr-52">
             <button
               onClick={resetUpload}
               className="px-3 py-2 text-sm rounded-md bg-red-700 text-white hover:bg-red-900"
