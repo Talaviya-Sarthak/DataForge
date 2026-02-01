@@ -8,7 +8,7 @@ exports.uploadDataset = async (req, res) => {
       });
     }
 
-    // Send file to ML service
+
     const mlResponse = await mlService.uploadDataset(req.file);
 
     return res.status(200).json({
