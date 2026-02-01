@@ -1,9 +1,9 @@
 const db = require("../../db");
 
 /**
- * Insert onboarding data (one-time per user)
+ * Insert OR update onboarding data
  */
-const insertOnboarding = (
+const upsertOnboarding = (
   userId,
   company,
   profession,
@@ -16,8 +16,16 @@ const insertOnboarding = (
   return new Promise((resolve, reject) => {
     const sql = `
       INSERT INTO user_onboarding
-      (user_id, company, profession, experience, industry, data_experience, primary_goal, additional_info)
+        (user_id, company, profession, experience, industry, data_experience, primary_goal, additional_info)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+        company = VALUES(company),
+        profession = VALUES(profession),
+        experience = VALUES(experience),
+        industry = VALUES(industry),
+        data_experience = VALUES(data_experience),
+        primary_goal = VALUES(primary_goal),
+        additional_info = VALUES(additional_info)
     `;
 
     db.query(
@@ -40,20 +48,6 @@ const insertOnboarding = (
   });
 };
 
-/**
- * Get onboarding data for a user
- */
-const getOnboardingByUserId = (userId) => {
-  return new Promise((resolve, reject) => {
-    const sql = "SELECT * FROM user_onboarding WHERE user_id = ?";
-    db.query(sql, [userId], (err, results) => {
-      if (err) return reject(err);
-      resolve(results[0] || null);
-    });
-  });
-};
-
 module.exports = {
-  insertOnboarding,
-  getOnboardingByUserId
+  upsertOnboarding
 };

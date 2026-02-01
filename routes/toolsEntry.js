@@ -1,63 +1,44 @@
 const express = require("express");
 const router = express.Router();
 
+const authMiddleware = require("../middlewares/authMiddleware");
 const {
-  insertUserTools,
-  getToolsByUserId
+  deleteUserToolsByUser,
+  insertUserTools
 } = require("../Database/models/user/toolsModel");
 
+// 🔐 Protect all routes
+router.use(authMiddleware);
+
 // =======================
-// ✅ ADD USER TOOLS
+// ✅ SAVE USER TOOLS
 // =======================
 router.post("/tools", async (req, res) => {
   try {
-    const { user_id, tools } = req.body;
+    const userId = req.user.id; // ✅ from JWT only
+    const { tools } = req.body;
 
-    if (!user_id || !Array.isArray(tools) || tools.length === 0) {
+    // 1️⃣ Validation
+    if (!Array.isArray(tools)) {
       return res.status(400).json({
-        error: "user_id and tools array are required"
+        error: "tools must be an array"
       });
     }
 
-    await insertUserTools(Number(user_id), tools);
+    // 2️⃣ Remove existing tools
+    await deleteUserToolsByUser(userId);
 
-    res.status(201).json({
-      message: "User tools saved successfully"
+    // 3️⃣ Insert new tools
+    await insertUserTools(userId, tools);
+
+    return res.status(200).json({
+      message: "Tools saved successfully"
     });
 
   } catch (err) {
-    console.error("❌ Tools Insert Error:", err);
-
-    if (err.code === "ER_NO_REFERENCED_ROW_2") {
-      return res.status(400).json({
-        error: "Invalid user_id"
-      });
-    }
-
-    res.status(500).json({
+    console.error("❌ Tools Error:", err);
+    return res.status(500).json({
       error: "Server error while saving tools"
-    });
-  }
-});
-
-// =======================
-// ✅ GET USER TOOLS
-// =======================
-router.get("/tools/:userId", async (req, res) => {
-  try {
-    const userId = Number(req.params.userId);
-
-    const tools = await getToolsByUserId(userId);
-
-    res.status(200).json({
-      user_id: userId,
-      tools
-    });
-
-  } catch (err) {
-    console.error("❌ Tools Fetch Error:", err);
-    res.status(500).json({
-      error: "Server error while fetching tools"
     });
   }
 });

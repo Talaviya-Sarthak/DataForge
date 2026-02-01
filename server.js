@@ -6,27 +6,65 @@ const cors = require("cors");
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(cors());
+// =======================
+// GLOBAL MIDDLEWARE
+// =======================
+app.use(cors({
+  origin: true,
+  credentials: true
+}));
+
+// 🔑 MUST come before routes
 app.use(express.json());
 
-console.log("PORT:", PORT);
+// =======================
+// PUBLIC AUTH ROUTES
+// =======================
+app.use("/api/auth", require("./routes/signupEntry"));   // POST /signup
+app.use("/api/auth", require("./routes/signinEntry"));   // POST /signin
 
-// Routes
-app.use("/api/users", require("./routes/signupEntry"));
-app.use("/api/auth", require("./routes/signinEntry"));
-app.use("/api/users", require("./routes/onboardingEntry"));
-app.use("/api/users", require("./routes/toolsEntry"));
-app.use("/api/users", require("./routes/projectTypesEntry"));
-app.use("/api/users", require("./routes/preferencesEntry"));
+// =======================
+// PROTECTED USER ROUTES
+// =======================
+app.use("/api/user", require("./routes/onboardingEntry"));
+app.use("/api/user", require("./routes/toolsEntry"));
+app.use("/api/user", require("./routes/projectTypesEntry"));
+app.use("/api/user", require("./routes/preferencesEntry"));
+
+// =======================
+// DATASET ROUTES (OPTIONAL)
+// =======================
 app.use("/api/datasets", require("./routes/dataset.routes"));
 
-// Optional – comment out if not implemented yet
-// app.use("/api/datasets", require("./routes/dataset.routes"));
-
+// =======================
+// HEALTH CHECK
+// =======================
 app.get("/", (req, res) => {
-  res.send("🚀 Backend Running");
+  res.status(200).send("🚀 Backend Running");
 });
 
+// =======================
+// 404 HANDLER
+// =======================
+app.use((req, res) => {
+  res.status(404).json({
+    error: "Route not found"
+  });
+});
+
+// =======================
+// GLOBAL ERROR HANDLER
+// =======================
+app.use((err, req, res, next) => {
+  console.error("❌ Unhandled Error:", err);
+  res.status(500).json({
+    error: "Internal server error"
+  });
+});
+
+// =======================
+// START SERVER
+// =======================
 app.listen(PORT, () => {
-  console.log(`🚀 Server running at ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });

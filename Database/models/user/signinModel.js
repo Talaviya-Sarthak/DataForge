@@ -1,30 +1,31 @@
 const db = require("../../db");
 const bcrypt = require("bcrypt");
 
-/**
- * Find user by email
- * @param {string} email
- * @returns {Promise<object|null>}
- */
-function findUserByEmail(email) {
+// =======================
+// FIND USER BY EMAIL
+// =======================
+const findUserByEmail = (email) => {
   return new Promise((resolve, reject) => {
-    const sql = "SELECT * FROM users WHERE email = ?";
+    const sql = `
+      SELECT id, name, email, password
+      FROM users
+      WHERE email = ?
+      LIMIT 1
+    `;
+
     db.query(sql, [email], (err, results) => {
       if (err) return reject(err);
-      resolve(results[0] || null);
+      resolve(results.length ? results[0] : null);
     });
   });
-}
+};
 
-/**
- * Compare passwords
- * @param {string} plainPassword
- * @param {string} hashedPassword
- * @returns {Promise<boolean>}
- */
-function comparePassword(plainPassword, hashedPassword) {
+// =======================
+// COMPARE PASSWORD
+// =======================
+const comparePassword = (plainPassword, hashedPassword) => {
   return bcrypt.compare(plainPassword, hashedPassword);
-}
+};
 
 module.exports = {
   findUserByEmail,

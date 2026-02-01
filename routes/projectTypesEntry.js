@@ -1,72 +1,46 @@
 const express = require("express");
 const router = express.Router();
 
+const authMiddleware = require("../middlewares/authMiddleware");
 const {
-  insertProjectTypes,
-  getProjectTypesByUserId
+  deleteProjectTypesByUser,
+  insertProjectTypes
 } = require("../Database/models/user/projectTypesModel");
 
+// 🔐 Protect all routes
+router.use(authMiddleware);
+
 // =======================
-// ✅ ADD PROJECT TYPES
+// ✅ SAVE PROJECT TYPES
 // =======================
 router.post("/project-types", async (req, res) => {
   try {
-    const { user_id, project_types } = req.body;
+    const userId = req.user.id; // ✅ from JWT only
+    const { projectTypes } = req.body;
 
-    if (!user_id || !Array.isArray(project_types) || project_types.length === 0) {
+    // 1️⃣ Validation
+    if (!Array.isArray(projectTypes)) {
       return res.status(400).json({
-        error: "user_id and project_types array are required"
+        error: "projectTypes must be an array"
       });
     }
 
-    await insertProjectTypes(Number(user_id), project_types);
+    // 2️⃣ Remove existing project types
+    await deleteProjectTypesByUser(userId);
 
-    res.status(201).json({
+    // 3️⃣ Insert new ones (if any)
+    await insertProjectTypes(userId, projectTypes);
+
+    return res.status(200).json({
       message: "Project types saved successfully"
     });
 
   } catch (err) {
-    console.error("❌ Project Types Insert Error:", err);
-
-    if (err.code === "ER_DUP_ENTRY") {
-      return res.status(409).json({
-        error: "Duplicate project type for this user"
-      });
-    }
-
-    if (err.code === "ER_NO_REFERENCED_ROW_2") {
-      return res.status(400).json({
-        error: "Invalid user_id"
-      });
-    }
-
-    res.status(500).json({
+    console.error("❌ Project Types Error:", err);
+    return res.status(500).json({
       error: "Server error while saving project types"
     });
   }
 });
 
-// =======================
-// ✅ GET PROJECT TYPES
-// =======================
-router.get("/project-types/:userId", async (req, res) => {
-  try {
-    const userId = Number(req.params.userId);
-
-    const projectTypes = await getProjectTypesByUserId(userId);
-
-    res.status(200).json({
-      user_id: userId,
-      project_types: projectTypes
-    });
-
-  } catch (err) {
-    console.error("❌ Project Types Fetch Error:", err);
-    res.status(500).json({
-      error: "Server error while fetching project types"
-    });
-  }
-});
-
-// 🔴 THIS LINE IS CRITICAL
 module.exports = router;

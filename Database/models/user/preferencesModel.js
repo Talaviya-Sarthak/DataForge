@@ -1,15 +1,33 @@
 const db = require("../../db");
 
 /**
- * Insert multiple preferences for a user
+ * Delete all preferences for a user
  */
-const insertUserPreferences = (userId, preferences) => {
+const deletePreferencesByUser = (userId) => {
   return new Promise((resolve, reject) => {
-    const values = preferences.map(p => [
-      userId,
-      p.preference_type,
-      p.preference_value
-    ]);
+    const sql = `
+      DELETE FROM user_preferences
+      WHERE user_id = ?
+    `;
+
+    db.query(sql, [userId], (err, result) => {
+      if (err) return reject(err);
+      resolve(result);
+    });
+  });
+};
+
+/**
+ * Insert user preferences (DATA_TYPE + FEATURE)
+ */
+const insertUserPreferences = (userId, dataTypes, features) => {
+  return new Promise((resolve, reject) => {
+    const values = [
+      ...dataTypes.map(d => [userId, "DATA_TYPE", d]),
+      ...features.map(f => [userId, "FEATURE", f])
+    ];
+
+    if (!values.length) return resolve();
 
     const sql = `
       INSERT INTO user_preferences (user_id, preference_type, preference_value)
@@ -23,25 +41,7 @@ const insertUserPreferences = (userId, preferences) => {
   });
 };
 
-/**
- * Get preferences by user
- */
-const getPreferencesByUserId = (userId) => {
-  return new Promise((resolve, reject) => {
-    const sql = `
-      SELECT preference_type, preference_value
-      FROM user_preferences
-      WHERE user_id = ?
-    `;
-
-    db.query(sql, [userId], (err, results) => {
-      if (err) return reject(err);
-      resolve(results);
-    });
-  });
-};
-
 module.exports = {
-  insertUserPreferences,
-  getPreferencesByUserId
+  deletePreferencesByUser,
+  insertUserPreferences
 };

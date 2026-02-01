@@ -1,76 +1,51 @@
 const express = require("express");
 const router = express.Router();
 
+const authMiddleware = require("../middlewares/authMiddleware");
 const {
-  insertUserPreferences,
-  getPreferencesByUserId
+  deletePreferencesByUser,
+  insertUserPreferences
 } = require("../Database/models/user/preferencesModel");
 
+// 🔐 Protect all routes
+router.use(authMiddleware);
+
 // =======================
-// ✅ ADD USER PREFERENCES
+// ✅ SAVE USER PREFERENCES
 // =======================
 router.post("/preferences", async (req, res) => {
   try {
-    const { user_id, preferences } = req.body;
+    const userId = req.user.id; // ✅ from JWT only
+    const {
+      dataTypes = [],
+      preferredFeatures = []
+    } = req.body;
 
-    /*
-      preferences = [
-        { preference_type: "DATA_TYPE", preference_value: "CSV" },
-        { preference_type: "FEATURE", preference_value: "AutoML" }
-      ]
-    */
-
-    if (!user_id || !Array.isArray(preferences) || preferences.length === 0) {
+    // 1️⃣ Validation
+    if (!Array.isArray(dataTypes) || !Array.isArray(preferredFeatures)) {
       return res.status(400).json({
-        error: "user_id and preferences array are required"
+        error: "dataTypes and preferredFeatures must be arrays"
       });
     }
 
-    await insertUserPreferences(Number(user_id), preferences);
+    // 2️⃣ Remove existing preferences
+    await deletePreferencesByUser(userId);
 
-    res.status(201).json({
-      message: "User preferences saved successfully"
+    // 3️⃣ Insert new preferences
+    await insertUserPreferences(
+      userId,
+      dataTypes,
+      preferredFeatures
+    );
+
+    return res.status(200).json({
+      message: "Preferences saved successfully"
     });
 
   } catch (err) {
-    console.error("❌ Preferences Insert Error:", err);
-
-    if (err.code === "ER_DUP_ENTRY") {
-      return res.status(409).json({
-        error: "Duplicate preference for this user"
-      });
-    }
-
-    if (err.code === "ER_NO_REFERENCED_ROW_2") {
-      return res.status(400).json({
-        error: "Invalid user_id"
-      });
-    }
-
-    res.status(500).json({
+    console.error("❌ Preferences Error:", err);
+    return res.status(500).json({
       error: "Server error while saving preferences"
-    });
-  }
-});
-
-// =======================
-// ✅ GET USER PREFERENCES
-// =======================
-router.get("/preferences/:userId", async (req, res) => {
-  try {
-    const userId = Number(req.params.userId);
-
-    const preferences = await getPreferencesByUserId(userId);
-
-    res.status(200).json({
-      user_id: userId,
-      preferences
-    });
-
-  } catch (err) {
-    console.error("❌ Preferences Fetch Error:", err);
-    res.status(500).json({
-      error: "Server error while fetching preferences"
     });
   }
 });
