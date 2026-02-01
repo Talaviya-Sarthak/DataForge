@@ -18,7 +18,7 @@ app.use("/api/users", require("./routes/onboardingEntry"));
 app.use("/api/users", require("./routes/toolsEntry"));
 app.use("/api/users", require("./routes/projectTypesEntry"));
 app.use("/api/users", require("./routes/preferencesEntry"));
-
+app.use("/api/datasets", require("./routes/dataset.routes"));
 
 // Optional – comment out if not implemented yet
 // app.use("/api/datasets", require("./routes/dataset.routes"));
