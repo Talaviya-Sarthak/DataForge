@@ -58,6 +58,7 @@ export default function SignUp() {
                     <UserInfoForm
                         onComplete={handleOnboardingComplete}
                         initialData={{ name, email }}
+                        userCredentials={{ email, password }}
                     />
                 </div>
             </div>

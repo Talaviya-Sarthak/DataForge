@@ -1,52 +1,14 @@
 const API_BASE = 'http://localhost:5000/api/user';
 const AUTH_BASE = 'http://localhost:5000/api/auth';
 
-export const submitOnboardingData = async (formData: any) => {
+export const submitOnboardingData = async (formData: any, authToken: string) => {
   try {
-    // Generate a unique email to avoid conflicts
-    const timestamp = Date.now();
-    const uniqueEmail = `${formData.name.replace(/\s+/g, '_')}_${timestamp}@dataforge.com`;
-    
-    // 1. First create user account
-    const userResponse = await fetch(`${AUTH_BASE}/signup`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: formData.name,
-        email: uniqueEmail,
-        password: 'temp123'
-      })
-    });
-
-    if (!userResponse.ok) {
-      throw new Error('Failed to create user account');
-    }
-
-    const userData = await userResponse.json();
-    
-    // 2. Sign in to get JWT token
-    const signinResponse = await fetch(`${AUTH_BASE}/signin`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: uniqueEmail,
-        password: 'temp123'
-      })
-    });
-
-    if (!signinResponse.ok) {
-      throw new Error('Failed to sign in');
-    }
-
-    const signinData = await signinResponse.json();
-    const token = signinData.token;
-
     const authHeaders = {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
+      'Authorization': `Bearer ${authToken}`
     };
 
-    // 3. Submit main onboarding data (user_id from JWT)
+    // 1. Submit main onboarding data (user_id from JWT)
     const onboardingResponse = await fetch(`${API_BASE}/onboarding`, {
       method: 'POST',
       headers: authHeaders,
@@ -65,7 +27,7 @@ export const submitOnboardingData = async (formData: any) => {
       console.error('Onboarding failed:', await onboardingResponse.text());
     }
 
-    // 4. Submit tools if any
+    // 2. Submit tools if any
     if (formData.toolsUsed?.length > 0) {
       const toolsResponse = await fetch(`${API_BASE}/tools`, {
         method: 'POST',
@@ -80,7 +42,7 @@ export const submitOnboardingData = async (formData: any) => {
       }
     }
 
-    // 5. Submit project types if any
+    // 3. Submit project types if any
     if (formData.projectTypes?.length > 0) {
       const projectResponse = await fetch(`${API_BASE}/project-types`, {
         method: 'POST',
@@ -95,7 +57,7 @@ export const submitOnboardingData = async (formData: any) => {
       }
     }
 
-    // 6. Submit preferences
+    // 4. Submit preferences
     if (formData.dataTypes?.length > 0 || formData.preferredFeatures?.length > 0) {
       const prefResponse = await fetch(`${API_BASE}/preferences`, {
         method: 'POST',

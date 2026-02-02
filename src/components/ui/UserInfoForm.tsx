@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight, Check, Loader2 } from "lucide-react";
 import { submitOnboardingData } from "@/services/onboarding.service";
+const AUTH_BASE = 'http://localhost:5000/api/auth';
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -67,9 +68,10 @@ const contentVariants = {
 interface UserInfoFormProps {
   onComplete: (data: FormData) => void;
   initialData?: Partial<FormData>;
+  userCredentials?: { email: string; password: string };
 }
 
-const UserInfoForm = ({ onComplete, initialData }: UserInfoFormProps) => {
+const UserInfoForm = ({ onComplete, initialData, userCredentials }: UserInfoFormProps) => {
   const [currentStep, setCurrentStep] = useState(2);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<FormData>({
@@ -116,14 +118,31 @@ const UserInfoForm = ({ onComplete, initialData }: UserInfoFormProps) => {
   };
 
   const handleSubmit = async () => {
-    // if (!formData.username) {
-    //   console.error('Username is required for onboarding submission');
-    //   return;
-    // }
+    // Get credentials from props only (no localStorage fallback)
+    if (!userCredentials?.email || !userCredentials?.password) {
+      console.error('User credentials are required for onboarding submission');
+      alert('Authentication error: Unable to complete onboarding. Please sign up again.');
+      return;
+    }
 
     setIsSubmitting(true);
     try {
-      await submitOnboardingData(formData);
+      // Sign in with existing user credentials to get auth token
+      const signinResponse = await fetch(`${AUTH_BASE}/signin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: userCredentials.email,
+          password: userCredentials.password
+        })
+      });
+
+      if (!signinResponse.ok) {
+        throw new Error('Failed to authenticate user');
+      }
+
+      const signinData = await signinResponse.json();
+      await submitOnboardingData(formData, signinData.token);
       onComplete(formData);
     } catch (error) {
       console.error('Failed to submit onboarding data:', error);
