@@ -117,7 +117,27 @@ REFERENCES users(id)
 ON DELETE CASCADE;
 
 -- =========================================
--- 6️⃣ PERFORMANCE INDEXES
+-- 6️⃣ DATASETS (METADATA ONLY)
+-- =========================================
+CREATE TABLE IF NOT EXISTS datasets (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    dataset_uuid CHAR(36) NOT NULL,
+    user_id INT NOT NULL,
+    original_filename VARCHAR(255) NOT NULL,
+    column_names JSON NOT NULL,
+    total_rows INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    INDEX idx_user_id (user_id),
+    INDEX idx_dataset_uuid (dataset_uuid)
+);
+
+-- Ensure dataset uniqueness per user
+ALTER TABLE datasets
+ADD CONSTRAINT uq_user_dataset UNIQUE (user_id, dataset_uuid);
+
+-- =========================================
+-- 7️⃣ PERFORMANCE INDEXES
 -- =========================================
 CREATE INDEX IF NOT EXISTS idx_user_onboarding_user_id
 ON user_onboarding(user_id);

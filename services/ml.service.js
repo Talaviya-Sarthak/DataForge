@@ -5,8 +5,11 @@ const fs = require("fs");
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL;
 
 exports.uploadDataset = async (file) => {
-  const formData = new FormData();
+  if (!file.path || !fs.existsSync(file.path)) {
+    throw new Error(`Uploaded file not found at path: ${file.path}`);
+  }
 
+  const formData = new FormData();
   formData.append(
     "file",
     fs.createReadStream(file.path),
@@ -16,11 +19,24 @@ exports.uploadDataset = async (file) => {
   const response = await axios.post(
     `${ML_SERVICE_URL}/api/data/upload`,
     formData,
-    {
-      headers: formData.getHeaders(),
-    }
+    { headers: formData.getHeaders() }
   );
-  exports.preprocessDataset = async (payload) => {
+
+  const data = response.data;
+
+  data.numerical_columns = Array.isArray(data.numerical_columns)
+    ? data.numerical_columns
+    : [];
+
+  data.categorical_columns = Array.isArray(data.categorical_columns)
+    ? data.categorical_columns
+    : [];
+
+  return data;
+};
+
+
+exports.preprocessDataset = async (payload) => {
   const response = await axios.post(
     `${ML_SERVICE_URL}/api/data/preprocess`,
     payload,
@@ -31,9 +47,16 @@ exports.uploadDataset = async (file) => {
     }
   );
 
-  return response.data;
-};
+  const data = response.data;
 
+  // 🔒 DEFENSIVE NORMALIZATION
+  data.numerical_columns = Array.isArray(data.numerical_columns)
+    ? data.numerical_columns
+    : [];
 
-  return response.data;
+  data.categorical_columns = Array.isArray(data.categorical_columns)
+    ? data.categorical_columns
+    : [];
+
+  return data;
 };

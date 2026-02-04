@@ -22,7 +22,9 @@
     "form-data": "^4.0.5",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.0.2",
-    "mysql2": "^3.16.0"
+    "mysql2": "^3.16.0",
+    "nodemon": "^3.1.11",
+    "uuid": "^9.0.1"
   },
   "repository": {
     "type": "git",
