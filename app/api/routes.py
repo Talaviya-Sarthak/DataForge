@@ -1,5 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
 import pandas as pd
+import json
 
 from app.data.loader import load_Data
 from app.data.preview import preview_Data
@@ -10,6 +11,29 @@ router = APIRouter()
 
 # ⚠️ TEMP ONLY (dev mode)
 CURRENT_DATASET: pd.DataFrame | None = None
+
+
+def normalize_step(step, step_index=0):
+    """Defensive normalization of preprocessing step"""
+    # If step is string, parse to dict
+    if isinstance(step, str):
+        try:
+            step = json.loads(step)
+        except json.JSONDecodeError:
+            raise ValueError(f"Step {step_index}: Invalid JSON string")
+    
+    # Validate step is dict
+    if not isinstance(step, dict):
+        raise ValueError(f"Step {step_index}: Must be dict, got {type(step)}")
+    
+    # Ensure params is dict
+    if "params" in step and isinstance(step["params"], str):
+        try:
+            step["params"] = json.loads(step["params"])
+        except json.JSONDecodeError:
+            raise ValueError(f"Step {step_index}: Invalid params JSON")
+    
+    return step
 
 
 # ─────────────────────────────────────────────
@@ -72,8 +96,7 @@ async def upload_dataset(file: UploadFile = File(...)):
 @router.post("/data/preprocess")
 async def preprocess_dataset(payload: dict):
     """
-    Dynamic preprocessing pipeline.
-    Response format matches OLD frontend contract.
+    Execute preprocessing pipeline on uploaded dataset.
     """
     global CURRENT_DATASET
 
@@ -81,30 +104,40 @@ async def preprocess_dataset(payload: dict):
         raise HTTPException(status_code=400, detail="No dataset uploaded")
 
     try:
+        # Defensive normalization of steps
+        if "steps" in payload and isinstance(payload["steps"], list):
+            normalized_steps = []
+            for i, step in enumerate(payload["steps"]):
+                try:
+                    normalized_steps.append(normalize_step(step, i))
+                except ValueError as e:
+                    raise HTTPException(status_code=400, detail=str(e))
+            payload["steps"] = normalized_steps
+
         steps = payload.get("steps", [])
         start_index = payload.get("start_index", 0)
         stop_index = payload.get("stop_index")
         preview_rows = payload.get("preview_rows", 20)
 
         pipeline = PreprocessingPipeline(steps=steps)
-
+        
         processed_df = pipeline.run(
             df=CURRENT_DATASET,
             start_index=start_index,
-            stop_index=stop_index,
-            preview_rows=preview_rows,
+            stop_index=stop_index
         )
 
         preview = preview_Data(processed_df, n=preview_rows)
 
-        # 🔒 RESPONSE SHAPE MATCHES OLD API
         return {
             "data": preview["rows"],
             "rows": len(processed_df),
-
-            # IMPORTANT: list here (same as old behavior)
-            "columns": preview["columns"],
+            "columns": preview["columns"]
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        print(f"ML Service Error: {str(e)}")
+        print(f"Payload: {payload}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")

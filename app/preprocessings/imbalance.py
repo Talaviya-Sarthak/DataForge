@@ -1,11 +1,27 @@
 import pandas as pd
 from sklearn.utils import resample
 from imblearn.over_sampling import SMOTE
+import json
 
 
 class HandlingImbalance:
-    def __init__(self, transformations: list):
-        self.transformations = transformations
+    def __init__(self, transformations):
+        # Normalize transformations to ensure they are dicts
+        if isinstance(transformations, str):
+            transformations = json.loads(transformations)
+        
+        if not isinstance(transformations, list):
+            transformations = [transformations] if transformations else []
+            
+        # Normalize each transformation
+        normalized_transformations = []
+        for t in transformations:
+            if isinstance(t, str):
+                t = json.loads(t)
+            if isinstance(t, dict):
+                normalized_transformations.append(t)
+        
+        self.transformations = normalized_transformations
 
     def apply(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy()

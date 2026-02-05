@@ -1,11 +1,27 @@
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
+import json
 
 
 class ScalingValues:
-    def __init__(self, transformations: list):
-        self.transformations = transformations
+    def __init__(self, transformations):
+        # Normalize transformations to ensure they are dicts
+        if isinstance(transformations, str):
+            transformations = json.loads(transformations)
+        
+        if not isinstance(transformations, list):
+            transformations = [transformations] if transformations else []
+            
+        # Normalize each transformation
+        normalized_transformations = []
+        for t in transformations:
+            if isinstance(t, str):
+                t = json.loads(t)
+            if isinstance(t, dict):
+                normalized_transformations.append(t)
+        
+        self.transformations = normalized_transformations
         self.scalers = {}
 
     def apply(self, df: pd.DataFrame, fit: bool = True) -> pd.DataFrame:
