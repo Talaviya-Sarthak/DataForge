@@ -4,6 +4,7 @@ import { useState, Suspense, lazy } from "react"
 import * as React from "react"
 import { useMutation } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
+import { useDataset } from "@/contexts/DatasetContext"
 
 // Lazy load DataTable since it's only needed when data is uploaded
 const DataTable = lazy(() => import("@/components/ui/DataTable"))
@@ -31,23 +32,43 @@ const uploadDataset = async (file: File) => {
     throw new Error("Upload failed")
   }
 
-  return res.json()
+  const data = await res.json()
+  
+  // Validate successful upload based on ML service response format
+  if (!data.data || !Array.isArray(data.data)) {
+    throw new Error("Invalid response: missing data")
+  }
+  
+  if (typeof data.rows !== 'number' || data.rows <= 0) {
+    throw new Error("Invalid response: invalid row count")
+  }
+  
+  if (typeof data.columns !== 'number' || data.columns <= 0) {
+    throw new Error("Invalid response: invalid column count")
+  }
+
+  return data
 }
 
 // ---- CUSTOM HOOK ----
 export const useDatasetUpload = () => {
   const [file, setFile] = useState<File | null>(null)
   const [uploadKey, setUploadKey] = useState(0)
+  const { setDataset, clearDataset } = useDataset()
 
   const uploadMutation = useMutation({
     mutationFn: uploadDataset,
     retry: 3,
     retryDelay: 2000,
     onSuccess: (data) => {
-      // Store dataset in localStorage when upload succeeds
-      localStorage.setItem('dataforge_dataset', JSON.stringify(data))
-      // Dispatch custom event to notify other components
-      window.dispatchEvent(new CustomEvent('datasetChanged'))
+      // Validate that we have the expected ML service response structure
+      if (data && data.data && data.rows > 0 && data.columns > 0) {
+        setDataset(data)
+      }
+    },
+    onError: (error) => {
+      console.error('Dataset upload failed:', error)
+      clearDataset()
     }
   })
 
@@ -61,10 +82,7 @@ export const useDatasetUpload = () => {
     uploadMutation.reset()
     setFile(null)
     setUploadKey(k => k + 1)
-    // Clear dataset from localStorage
-    localStorage.removeItem('dataforge_dataset')
-    // Dispatch custom event to notify other components
-    window.dispatchEvent(new CustomEvent('datasetChanged'))
+    clearDataset()
   }
 
   return {
@@ -76,51 +94,7 @@ export const useDatasetUpload = () => {
   }
 }
 
-// ---- DATASET RETRIEVAL HOOK ----
-export const useStoredDataset = () => {
-  const [dataset, setDataset] = useState<any>(null)
-
-  React.useEffect(() => {
-    const loadDataset = () => {
-      const storedDataset = localStorage.getItem('dataforge_dataset')
-      if (storedDataset) {
-        try {
-          setDataset(JSON.parse(storedDataset))
-        } catch (error) {
-          console.error('Error parsing stored dataset:', error)
-          localStorage.removeItem('dataforge_dataset')
-          setDataset(null)
-        }
-      } else {
-        setDataset(null)
-      }
-    }
-
-    loadDataset()
-
-    // Listen for storage changes to sync across tabs/navigation
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'dataforge_dataset') {
-        loadDataset()
-      }
-    }
-
-    // Listen for custom events for same-tab updates
-    const handleDatasetChange = () => {
-      loadDataset()
-    }
-
-    window.addEventListener('storage', handleStorageChange)
-    window.addEventListener('datasetChanged', handleDatasetChange)
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange)
-      window.removeEventListener('datasetChanged', handleDatasetChange)
-    }
-  }, [])
-
-  return dataset
-}
+// ---- DATASET RETRIEVAL HOOK (REMOVED - NOW USING CONTEXT) ----
 
 // ---------------- UI BELOW ----------------
 
@@ -137,15 +111,15 @@ const Dataset_tabledata = ({
   uploadKey: number
   resetUpload: () => void
 }) => {
-  const storedDataset = useStoredDataset()
-  const dataset = uploadMutation.data || storedDataset
+  const { dataset } = useDataset()
+  const currentDataset = uploadMutation.data || dataset
   const loading = uploadMutation.isPending
   const error = uploadMutation.isError
 
   return (
     <div className="min-h-screen relative bg-transeperent">
       <div className="mt-8">
-        {!dataset && (
+        {!currentDataset && (
           <>
             <h1 className="text-4xl mb-2 text-center font-bold text-white">
               Add Your Files
@@ -179,7 +153,7 @@ const Dataset_tabledata = ({
           </div>
         )}
 
-        {dataset && (
+        {currentDataset && (
           <Suspense
             fallback={
               <div className="flex justify-center mt-16">
@@ -187,11 +161,11 @@ const Dataset_tabledata = ({
               </div>
             }
           >
-            <DataTable data={dataset.data ?? []} />
+            <DataTable data={currentDataset.data ?? []} />
           </Suspense>
         )}
 
-        {dataset && (
+        {currentDataset && (
           <div className="mt-4 flex justify-end max-w-6xl xl:max-w-7xl 2xl:max-w-8xl mx-auto">
             <button
               onClick={resetUpload}
@@ -202,7 +176,7 @@ const Dataset_tabledata = ({
           </div>
         )}
 
-        {dataset && (
+        {currentDataset && (
           <div className="max-w-6xl xl:max-w-7xl 2xl:max-w-8xl mx-auto mt-10 grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="flex items-center gap-3 rounded-lg px-3 py-2.5 border border-neutral-800/70 bg-gradient-to-b from-neutral-900/60 to-neutral-950 shadow-[0_6px_20px_rgba(0,0,0,0.35)] hover:border-neutral-700 transition-all duration-200">
               <div className="p-2 rounded-md bg-neutral-800/60">
@@ -212,7 +186,7 @@ const Dataset_tabledata = ({
               </div>
               <div className="leading-tight">
                 <div className="text-[11px] text-neutral-500 tracking-wide">Total Rows</div>
-                <div className="text-base font-semibold text-white">{dataset.rows ?? 0}</div>
+                <div className="text-base font-semibold text-white">{currentDataset.rows ?? 0}</div>
               </div>
             </div>
             <div className="flex items-center gap-3 rounded-lg px-3 py-2.5 border border-neutral-800/70 bg-gradient-to-b from-neutral-900/60 to-neutral-950 shadow-[0_6px_20px_rgba(0,0,0,0.35)] hover:border-neutral-700 transition-all duration-200">
@@ -223,7 +197,7 @@ const Dataset_tabledata = ({
               </div>
               <div className="leading-tight">
                 <div className="text-[11px] text-neutral-500 tracking-wide">Total Columns</div>
-                <div className="text-base font-semibold text-white">{dataset.columns ?? 0}</div>
+                <div className="text-base font-semibold text-white">{currentDataset.columns ?? 0}</div>
               </div>
             </div>
             <div className="flex items-center gap-3 rounded-lg px-3 py-2.5 border border-neutral-800/70 bg-gradient-to-b from-neutral-900/60 to-neutral-950 shadow-[0_6px_20px_rgba(0,0,0,0.35)] hover:border-neutral-700 transition-all duration-200">
@@ -234,7 +208,7 @@ const Dataset_tabledata = ({
               </div>
               <div className="leading-tight">
                 <div className="text-[11px] text-neutral-500 tracking-wide">Numeric Columns</div>
-                <div className="text-base font-semibold text-white">{dataset.numerical_columns?.length ?? 0}</div>
+                <div className="text-base font-semibold text-white">{currentDataset.numerical_columns?.length ?? 0}</div>
               </div>
             </div>
             <div className="flex items-center gap-3 rounded-lg px-3 py-2.5 border border-neutral-800/70 bg-gradient-to-b from-neutral-900/60 to-neutral-950 shadow-[0_6px_20px_rgba(0,0,0,0.35)] hover:border-neutral-700 transition-all duration-200">
@@ -245,13 +219,13 @@ const Dataset_tabledata = ({
               </div>
               <div className="leading-tight">
                 <div className="text-[11px] text-neutral-500 tracking-wide">Categorical Columns</div>
-                <div className="text-base font-semibold text-white">{dataset.categorical_columns?.length ?? 0}</div>
+                <div className="text-base font-semibold text-white">{currentDataset.categorical_columns?.length ?? 0}</div>
               </div>
             </div>
           </div>
         )}
 
-        {dataset && (
+        {currentDataset && (
           <div className="max-w-6xl xl:max-w-7xl 2xl:max-w-8xl mx-auto mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-gradient-to-b from-neutral-900/80 to-neutral-950/80 rounded-lg border border-neutral-800/70 p-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.5)] transition-shadow duration-300">
               <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
@@ -261,8 +235,8 @@ const Dataset_tabledata = ({
                 Numeric Columns
               </h3>
               <div className="space-y-2 max-h-32 overflow-y-auto pr-1">
-                {(dataset.numerical_columns ?? []).length > 0 ? (
-                  (dataset.numerical_columns ?? []).map((c: string) => (
+                {(currentDataset.numerical_columns ?? []).length > 0 ? (
+                  (currentDataset.numerical_columns ?? []).map((c: string) => (
                     <div key={c} className="flex items-center gap-2 text-sm text-neutral-300 bg-neutral-800/40 rounded px-2 py-1">
                       <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
                       {c}
@@ -281,8 +255,8 @@ const Dataset_tabledata = ({
                 Categorical Columns
               </h3>
               <div className="space-y-2 max-h-32 overflow-y-auto pr-1">
-                {(dataset.categorical_columns ?? []).length > 0 ? (
-                  (dataset.categorical_columns ?? []).map((c: string) => (
+                {(currentDataset.categorical_columns ?? []).length > 0 ? (
+                  (currentDataset.categorical_columns ?? []).map((c: string) => (
                     <div key={c} className="flex items-center gap-2 text-sm text-neutral-300 bg-neutral-800/40 rounded px-2 py-1">
                       <span className="w-2 h-2 bg-emerald-400 rounded-full"></span>
                       {c}
@@ -296,7 +270,9 @@ const Dataset_tabledata = ({
           </div>
         )}
 
-        {dataset?.statistics && (
+        
+
+        {currentDataset?.statistics && (
           <div className="max-w-6xl xl:max-w-7xl 2xl:max-w-8xl mx-auto mt-10">
             <h3 className="text-lg font-semibold text-white mb-4">
               Statistical Summary
@@ -315,7 +291,7 @@ const Dataset_tabledata = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {Object.entries(dataset.statistics).map(
+                  {Object.entries(currentDataset.statistics).map(
                     ([col, stats]: any) => (
                       <tr
                         key={col}
@@ -335,19 +311,20 @@ const Dataset_tabledata = ({
                 </tbody>
               </table>
             </div>
-
-            <div className="flex justify-center mt-10 mb-16">
-              <Link to="/Cleaning">
-                <button className="group relative px-8 py-3 rounded-lg text-white text-sm font-medium bg-gradient-to-r from-blue-600/20 to-cyan-600/20 border border-blue-500/50 overflow-hidden transition-all duration-300 hover:shadow-[0_0_25px_#33E6FF55] hover:border-[#33E6FF] hover:from-blue-600/30 hover:to-cyan-600/30">
-                  <span className="relative z-10 flex items-center gap-2">
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Start Cleaning
-                  </span>
-                </button>
-              </Link>
-            </div>
+          </div>
+        )}
+        {currentDataset && (
+          <div className="flex justify-center mt-10 mb-16">
+            <Link to="/Cleaning">
+              <button className="group relative px-8 py-3 rounded-lg text-white text-sm font-medium bg-gradient-to-r from-blue-600/20 to-cyan-600/20 border border-blue-500/50 overflow-hidden transition-all duration-300 hover:shadow-[0_0_25px_#33E6FF55] hover:border-[#33E6FF] hover:from-blue-600/30 hover:to-cyan-600/30">
+                <span className="relative z-10 flex items-center gap-2">
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Start Cleaning
+                </span>
+              </button>
+            </Link>
           </div>
         )}
       </div>

@@ -22,7 +22,7 @@ import {
   ChartArea,
   TriangleAlert
 } from "lucide-react"
-import { useStoredDataset } from "@/components/layouts/DataSet_data"
+import { useDataset } from "@/contexts/DatasetContext"
 
 const DataTable = lazy(() => import("@/components/ui/DataTable"))
 
@@ -37,7 +37,7 @@ const STRATEGIES = {
 }
 
 const Cleaning = () => {
-  const dataset = useStoredDataset()
+  const { dataset } = useDataset()
   const [selectedColumn, setSelectedColumn] = useState<string | null>(null)
   const [activeDialog, setActiveDialog] = useState<string | null>(null)
   const [showPreviewDialog, setShowPreviewDialog] = useState<boolean>(false)

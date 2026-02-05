@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Suspense, lazy } from "react";
 import { Spinner } from "@/components/ui/spinner";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { DatasetProvider } from "@/contexts/DatasetContext";
 import ProtectedRoute from "@/components/ui/ProtectedRoute";
 
 // Lazy load all page components for better code splitting
@@ -25,24 +26,26 @@ const PageLoader = () => (
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <Suspense fallback={<PageLoader />}>
-          <Routes>
-            <Route path="/">
-              <Route index element={<HomePage />} />
-              <Route index path='/HomePage' element={<HomePage />} />
-              <Route index path='/DataSet' element={<ProtectedRoute><Dataset /></ProtectedRoute>} />
-              <Route index path='/Cleaning' element={<ProtectedRoute><Cleaning /></ProtectedRoute>} />
-              <Route index path='/SignIn' element={<SignIn />} />
-              <Route index path='/SignUp' element={<Signup />} />
-              <Route index path='/FAQ' element={<FAQDemo />} />
-              <Route index path='/Lamp' element={<LampDemo />} />
-              <Route index path='/About' element={<AboutPage />} />
-              <Route index path='*' element={<NotFound />} />
-            </Route>
-          </Routes>
-        </Suspense>
-      </BrowserRouter>
+      <DatasetProvider>
+        <BrowserRouter>
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              <Route path="/">
+                <Route index element={<HomePage />} />
+                <Route index path='/HomePage' element={<HomePage />} />
+                <Route index path='/DataSet' element={<ProtectedRoute><Dataset /></ProtectedRoute>} />
+                <Route index path='/Cleaning' element={<ProtectedRoute><Cleaning /></ProtectedRoute>} />
+                <Route index path='/SignIn' element={<SignIn />} />
+                <Route index path='/SignUp' element={<Signup />} />
+                <Route index path='/FAQ' element={<FAQDemo />} />
+                <Route index path='/Lamp' element={<LampDemo />} />
+                <Route index path='/About' element={<AboutPage />} />
+                <Route index path='*' element={<NotFound />} />
+              </Route>
+            </Routes>
+          </Suspense>
+        </BrowserRouter>
+      </DatasetProvider>
     </AuthProvider>
   );
 }
