@@ -1,4 +1,3 @@
-const { v4: uuidv4 } = require("uuid");
 const fs = require("fs");
 const mlService = require("../services/ml.service");
 const datasetService = require("../services/dataset.service");
@@ -11,8 +10,10 @@ exports.uploadDataset = async (req, res) => {
       });
     }
 
+    // Forward to ML service first to get metadata
     const mlResponse = await mlService.uploadDataset(req.file);
 
+    // Extract metadata from ML service response
     const numericalColumns = Array.isArray(mlResponse.numerical_columns)
       ? mlResponse.numerical_columns
       : [];
@@ -21,27 +22,24 @@ exports.uploadDataset = async (req, res) => {
       ? mlResponse.categorical_columns
       : [];
 
-    const dataset_uuid = uuidv4();
     const user_id = req.user?.id || 1;
-
     const column_names = [...numericalColumns, ...categoricalColumns];
     const total_rows = mlResponse.rows ?? 0;
 
+    // Store metadata in database - use original filename since no disk storage
     await datasetService.insertDatasetMetadata(
-      dataset_uuid,
       user_id,
       req.file.originalname,
       column_names,
       total_rows
     );
 
-    if (req.file.path && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
+    // File is processed in memory and sent to ML service directly
+    // No local file storage needed
 
     return res.status(200).json({
       message: "Dataset uploaded & forwarded to ML service",
-      dataset_uuid,
+      filename: req.file.originalname,
       ...mlResponse,
     });
 
@@ -54,7 +52,6 @@ exports.uploadDataset = async (req, res) => {
   }
 };
 
-// ✅ THIS WAS MISSING — REQUIRED BY ROUTES
 exports.preprocessDataset = async (req, res) => {
   try {
     const result = await mlService.preprocessDataset(req.body);
