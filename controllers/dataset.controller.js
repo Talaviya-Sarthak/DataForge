@@ -10,6 +10,14 @@ exports.uploadDataset = async (req, res) => {
       });
     }
 
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        message: "Authentication required",
+      });
+    }
+
+    const user_id = req.user.id;
+
     // Forward to ML service first to get metadata
     const mlResponse = await mlService.uploadDataset(req.file);
 
@@ -22,11 +30,10 @@ exports.uploadDataset = async (req, res) => {
       ? mlResponse.categorical_columns
       : [];
 
-    const user_id = req.user?.id || 1;
     const column_names = [...numericalColumns, ...categoricalColumns];
     const total_rows = mlResponse.rows ?? 0;
 
-    // Store metadata in database - use original filename since no disk storage
+    // Store metadata in database
     await datasetService.insertDatasetMetadata(
       user_id,
       req.file.originalname,
@@ -34,13 +41,16 @@ exports.uploadDataset = async (req, res) => {
       total_rows
     );
 
-    // File is processed in memory and sent to ML service directly
-    // No local file storage needed
-
+    // Return response in format expected by frontend
     return res.status(200).json({
-      message: "Dataset uploaded & forwarded to ML service",
-      filename: req.file.originalname,
-      ...mlResponse,
+      data: mlResponse.data,
+      rows: mlResponse.rows,
+      columns: mlResponse.columns,
+      numerical_columns: mlResponse.numerical_columns,
+      categorical_columns: mlResponse.categorical_columns,
+      statistics: mlResponse.statistics,
+      message: "Dataset uploaded successfully",
+      filename: req.file.originalname
     });
 
   } catch (error) {
