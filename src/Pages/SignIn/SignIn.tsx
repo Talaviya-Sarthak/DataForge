@@ -65,16 +65,21 @@ export default function SignIn() {
                 const data = await r.json().catch(() => ({}));
                 if (!r.ok) throw new Error(data?.error || "Login failed");
 
-                // Mock user data - replace with actual API response
+                // Store JWT token
+                if (data.token) {
+                    localStorage.setItem('token', data.token);
+                }
+
+                // Store user data
                 const userData = {
-                    id: data.id || "USR-2024-001",
-                    name: data.name || "John Doe",
-                    email: email,
-                    phone: data.phone || "+1 (555) 123-4567",
-                    role: data.role || "Data Scientist",
-                    organization: data.organization || "DataForge Analytics",
+                    id: data.user?.id || data.id || "USR-2024-001",
+                    name: data.user?.name || data.name || "John Doe",
+                    email: data.user?.email || email,
+                    phone: data.user?.phone || data.phone || "+1 (555) 123-4567",
+                    role: data.user?.role || data.role || "Data Scientist",
+                    organization: data.user?.organization || data.organization || "DataForge Analytics",
                     status: "active" as const,
-                    avatar: data.avatar || null,
+                    avatar: data.user?.avatar || data.avatar || null,
                 };
 
                 login(userData);

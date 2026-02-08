@@ -23,13 +23,22 @@ const uploadDataset = async (file: File) => {
   const formData = new FormData()
   formData.append("file", file)
 
+  const token = localStorage.getItem('token')
+  if (!token) {
+    throw new Error('Please login to upload datasets')
+  }
+
   const res = await fetch(`${apiBase}/api/datasets/upload`, {
     method: "POST",
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
     body: formData,
   })
 
   if (!res.ok) {
-    throw new Error("Upload failed")
+    const errorData = await res.json().catch(() => ({ message: 'Upload failed' }))
+    throw new Error(errorData.message || errorData.error || 'Upload failed')
   }
 
   const data = await res.json()
