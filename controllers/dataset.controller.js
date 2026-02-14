@@ -19,7 +19,7 @@ exports.uploadDataset = async (req, res) => {
     const user_id = req.user.id;
 
     // Forward to ML service first to get metadata
-    const mlResponse = await mlService.uploadDataset(req.file);
+    const mlResponse = await mlService.uploadDataset(req.file, user_id);
 
     // Extract metadata from ML service response
     const numericalColumns = Array.isArray(mlResponse.numerical_columns)
@@ -100,7 +100,8 @@ exports.preprocessDataset = async (req, res) => {
     };
 
     try {
-      const result = await mlService.preprocessDataset(payload);
+      const userId = req.user.id;
+      const result = await mlService.preprocessDataset(payload, userId);
 
       return res.status(200).json({
         message: "Dataset cleaned successfully",

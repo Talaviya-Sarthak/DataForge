@@ -4,7 +4,7 @@ const fs = require("fs");
 
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL;
 
-exports.uploadDataset = async (file) => {
+exports.uploadDataset = async (file, userId) => {
   if (!ML_SERVICE_URL) {
     throw new Error("ML_SERVICE_URL not configured in environment variables");
   }
@@ -16,6 +16,7 @@ exports.uploadDataset = async (file) => {
     file.buffer,
     file.originalname
   );
+  formData.append("user_id", userId);
 
   try {
     const response = await axios.post(
@@ -45,8 +46,10 @@ exports.uploadDataset = async (file) => {
 };
 
 
-exports.preprocessDataset = async (payload) => {
+exports.preprocessDataset = async (payload, userId) => {
   try {
+    // Add user_id to payload
+    payload.user_id = userId;
     // Defensive normalization: ensure steps are properly formatted
     if (payload.steps && Array.isArray(payload.steps)) {
       payload.steps = payload.steps.map((step, index) => {
