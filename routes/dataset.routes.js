@@ -10,5 +10,6 @@ const {
 
 router.post("/upload", auth, upload.single("file"), uploadDataset);
 router.post("/preprocess", auth, preprocessDataset);
+router.post("/clean", auth, preprocessDataset);
 
 module.exports = router;

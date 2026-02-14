@@ -64,16 +64,63 @@ exports.uploadDataset = async (req, res) => {
 
 exports.preprocessDataset = async (req, res) => {
   try {
-    const result = await mlService.preprocessDataset(req.body);
+    const { action, strategy, columns } = req.body;
 
-    return res.status(200).json({
-      message: "Dataset preprocessed successfully",
-      ...result,
-    });
+    if (!action) {
+      return res.status(400).json({ message: "Cleaning action is required" });
+    }
+
+    // Build transformations based on action type
+    let transformations;
+    
+    if (action === "feature_selection" && strategy === "manual") {
+      // For manual drop, pass columns directly
+      transformations = [{
+        strategy: "manual",
+        columns: columns || []
+      }];
+    } else {
+      // For other actions, map per column
+      transformations = (columns || []).map(col => ({
+        column: col,
+        strategy: strategy || "auto",
+      }));
+    }
+
+    // Build MLService pipeline payload
+    const payload = {
+      steps: [{
+        step_index: 0,
+        type: action,
+        params: transformations,
+      }],
+      start_index: 0,
+      stop_index: 0,
+      preview_rows: 100,
+    };
+
+    try {
+      const result = await mlService.preprocessDataset(payload);
+
+      return res.status(200).json({
+        message: "Dataset cleaned successfully",
+        ...result,
+      });
+    } catch (mlError) {
+      // Check if it's the "No dataset uploaded" error
+      if (mlError.response?.data?.detail?.includes("No dataset uploaded")) {
+        return res.status(400).json({
+          message: "No dataset in memory. Please upload a dataset first.",
+          error: "Dataset not found in MLService"
+        });
+      }
+      
+      throw mlError;
+    }
   } catch (error) {
-    console.error("Preprocess Error:", error);
+    console.error("❌ Preprocess Error:", error.message);
     return res.status(500).json({
-      message: "Preprocess failed",
+      message: "Cleaning failed",
       error: error.message,
     });
   }
