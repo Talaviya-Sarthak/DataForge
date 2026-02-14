@@ -99,9 +99,9 @@ async def preprocess_dataset(payload: dict):
     Execute preprocessing pipeline on uploaded dataset.
     """
     global CURRENT_DATASET
-
+    
     if CURRENT_DATASET is None:
-        raise HTTPException(status_code=400, detail="No dataset uploaded")
+        raise HTTPException(status_code=400, detail="No dataset uploaded. Please upload a dataset first.")
 
     try:
         # Defensive normalization of steps
@@ -127,12 +127,31 @@ async def preprocess_dataset(payload: dict):
             stop_index=stop_index
         )
 
+        # Persist cleaned data so future operations build on it
+        CURRENT_DATASET = processed_df
+
         preview = preview_Data(processed_df, n=preview_rows)
+        stats = dataset_stats(processed_df)
+
+        # Column type inference (same logic as upload)
+        column_names = list(processed_df.columns)
+        numeric_cols = []
+        categorical_cols = []
+        for col in column_names:
+            series = processed_df[col].dropna()
+            sample = series.iloc[0] if not series.empty else None
+            if isinstance(sample, (int, float)):
+                numeric_cols.append(col)
+            else:
+                categorical_cols.append(col)
 
         return {
             "data": preview["rows"],
             "rows": len(processed_df),
-            "columns": preview["columns"]
+            "columns": len(column_names),
+            "numerical_columns": numeric_cols,
+            "categorical_columns": categorical_cols,
+            "statistics": stats,
         }
 
     except HTTPException:
