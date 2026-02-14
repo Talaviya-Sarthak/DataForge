@@ -1,0 +1,37 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "DataForge is an AI-powered data workspace designed to streamline the process of preparing, enriching, and modeling structured data. The platform enables users to upload CSV files, perform assisted data cleaning, automatically generate meaningful derived features, train multiple machine-learning models, review performance results, and export the best-performing model — all within a single environment.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "axios": "^1.13.2",
+    "bcrypt": "^6.0.0",
+    "body-parser": "^2.2.1",
+    "cors": "^2.8.5",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "express-session": "^1.18.2",
+    "form-data": "^4.0.5",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.0.2",
+    "mysql2": "^3.16.0",
+    "nodemon": "^3.1.11",
+    "uuid": "^9.0.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Talaviya-Sarthak/DataForge.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Talaviya-Sarthak/DataForge/issues"
+  },
+  "homepage": "https://github.com/Talaviya-Sarthak/DataForge#readme"
+}

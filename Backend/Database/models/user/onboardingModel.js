@@ -1,0 +1,48 @@
+const pool = require("../../db");
+
+/**
+ * Insert OR update onboarding data
+ */
+const upsertOnboarding = async (
+  userId,
+  company,
+  profession,
+  experience,
+  industry,
+  dataExperience,
+  primaryGoal,
+  additionalInfo
+) => {
+  const sql = `
+    INSERT INTO user_onboarding
+      (user_id, company, profession, experience, industry, data_experience, primary_goal, additional_info)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE
+      company = VALUES(company),
+      profession = VALUES(profession),
+      experience = VALUES(experience),
+      industry = VALUES(industry),
+      data_experience = VALUES(data_experience),
+      primary_goal = VALUES(primary_goal),
+      additional_info = VALUES(additional_info)
+  `;
+
+  const [result] = await pool.execute(
+    sql,
+    [
+      userId,
+      company,
+      profession,
+      experience,
+      industry,
+      dataExperience,
+      primaryGoal,
+      additionalInfo
+    ]
+  );
+  return result;
+};
+
+module.exports = {
+  upsertOnboarding
+};
