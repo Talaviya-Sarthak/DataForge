@@ -1,0 +1,32 @@
+# =========================
+# Python cache & bytecode
+# =========================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*$py.class
+
+# =========================
+# Virtual environments
+# =========================
+venv/
+env/
+.venv/
+
+# =========================
+# OS generated files
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# IDE / Editor settings
+# =========================
+.vscode/
+.idea/
+
+# =========================
+.__init__.pypyc
+.__init__.PY
+# Jupyter Notebook checkpoints
