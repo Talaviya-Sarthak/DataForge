@@ -1,6 +1,9 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 import pandas as pd
 import json
+import pickle
+import os
+from pathlib import Path
 
 from app.data.loader import load_Data
 from app.data.preview import preview_Data
@@ -9,8 +12,49 @@ from app.preprocessings.pipeline import PreprocessingPipeline
 
 router = APIRouter()
 
-# ⚠️ TEMP ONLY (dev mode)
-CURRENT_DATASET: pd.DataFrame | None = None
+# Cache directory
+CACHE_DIR = Path("cache")
+CACHE_DIR.mkdir(exist_ok=True)
+
+# Per-user dataset storage
+USER_DATASETS: dict[int, pd.DataFrame] = {}
+
+def get_cache_file(user_id: int) -> Path:
+    """Get cache file path for specific user"""
+    return CACHE_DIR / f"dataset_user_{user_id}.pkl"
+
+def save_dataset_cache(user_id: int, df: pd.DataFrame):
+    """Save dataset to disk cache for specific user"""
+    cache_file = get_cache_file(user_id)
+    with open(cache_file, 'wb') as f:
+        pickle.dump(df, f)
+
+def load_dataset_cache(user_id: int) -> pd.DataFrame | None:
+    """Load dataset from disk cache for specific user"""
+    cache_file = get_cache_file(user_id)
+    if cache_file.exists():
+        try:
+            with open(cache_file, 'rb') as f:
+                return pickle.load(f)
+        except:
+            return None
+    return None
+
+def get_user_dataset(user_id: int) -> pd.DataFrame | None:
+    """Get dataset for user from memory or cache"""
+    if user_id in USER_DATASETS:
+        return USER_DATASETS[user_id]
+    
+    # Try loading from cache
+    cached = load_dataset_cache(user_id)
+    if cached is not None:
+        USER_DATASETS[user_id] = cached
+    return cached
+
+def set_user_dataset(user_id: int, df: pd.DataFrame):
+    """Set dataset for user in memory and cache"""
+    USER_DATASETS[user_id] = df
+    save_dataset_cache(user_id, df)
 
 
 def normalize_step(step, step_index=0):
@@ -40,18 +84,19 @@ def normalize_step(step, step_index=0):
 # DATA UPLOAD (BACKWARD-COMPATIBLE RESPONSE)
 # ─────────────────────────────────────────────
 @router.post("/data/upload")
-async def upload_dataset(file: UploadFile = File(...)):
+async def upload_dataset(file: UploadFile = File(...), user_id: int = Form(...)):
     """
     Upload dataset for preview + metadata.
     Response format matches OLD frontend contract.
     """
-    global CURRENT_DATASET
-
+    print(f"📥 Upload for user_id: {user_id}")
+    
     try:
         df = load_Data(file)
         df = df.replace([float("inf"), float("-inf")], None)
 
-        CURRENT_DATASET = df
+        set_user_dataset(user_id, df)
+        print(f"✅ Dataset saved for user {user_id}")
 
         preview = preview_Data(df, n=20)
         stats = dataset_stats(df)
@@ -98,10 +143,17 @@ async def preprocess_dataset(payload: dict):
     """
     Execute preprocessing pipeline on uploaded dataset.
     """
-    global CURRENT_DATASET
+    user_id = payload.get("user_id", 0)
+    print(f"🧹 Preprocess for user_id: {user_id}")
     
-    if CURRENT_DATASET is None:
+    # Get user's dataset
+    df = get_user_dataset(user_id)
+    
+    if df is None:
+        print(f"❌ No dataset found for user {user_id}")
         raise HTTPException(status_code=400, detail="No dataset uploaded. Please upload a dataset first.")
+    
+    print(f"✅ Found dataset for user {user_id} with {len(df)} rows")
 
     try:
         # Defensive normalization of steps
@@ -122,13 +174,13 @@ async def preprocess_dataset(payload: dict):
         pipeline = PreprocessingPipeline(steps=steps)
         
         processed_df = pipeline.run(
-            df=CURRENT_DATASET,
+            df=df,
             start_index=start_index,
             stop_index=stop_index
         )
 
         # Persist cleaned data so future operations build on it
-        CURRENT_DATASET = processed_df
+        set_user_dataset(user_id, processed_df)
 
         preview = preview_Data(processed_df, n=preview_rows)
         stats = dataset_stats(processed_df)
