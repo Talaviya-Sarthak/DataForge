@@ -46,6 +46,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = () => {
     setUser(null)
     localStorage.removeItem('dataforge_user')
+    localStorage.removeItem('token')
   }
 
   return (

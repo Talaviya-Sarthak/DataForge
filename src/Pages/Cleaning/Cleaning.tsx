@@ -20,9 +20,13 @@ import {
   LineChart,
   PieChart,
   ChartArea,
-  TriangleAlert
+  TriangleAlert,
+  Info,
+  Loader2
 } from "lucide-react"
 import { useDataset } from "@/contexts/DatasetContext"
+import { applyCleaningAction } from "@/services/cleaning.service"
+import { useToast } from "@/components/ui/toast/Toast"
 
 const DataTable = lazy(() => import("@/components/ui/DataTable"))
 
@@ -36,13 +40,93 @@ const STRATEGIES = {
   imbalance: ["auto", "undersample", "oversample", "smote"]
 }
 
+// Map UI dialog keys to MLService operation types
+const ACTION_TYPE_MAP: Record<string, string> = {
+  missing: "missing_values",
+  outliers: "outliers",
+  encoding: "encoding",
+  scaling: "scaling",
+  feature_selection: "feature_selection",
+  imbalance: "imbalance",
+}
+
 const Cleaning = () => {
-  const { dataset } = useDataset()
+  const { dataset, setDataset } = useDataset()
+  const { show } = useToast()
   const [selectedColumn, setSelectedColumn] = useState<string | null>(null)
   const [activeDialog, setActiveDialog] = useState<string | null>(null)
   const [showPreviewDialog, setShowPreviewDialog] = useState<boolean>(false)
   const [showGraphDialog, setShowGraphDialog] = useState<boolean>(false)
   const [showColumnInfo, setShowColumnInfo] = useState<boolean>(false)
+  const [isProcessing, setIsProcessing] = useState<boolean>(false)
+
+  const handleDropColumn = async () => {
+    if (!selectedColumn) return;
+
+    setIsProcessing(true);
+
+    try {
+      const result = await applyCleaningAction({
+        action: "feature_selection",
+        strategy: "manual",
+        columns: [selectedColumn],
+      });
+
+      setDataset(result);
+      setSelectedColumn(null);
+      show({ type: "success", message: `Column "${selectedColumn}" dropped successfully` });
+    } catch (error: any) {
+      show({ type: "error", message: error.message || "Failed to drop column" });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleCleaning = async (dialogKey: string, strategy: string) => {
+    const action = ACTION_TYPE_MAP[dialogKey]
+    if (!action) return
+
+    // Determine which columns to apply the action to
+    let targetColumns: string[] = []
+    if (selectedColumn) {
+      targetColumns = [selectedColumn]
+    } else {
+      // Apply to all applicable columns
+      if (action === "missing_values" || action === "scaling" || action === "outliers") {
+        targetColumns = dataset?.numerical_columns || []
+      } else if (action === "encoding") {
+        targetColumns = dataset?.categorical_columns || []
+      } else {
+        // For feature_selection, imbalance — use all columns
+        const allCols = dataset?.data?.[0] ? Object.keys(dataset.data[0]) : []
+        targetColumns = allCols
+      }
+    }
+
+    if (targetColumns.length === 0) {
+      show({ type: "error", message: "No applicable columns found for this action" })
+      return
+    }
+
+    setIsProcessing(true)
+    setActiveDialog(null)
+
+    try {
+      const result = await applyCleaningAction({
+        action,
+        strategy,
+        columns: targetColumns,
+      })
+
+      // Update dataset context with full refreshed data
+      setDataset(result)
+      show({ type: "success", message: `${strategy.replace("_", " ")} applied successfully` })
+    } catch (error: any) {
+      show({ type: "error", message: error.message || "Cleaning failed" })
+    } finally {
+      setIsProcessing(false)
+    }
+  }
 
   const getColumnStats = (columnName: string) => {
     const stats = dataset?.statistics?.[columnName]
@@ -308,12 +392,16 @@ const Cleaning = () => {
 
   const Dialog = ({
     title,
+    dialogKey,
     strategies,
     onClose,
+    onSelect,
   }: {
     title: string
+    dialogKey: string
     strategies: string[]
     onClose: () => void
+    onSelect: (dialogKey: string, strategy: string) => void
   }) => (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
       <div className="relative w-[26rem] max-w-[92vw] rounded-xl border border-neutral-800 bg-gradient-to-b from-neutral-900 to-neutral-950 p-6 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.9)]" onClick={(e) => e.stopPropagation()}>
@@ -325,7 +413,7 @@ const Cleaning = () => {
               {title}
             </h3>
             <p className="text-xs text-neutral-500 mt-0.5">
-              Choose how missing values should be handled
+              Choose a strategy to apply
             </p>
           </div>
 
@@ -342,6 +430,7 @@ const Cleaning = () => {
           {strategies.map((strategy) => (
             <button
               key={strategy}
+              onClick={() => onSelect(dialogKey, strategy)}
               className="
               group w-full rounded-lg border border-neutral-800
               bg-neutral-900/60 px-4 py-3 text-left
@@ -357,7 +446,7 @@ const Cleaning = () => {
               <div className="flex items-center justify-between">
                 <span>{strategy.replace("_", " ")}</span>
                 <span className="text-xs text-neutral-500 opacity-0 transition group-hover:opacity-100">
-                  Select
+                  Apply
                 </span>
               </div>
             </button>
@@ -421,15 +510,14 @@ const Cleaning = () => {
                   const isNumeric = column.type === "numeric"
 
                   return (
-                    <button
+                    <div
                       key={column.name}
                       onClick={() => {
                         setSelectedColumn(column.name)
-                        setShowColumnInfo(true)
                       }}
                       className={`
                         group relative w-full rounded-xl p-3 text-left
-                        border transition-all duration-300
+                        border transition-all duration-300 cursor-pointer
                         backdrop-blur-sm
                         ${isActive
                           ? "bg-gradient-to-r from-blue-500/15 to-transparent border-blue-500/50 shadow-[0_0_0_1px_rgba(59,130,246,0.45),0_8px_30px_rgba(59,130,246,0.15)]"
@@ -497,17 +585,31 @@ const Cleaning = () => {
                           </div>
                         </div>
 
-                        {/* Chevron */}
-                        <span
-                          className={`
-                            mt-1 text-neutral-500 transition-all
-                            ${isActive ? "text-blue-400" : "group-hover:text-neutral-300 group-hover:translate-x-0.5"}
-                          `}
-                        >
-                          →
-                        </span>
+                        <div className="flex items-center gap-1">
+                          {/* Info Button - ONLY this opens the dialog */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setSelectedColumn(column.name)
+                              setShowColumnInfo(true)
+                            }}
+                            className="p-1 rounded-full text-neutral-500 hover:text-blue-400 hover:bg-blue-500/10 transition-colors"
+                          >
+                            <Info className="h-4 w-4" />
+                          </button>
+
+                          {/* Chevron */}
+                          <span
+                            className={`
+                              text-neutral-500 transition-all
+                              ${isActive ? "text-blue-400" : "group-hover:text-neutral-300 group-hover:translate-x-0.5"}
+                            `}
+                          >
+                            →
+                          </span>
+                        </div>
                       </div>
-                    </button>
+                    </div>
                   )
                 })}
               </div>
@@ -637,6 +739,7 @@ const Cleaning = () => {
                   </div>
                   <p className="text-sm text-neutral-400 mb-3">Remove selected column</p>
                   <button
+                    onClick={handleDropColumn}
                     disabled={!selectedColumn}
                     className="w-full px-3 py-2 bg-red-600/20 text-red-300 rounded border border-red-500/50 hover:bg-red-600/30 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                   >
@@ -694,9 +797,21 @@ const Cleaning = () => {
       {activeDialog && (
         <Dialog
           title={`${activeDialog.replace('_', ' ')} Strategies`}
+          dialogKey={activeDialog}
           strategies={STRATEGIES[activeDialog as keyof typeof STRATEGIES] || []}
           onClose={() => setActiveDialog(null)}
+          onSelect={handleCleaning}
         />
+      )}
+
+      {/* Processing Overlay */}
+      {isProcessing && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-3 rounded-xl border border-neutral-800 bg-neutral-900/95 px-8 py-6 shadow-2xl">
+            <Loader2 className="h-8 w-8 text-blue-400 animate-spin" />
+            <p className="text-sm text-neutral-300 font-medium">Applying cleaning action...</p>
+          </div>
+        </div>
       )}
 
       {/* Graph Selection Dialog */}
