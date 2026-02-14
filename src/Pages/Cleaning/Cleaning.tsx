@@ -27,6 +27,7 @@ import {
 import { useDataset } from "@/contexts/DatasetContext"
 import { applyCleaningAction } from "@/services/cleaning.service"
 import { useToast } from "@/components/ui/toast/Toast"
+import { BarChart, Bar, LineChart as RechartsLine, Line, ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 
 const DataTable = lazy(() => import("@/components/ui/DataTable"))
 
@@ -59,6 +60,10 @@ const Cleaning = () => {
   const [showGraphDialog, setShowGraphDialog] = useState<boolean>(false)
   const [showColumnInfo, setShowColumnInfo] = useState<boolean>(false)
   const [isProcessing, setIsProcessing] = useState<boolean>(false)
+  const [selectedXColumn, setSelectedXColumn] = useState<string | null>(null)
+  const [selectedYColumn, setSelectedYColumn] = useState<string | null>(null)
+  const [showChart, setShowChart] = useState<boolean>(false)
+  const [chartType, setChartType] = useState<string | null>(null)
 
   const handleDropColumn = async () => {
     if (!selectedColumn) return;
@@ -251,7 +256,7 @@ const Cleaning = () => {
         {/* Header */}
         <div className="flex justify-between items-center mb-5">
           <h3 className="text-xl font-semibold text-white tracking-tight">
-            Select Visualization
+            Select Columns & Chart Type
           </h3>
           <button
             onClick={onClose}
@@ -261,88 +266,73 @@ const Cleaning = () => {
           </button>
         </div>
 
-        {/* Cards */}
+        {/* Column Selection */}
+        <div className="space-y-4 mb-6">
+          <div>
+            <label className="text-sm text-neutral-400 mb-2 block">X-Axis Column</label>
+            <select
+              value={selectedXColumn || ''}
+              onChange={(e) => setSelectedXColumn(e.target.value)}
+              className="w-full bg-neutral-800 text-white rounded-lg px-3 py-2 border border-neutral-700 focus:border-blue-500 focus:outline-none"
+            >
+              <option value="">Select column...</option>
+              {columns.map(col => (
+                <option key={col.name} value={col.name}>{col.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-sm text-neutral-400 mb-2 block">Y-Axis Column</label>
+            <select
+              value={selectedYColumn || ''}
+              onChange={(e) => setSelectedYColumn(e.target.value)}
+              className="w-full bg-neutral-800 text-white rounded-lg px-3 py-2 border border-neutral-700 focus:border-blue-500 focus:outline-none"
+            >
+              <option value="">Select column...</option>
+              {columns.map(col => (
+                <option key={col.name} value={col.name}>{col.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Chart Types */}
         <div className="grid grid-cols-2 gap-4">
           {[
-            {
-              title: "Histogram",
-              desc: "Distribution of values",
-              icon: BarChart3,
-              color: "text-blue-400",
-              bg: "bg-blue-500/10",
-            },
-            {
-              title: "Scatter Plot",
-              desc: "Relationship between variables",
-              icon: BarChart3,
-              color: "text-green-400",
-              bg: "bg-green-500/10",
-            },
-            {
-              title: "Box Plot",
-              desc: "Statistical summary",
-              icon: BarChart3,
-              color: "text-purple-400",
-              bg: "bg-purple-500/10",
-            },
-            {
-              title: "Line Chart",
-              desc: "Trends over time",
-              icon: LineChart,
-              color: "text-orange-400",
-              bg: "bg-orange-500/10",
-            },
-            {
-              title: "Pie Chart",
-              desc: "Proportional data",
-              icon: PieChart,
-              color: "text-pink-400",
-              bg: "bg-pink-500/10",
-            },
-            {
-              title: "Heatmap",
-              desc: "Correlation matrix",
-              icon: Hash,
-              color: "text-cyan-400",
-              bg: "bg-cyan-500/10",
-            },
-          ].map(({ title, desc, icon: Icon, color, bg }) => (
+            { title: "Bar Chart", type: "bar", icon: BarChart3, color: "text-blue-400", bg: "bg-blue-500/10" },
+            { title: "Line Chart", type: "line", icon: LineChart, color: "text-orange-400", bg: "bg-orange-500/10" },
+            { title: "Scatter Plot", type: "scatter", icon: BarChart3, color: "text-green-400", bg: "bg-green-500/10" },
+          ].map(({ title, type, icon: Icon, color, bg }) => (
             <button
-              key={title}
+              key={type}
+              onClick={() => {
+                console.log('Chart button clicked:', { selectedXColumn, selectedYColumn, type });
+                if (!selectedXColumn || !selectedYColumn) {
+                  show({ type: "error", message: "Please select both X and Y columns" });
+                  return;
+                }
+                console.log('Setting chart type and showing chart');
+                setChartType(type);
+                setShowChart(true);
+                setShowGraphDialog(false);
+              }}
+              disabled={!selectedXColumn || !selectedYColumn}
               className="
-              group relative rounded-xl p-4 text-left
-              bg-neutral-900
-              ring-1 ring-neutral-800
-              hover:ring-neutral-600
-              hover:bg-neutral-800/70
-              transition-all duration-200
-              hover:-translate-y-[1px]
-            "
+                group relative rounded-xl p-4 text-left
+                bg-neutral-900
+                ring-1 ring-neutral-800
+                hover:ring-neutral-600
+                hover:bg-neutral-800/70
+                transition-all duration-200
+                hover:-translate-y-[1px]
+                disabled:opacity-50 disabled:cursor-not-allowed
+              "
             >
-              {/* Icon */}
-              <div
-                className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${bg}`}
-              >
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${bg}`}>
                 <Icon className={`h-5 w-5 ${color}`} />
               </div>
-
-              {/* Text */}
-              <div className="text-sm font-medium text-white">
-                {title}
-              </div>
-              <div className="text-xs text-neutral-400 mt-0.5">
-                {desc}
-              </div>
-
-              {/* Hover glow */}
-              <div
-                className="
-                pointer-events-none absolute inset-0 rounded-xl
-                opacity-0 group-hover:opacity-100
-                transition-opacity
-                ring-1 ring-white/5
-              "
-              />
+              <div className="text-sm font-medium text-white">{title}</div>
+              <div className="text-xs text-neutral-400 mt-0.5">Visualize data</div>
             </button>
           ))}
         </div>
@@ -818,6 +808,90 @@ const Cleaning = () => {
       {showGraphDialog && (
         <GraphDialog onClose={() => setShowGraphDialog(false)} />
       )}
+
+      {/* Chart Display Dialog */}
+      {showChart && chartType && selectedXColumn && selectedYColumn && (() => {
+        // AGGREGATE DATA FOR CHART
+        const rawData = dataset?.data?.slice(0, 100) || [];
+        console.log('🔍 Raw data:', rawData);
+        console.log('🔍 Selected columns:', { selectedXColumn, selectedYColumn });
+        
+        // Group by X column and aggregate Y values
+        const aggregated = rawData.reduce((acc: any, row: any) => {
+          const xValue = String(row[selectedXColumn]);
+          const yValue = Number(row[selectedYColumn]);
+          
+          if (!acc[xValue]) {
+            acc[xValue] = { count: 0, sum: 0 };
+          }
+          acc[xValue].count += 1;
+          acc[xValue].sum += isNaN(yValue) ? 0 : yValue;
+          
+          return acc;
+        }, {});
+        
+        // Transform to chart format
+        const chartData = Object.entries(aggregated).map(([key, value]: [string, any]) => ({
+          [selectedXColumn]: key,
+          count: value.count,
+          sum: value.sum,
+          average: value.sum / value.count
+        }));
+        
+        console.log('📊 Chart data:', chartData);
+        
+        return (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[70]" onClick={() => setShowChart(false)}>
+            <div className="bg-neutral-900 rounded-xl p-6 w-[800px] max-w-[90vw] border border-neutral-800 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between items-center mb-5">
+                <div>
+                  <h3 className="text-xl font-semibold text-white tracking-tight">
+                    {chartType === 'bar' ? 'Bar Chart' : chartType === 'line' ? 'Line Chart' : 'Scatter Plot'}
+                  </h3>
+                  <p className="text-sm text-neutral-400 mt-1">
+                    {selectedXColumn} (Count)
+                  </p>
+                </div>
+                <button onClick={() => setShowChart(false)} className="text-neutral-400 hover:text-white transition-colors">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="bg-neutral-950/50 rounded-lg border border-neutral-800 p-4">
+                <ResponsiveContainer width="100%" height={400}>
+                  {chartType === 'bar' ? (
+                    <BarChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis dataKey={selectedXColumn} stroke="#9CA3AF" />
+                      <YAxis stroke="#9CA3AF" />
+                      <Tooltip contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151', borderRadius: '8px' }} />
+                      <Legend />
+                      <Bar dataKey="count" fill="#3B82F6" name="Count" />
+                    </BarChart>
+                  ) : chartType === 'line' ? (
+                    <RechartsLine data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis dataKey={selectedXColumn} stroke="#9CA3AF" />
+                      <YAxis stroke="#9CA3AF" />
+                      <Tooltip contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151', borderRadius: '8px' }} />
+                      <Legend />
+                      <Line type="monotone" dataKey="count" stroke="#F97316" strokeWidth={2} name="Count" />
+                    </RechartsLine>
+                  ) : (
+                    <ScatterChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis dataKey={selectedXColumn} stroke="#9CA3AF" />
+                      <YAxis stroke="#9CA3AF" />
+                      <Tooltip contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151', borderRadius: '8px' }} />
+                      <Legend />
+                      <Scatter name="Count" dataKey="count" fill="#10B981" />
+                    </ScatterChart>
+                  )}
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       <Footer />
     </div>
