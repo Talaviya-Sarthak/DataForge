@@ -9,6 +9,7 @@ from app.data.loader import load_Data
 from app.data.preview import preview_Data
 from app.data.stats import dataset_stats
 from app.preprocessings.pipeline import PreprocessingPipeline
+from app.feature_engineering.pipeline import FeatureEngineeringPipeline
 
 router = APIRouter()
 
@@ -209,6 +210,85 @@ async def preprocess_dataset(payload: dict):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"ML Service Error: {str(e)}")
+        print(f"Data Preprocessing error: {str(e)}")
+        print(f"Payload: {payload}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+# ─────────────────────────────────────────────
+# FEATURE ENGINEERING (DYNAMIC PIPELINE)
+# ─────────────────────────────────────────────
+@router.post("/data/feature-engineering")
+async def feature_engineering_dataset(payload: dict):
+    """
+    Execute feature engineering pipeline on uploaded dataset.
+    """
+    user_id = payload.get("user_id", 0)
+    print(f"🔧 Feature Engineering for user_id: {user_id}")
+    
+    # Get user's dataset
+    df = get_user_dataset(user_id)
+    
+    if df is None:
+        print(f"❌ No dataset found for user {user_id}")
+        raise HTTPException(status_code=400, detail="No dataset uploaded. Please upload a dataset first.")
+    
+    print(f"✅ Found dataset for user {user_id} with {len(df)} rows")
+
+    try:
+        # Defensive normalization of steps
+        if "steps" in payload and isinstance(payload["steps"], list):
+            normalized_steps = []
+            for i, step in enumerate(payload["steps"]):
+                try:
+                    normalized_steps.append(normalize_step(step, i))
+                except ValueError as e:
+                    raise HTTPException(status_code=400, detail=str(e))
+            payload["steps"] = normalized_steps
+
+        steps = payload.get("steps", [])
+        start_index = payload.get("start_index", 0)
+        stop_index = payload.get("stop_index")
+        preview_rows = payload.get("preview_rows", 20)
+
+        pipeline = FeatureEngineeringPipeline(steps=steps)
+        
+        processed_df = pipeline.run(
+            df=df,
+            start_index=start_index,
+            stop_index=stop_index
+        )
+
+        # Persist engineered data
+        set_user_dataset(user_id, processed_df)
+
+        preview = preview_Data(processed_df, n=preview_rows)
+        stats = dataset_stats(processed_df)
+
+        # Column type inference
+        column_names = list(processed_df.columns)
+        numeric_cols = []
+        categorical_cols = []
+        for col in column_names:
+            series = processed_df[col].dropna()
+            sample = series.iloc[0] if not series.empty else None
+            if isinstance(sample, (int, float)):
+                numeric_cols.append(col)
+            else:
+                categorical_cols.append(col)
+
+        return {
+            "data": preview["rows"],
+            "rows": len(processed_df),
+            "columns": len(column_names),
+            "numerical_columns": numeric_cols,
+            "categorical_columns": categorical_cols,
+            "statistics": stats,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Feature Engineering Error: {str(e)}")
         print(f"Payload: {payload}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
