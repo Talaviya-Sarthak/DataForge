@@ -180,3 +180,14 @@ CREATE TABLE IF NOT EXISTS pipeline_execution_logs (
   CONSTRAINT fk_log_pipeline FOREIGN KEY (pipeline_id)
     REFERENCES pipelines(id) ON DELETE CASCADE
 );
+
+SELECT * FROM users;
+SELECT * FROM user_onboarding;
+SELECT * FROM user_tools;
+SELECT * FROM user_project_types;
+SELECT * FROM user_preferences;
+SELECT * FROM datasets;
+SELECT * FROM pipelines;
+SELECT * FROM pipeline_steps;
+SELECT * FROM pipeline_previews;
+SELECT * FROM pipeline_execution_logs;
