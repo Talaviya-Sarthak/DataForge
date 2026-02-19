@@ -9,7 +9,7 @@ from app.data.loader import load_Data
 from app.data.preview import preview_Data
 from app.data.stats import dataset_stats
 from app.preprocessings.pipeline import PreprocessingPipeline
-from app.feature_engineering.pipeline import FeatureEngineeringPipeline
+from app.feature_engineering.feature_engineering_service import FeatureEngineeringService
 
 router = APIRouter()
 
@@ -251,13 +251,17 @@ async def feature_engineering_dataset(payload: dict):
         stop_index = payload.get("stop_index")
         preview_rows = payload.get("preview_rows", 20)
 
-        pipeline = FeatureEngineeringPipeline(steps=steps)
+        # pipeline = FeatureEngineeringService(steps=steps)
+        pipeline = FeatureEngineeringService()
         
-        processed_df = pipeline.run(
-            df=df,
-            start_index=start_index,
-            stop_index=stop_index
-        )
+        # processed_df = pipeline.run(
+        #     df=df,
+        #     start_index=start_index,
+        #     stop_index=stop_index
+        # )
+        processed_df = pipeline.apply(df)
+        # processed_df = fe_result["df"]
+
 
         # Persist engineered data
         set_user_dataset(user_id, processed_df)
@@ -270,9 +274,13 @@ async def feature_engineering_dataset(payload: dict):
         numeric_cols = []
         categorical_cols = []
         for col in column_names:
-            series = processed_df[col].dropna()
-            sample = series.iloc[0] if not series.empty else None
-            if isinstance(sample, (int, float)):
+            # series = processed_df[col].dropna()
+            # sample = series.iloc[0] if not series.empty else None
+            # if isinstance(sample, (int, float)):
+            #     numeric_cols.append(col)
+            # else:
+            #     categorical_cols.append(col)
+            if pd.api.types.is_numeric_dtype(processed_df[col]):
                 numeric_cols.append(col)
             else:
                 categorical_cols.append(col)
