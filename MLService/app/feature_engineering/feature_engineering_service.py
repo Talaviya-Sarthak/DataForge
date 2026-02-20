@@ -1,77 +1,260 @@
-import pandas as pd
-from typing import Dict, List, Any, Optional
+"""
+Feature Engineering Service
+===========================
 
-from .numeric_features import ColumnWiseNumericFeatureEngineer
-from .categorical_features import ColumnWiseCategoricalFeatureEngineer
-from .datetime_features import ColumnWiseDatetimeFeatureEngineer
-from .interaction_features import InteractionFeatureEngineer
+Main orchestrator for the feature engineering pipeline.
+
+This service:
+1. Detects column types (numeric, categorical, datetime)
+2. Loads appropriate transformers from the registry
+3. Executes transformers with fault tolerance
+4. Collects comprehensive metadata
+5. Returns transformed data with execution details
+"""
+
+import logging
+import pandas as pd
+import numpy as np
+from typing import Dict, List, Optional
+from .core.feature_registry import FeatureRegistry
+from .core.safe_executor import SafeExecutor
+
+logger = logging.getLogger(__name__)
 
 
 class FeatureEngineeringService:
+    """
+    Production-grade feature engineering service.
 
-    def __init__(
-        self,
-        numeric_config: Optional[List[Dict]] = None,
-        categorical_config: Optional[List[Dict]] = None,
-        datetime_config: Optional[List[Dict]] = None,
-        interaction_config: Optional[Dict] = None,
-    ):
+    Automatically applies feature engineering transformations with:
+    - Full fault tolerance
+    - Modular architecture
+    - Comprehensive metadata tracking
+    - Deterministic behavior
+    """
 
-        self.numeric_engineer = ColumnWiseNumericFeatureEngineer(numeric_config or [])
-        self.categorical_engineer = ColumnWiseCategoricalFeatureEngineer(categorical_config or [])
-        self.datetime_engineer = ColumnWiseDatetimeFeatureEngineer(datetime_config or [])
-        self.interaction_engineer = InteractionFeatureEngineer(interaction_config or {})
+    def __init__(self):
+        """Initialize the feature engineering service."""
+        self.registry = FeatureRegistry()
+        self._last_metadata = None
 
-        self.metadata = {
-            "original_features": [],
-            "engineered_features": [],
-            "total_features_original": 0,
-            "total_features_after": 0,
-            "total_features_added": 0,
-        }
+    def _detect_column_types(
+        self, df: pd.DataFrame, target_column: str = None
+    ) -> Dict[str, List[str]]:
+        """
+        Detect column types in the dataframe.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Input dataframe
+        target_column : str, optional
+            Target column to exclude
+
+        Returns
+        -------
+        Dict[str, List[str]]
+            Dictionary mapping column types to column names
+        """
+        columns = {"numeric": [], "categorical": [], "datetime": [], "other": []}
+
+        for col in df.columns:
+            # Skip target column
+            if target_column and col == target_column:
+                continue
+
+            # Check if numeric
+            if pd.api.types.is_numeric_dtype(df[col]):
+                columns["numeric"].append(col)
+            # Check if datetime
+            elif pd.api.types.is_datetime64_any_dtype(df[col]):
+                columns["datetime"].append(col)
+            # Check if categorical (object or category dtype)
+            elif df[col].dtype in ["object", "category"]:
+                # Also check if column name suggests datetime
+                if "date" in col.lower() or "time" in col.lower():
+                    columns["datetime"].append(col)
+                else:
+                    columns["categorical"].append(col)
+            else:
+                columns["other"].append(col)
+
+        return columns
 
     def apply(
         self,
         df: pd.DataFrame,
-        exclude_columns: Optional[List[str]] = None,
+        exclude_columns: List[str] = None,
+        target_column: str = None,
+        enable_numeric: bool = True,
+        enable_categorical: bool = True,
+        enable_datetime: bool = True,
+        verbose: bool = True,
     ) -> pd.DataFrame:
+        """
+        Apply feature engineering to the dataframe.
 
-        df = df.copy()
-        exclude_columns = exclude_columns or []
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Input dataframe
+        exclude_columns : List[str], optional
+            Columns to exclude from transformation (includes target)
+        target_column : str, optional
+            Target column name (will not be transformed)
+        enable_numeric : bool, default=True
+            Enable numeric transformers
+        enable_categorical : bool, default=True
+            Enable categorical transformers
+        enable_datetime : bool, default=True
+            Enable datetime transformers
+        verbose : bool, default=True
+            Print progress messages
 
-        self.metadata["original_features"] = list(df.columns)
-        self.metadata["total_features_original"] = len(df.columns)
+        Returns
+        -------
+        pd.DataFrame
+            Transformed dataframe with new features
+        """
+        # Remove index-like columns
+        df = df.loc[:, ~df.columns.str.contains("^Unnamed")]
 
-        # Apply numeric features
-        df = self.numeric_engineer.apply(df)
+        # Determine which column to use as target
+        target_col = target_column
+        if exclude_columns and len(exclude_columns) > 0:
+            target_col = exclude_columns[0]
 
-        # Apply categorical features
-        df = self.categorical_engineer.apply(df)
+        if verbose:
+            logger.info("=" * 60)
+            logger.info("Starting Feature Engineering Pipeline")
+            logger.info("=" * 60)
 
-        # Apply datetime features
-        df = self.datetime_engineer.apply(df)
+        # Record original feature count
+        original_feature_count = len(df.columns)
+        if target_col and target_col in df.columns:
+            original_feature_count -= 1
 
-        # Apply interaction features
-        df = self.interaction_engineer.apply(df)
+        if verbose:
+            logger.info(f"Original feature count: {original_feature_count}")
 
-        # Update metadata
-        self.metadata["total_features_after"] = len(df.columns)
-        self.metadata["total_features_added"] = (
-            self.metadata["total_features_after"]
-            - self.metadata["total_features_original"]
+        # Detect column types
+        column_types = self._detect_column_types(df, target_col)
+        if verbose:
+            logger.info(f"Detected column types:")
+            logger.info(f"  - Numeric: {len(column_types['numeric'])} columns")
+            logger.info(f"  - Categorical: {len(column_types['categorical'])} columns")
+            logger.info(f"  - Datetime: {len(column_types['datetime'])} columns")
+
+        # Collect all transformers to execute
+        transformers = []
+
+        if enable_numeric and len(column_types["numeric"]) > 0:
+            transformers.extend(self.registry.get_numeric_transformers())
+
+        if enable_categorical and len(column_types["categorical"]) > 0:
+            transformers.extend(self.registry.get_categorical_transformers())
+
+        if enable_datetime and len(column_types["datetime"]) > 0:
+            transformers.extend(self.registry.get_datetime_transformers())
+
+        if verbose:
+            logger.info(f"Total transformers to execute: {len(transformers)}")
+
+        # Execute all transformers with fault tolerance
+        result = SafeExecutor.execute_batch(
+            transformers=transformers, df=df, target_column=target_col
         )
 
-        self.metadata["engineered_features"] = list(
-            set(df.columns) - set(self.metadata["original_features"])
-        )
+        # Calculate final feature count
+        final_feature_count = len(result["df"].columns)
+        if target_col and target_col in result["df"].columns:
+            final_feature_count -= 1
 
-        return df
+        engineered_feature_count = len(result["all_new_features"])
 
-    def get_metadata(self) -> Dict[str, Any]:
-        return self.metadata.copy()
+        # Store metadata for later retrieval
+        self._last_metadata = {
+            "feature_engineering_enabled": True,
+            "original_feature_count": original_feature_count,
+            "engineered_feature_count": engineered_feature_count,
+            "final_feature_count": final_feature_count,
+            "new_features": result["all_new_features"],
+            "successful_transformations": result["successful_transformations"],
+            "failed_transformations": result["failed_transformations"],
+            "column_types": column_types,
+            "execution_details": result["execution_details"],
+        }
 
-    def get_engineered_features(self) -> List[str]:
-        return self.metadata["engineered_features"].copy()
+        # Log summary
+        if verbose:
+            logger.info("=" * 60)
+            logger.info("Feature Engineering Pipeline Complete")
+            logger.info("=" * 60)
+            logger.info(f"Original features: {original_feature_count}")
+            logger.info(f"New features created: {engineered_feature_count}")
+            logger.info(f"Final feature count: {final_feature_count}")
+            logger.info(
+                f"Successful transformations: {len(result['successful_transformations'])}"
+            )
+            logger.info(
+                f"Failed transformations: {len(result['failed_transformations'])}"
+            )
 
-    def get_feature_count_increase(self) -> int:
-        return self.metadata["total_features_added"]
+            if result["failed_transformations"]:
+                logger.warning(
+                    f"Failed transformers: {', '.join(result['failed_transformations'])}"
+                )
+
+            logger.info("=" * 60)
+
+        # Return transformed dataframe
+        return result["df"]
+
+    def get_metadata(self) -> Dict:
+        """
+        Get metadata from the last apply() call.
+
+        Returns
+        -------
+        Dict
+            Metadata from feature engineering execution
+        """
+        if self._last_metadata is None:
+            return {
+                "feature_engineering_enabled": False,
+                "original_feature_count": 0,
+                "engineered_feature_count": 0,
+                "final_feature_count": 0,
+                "new_features": [],
+                "successful_transformations": [],
+                "failed_transformations": [],
+            }
+        return self._last_metadata
+
+    def get_feature_metadata(self, result: Dict = None) -> Dict:
+        """
+        Extract feature engineering metadata for model storage.
+        Kept for backward compatibility.
+
+        Parameters
+        ----------
+        result : Dict, optional
+            Result from apply() method (if None, uses last metadata)
+
+        Returns
+        -------
+        Dict
+            Metadata for model storage
+        """
+        if result is None:
+            return self.get_metadata()
+
+        return {
+            "feature_engineering_enabled": True,
+            "engineered_features": result.get("new_features", []),
+            "original_feature_count": result.get("original_feature_count", 0),
+            "engineered_feature_count": result.get("engineered_feature_count", 0),
+            "final_feature_count": result.get("final_feature_count", 0),
+            "successful_transformations": result.get("successful_transformations", []),
+            "failed_transformations": result.get("failed_transformations", []),
+        }
