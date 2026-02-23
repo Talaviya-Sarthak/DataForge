@@ -82,10 +82,13 @@ CREATE TABLE IF NOT EXISTS datasets (
   column_names JSON NOT NULL,
   total_rows INT NOT NULL,
   is_active BOOLEAN NOT NULL DEFAULT FALSE,
+  status ENUM('new','in_progress','completed') NOT NULL DEFAULT 'in_progress',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
   INDEX idx_datasets_user (user_id),
   INDEX idx_datasets_active (user_id, is_active),
+  INDEX idx_datasets_status (user_id, status),
 
   CONSTRAINT fk_datasets_user FOREIGN KEY (user_id)
     REFERENCES users(id) ON DELETE CASCADE
@@ -95,6 +98,8 @@ CREATE TABLE IF NOT EXISTS datasets (
 -- ❌ NO UNIQUE (user_id, is_active)
 -- ❌ NO uq_user_active_dataset
 -- ✅ "One active dataset" is enforced in backend logic
+-- ✅ No dataset file/blob stored — metadata only
+-- ✅ status tracks pipeline lifecycle: new → in_progress → completed
 
 -- =========================================
 -- 7️⃣ PIPELINES
@@ -140,43 +145,5 @@ CREATE TABLE IF NOT EXISTS pipeline_steps (
 
   CONSTRAINT uq_pipeline_step UNIQUE (pipeline_id, step_index),
   CONSTRAINT fk_step_pipeline FOREIGN KEY (pipeline_id)
-    REFERENCES pipelines(id) ON DELETE CASCADE
-);
-
--- =========================================
--- 9️⃣ PIPELINE PREVIEWS
--- =========================================
-CREATE TABLE IF NOT EXISTS pipeline_previews (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  pipeline_id INT NOT NULL,
-  step_index INT NOT NULL,
-  preview_data JSON NOT NULL,
-  row_count INT NOT NULL,
-  column_names JSON NOT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-  INDEX idx_pipeline_preview (pipeline_id, step_index),
-
-  CONSTRAINT uq_pipeline_preview UNIQUE (pipeline_id, step_index),
-  CONSTRAINT fk_preview_pipeline FOREIGN KEY (pipeline_id)
-    REFERENCES pipelines(id) ON DELETE CASCADE
-);
-
--- =========================================
--- 🔟 PIPELINE EXECUTION LOGS
--- =========================================
-CREATE TABLE IF NOT EXISTS pipeline_execution_logs (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  pipeline_id INT NOT NULL,
-  step_index INT DEFAULT NULL,
-  log_level ENUM('info','warning','error','debug') NOT NULL,
-  message TEXT NOT NULL,
-  metadata JSON DEFAULT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-  INDEX idx_pipeline_logs (pipeline_id, created_at),
-  INDEX idx_log_level (log_level),
-
-  CONSTRAINT fk_log_pipeline FOREIGN KEY (pipeline_id)
     REFERENCES pipelines(id) ON DELETE CASCADE
 );

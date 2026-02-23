@@ -1,9 +1,8 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Form
+from fastapi import APIRouter, UploadFile, File, HTTPException, Form, Query
+from fastapi.responses import StreamingResponse
 import pandas as pd
 import json
-import pickle
-import os
-from pathlib import Path
+import io
 
 from app.data.loader import load_Data
 from app.data.preview import preview_Data
@@ -12,203 +11,264 @@ from app.preprocessings.pipeline import PreprocessingPipeline
 
 router = APIRouter()
 
-# Cache directory
-CACHE_DIR = Path("cache")
-CACHE_DIR.mkdir(exist_ok=True)
+# ── In-memory RAW dataset storage ─────────────────────────────
+# Key: "u{user_id}_d{dataset_id}" → pd.DataFrame
+# Stores ONLY the raw (unprocessed) dataset.
+# No disk cache, no pickle persistence.
+# Lost on restart — user must re-upload (resume flow).
+_RAW_STORE: dict[str, pd.DataFrame] = {}
 
-# Per-user dataset storage
-USER_DATASETS: dict[int, pd.DataFrame] = {}
 
-def get_cache_file(user_id: int) -> Path:
-    """Get cache file path for specific user"""
-    return CACHE_DIR / f"dataset_user_{user_id}.pkl"
+def _key(user_id: int, dataset_id: int = 0) -> str:
+    return f"u{user_id}_d{dataset_id}"
 
-def save_dataset_cache(user_id: int, df: pd.DataFrame):
-    """Save dataset to disk cache for specific user"""
-    cache_file = get_cache_file(user_id)
-    with open(cache_file, 'wb') as f:
-        pickle.dump(df, f)
 
-def load_dataset_cache(user_id: int) -> pd.DataFrame | None:
-    """Load dataset from disk cache for specific user"""
-    cache_file = get_cache_file(user_id)
-    if cache_file.exists():
-        try:
-            with open(cache_file, 'rb') as f:
-                return pickle.load(f)
-        except:
-            return None
-    return None
+def _get_raw(user_id: int, dataset_id: int = 0) -> pd.DataFrame | None:
+    return _RAW_STORE.get(_key(user_id, dataset_id))
 
-def get_user_dataset(user_id: int) -> pd.DataFrame | None:
-    """Get dataset for user from memory or cache"""
-    if user_id in USER_DATASETS:
-        return USER_DATASETS[user_id]
-    
-    # Try loading from cache
-    cached = load_dataset_cache(user_id)
-    if cached is not None:
-        USER_DATASETS[user_id] = cached
-    return cached
 
-def set_user_dataset(user_id: int, df: pd.DataFrame):
-    """Set dataset for user in memory and cache"""
-    USER_DATASETS[user_id] = df
-    save_dataset_cache(user_id, df)
+def _set_raw(user_id: int, dataset_id: int, df: pd.DataFrame):
+    _RAW_STORE[_key(user_id, dataset_id)] = df
+
+
+def _del_raw(user_id: int, dataset_id: int):
+    _RAW_STORE.pop(_key(user_id, dataset_id), None)
+
+
+def _classify_columns(df: pd.DataFrame):
+    """Lightweight type inference for UI."""
+    numeric_cols, categorical_cols = [], []
+    for col in df.columns:
+        series = df[col].dropna()
+        sample = series.iloc[0] if not series.empty else None
+        if isinstance(sample, (int, float)):
+            numeric_cols.append(col)
+        else:
+            categorical_cols.append(col)
+    return numeric_cols, categorical_cols
+
+
+def _build_response(df: pd.DataFrame, preview_rows: int = 20) -> dict:
+    """Build standard response matching the existing frontend contract."""
+    preview = preview_Data(df, n=preview_rows)
+    stats = dataset_stats(df)
+    numeric_cols, categorical_cols = _classify_columns(df)
+    return {
+        "data": preview["rows"],
+        "rows": len(df),
+        "columns": len(df.columns),      # number, not list
+        "numerical_columns": numeric_cols,
+        "categorical_columns": categorical_cols,
+        "statistics": stats,
+    }
 
 
 def normalize_step(step, step_index=0):
-    """Defensive normalization of preprocessing step"""
-    # If step is string, parse to dict
+    """Defensive normalization of preprocessing step."""
     if isinstance(step, str):
         try:
             step = json.loads(step)
         except json.JSONDecodeError:
             raise ValueError(f"Step {step_index}: Invalid JSON string")
-    
-    # Validate step is dict
     if not isinstance(step, dict):
         raise ValueError(f"Step {step_index}: Must be dict, got {type(step)}")
-    
-    # Ensure params is dict
     if "params" in step and isinstance(step["params"], str):
         try:
             step["params"] = json.loads(step["params"])
         except json.JSONDecodeError:
             raise ValueError(f"Step {step_index}: Invalid params JSON")
-    
     return step
 
 
 # ─────────────────────────────────────────────
-# DATA UPLOAD (BACKWARD-COMPATIBLE RESPONSE)
+# DATA UPLOAD
 # ─────────────────────────────────────────────
 @router.post("/data/upload")
-async def upload_dataset(file: UploadFile = File(...), user_id: int = Form(...)):
+async def upload_dataset(
+    file: UploadFile = File(...),
+    user_id: int = Form(...),
+    dataset_id: int = Form(0),
+):
     """
-    Upload dataset for preview + metadata.
-    Response format matches OLD frontend contract.
+    Upload dataset and store the RAW copy in memory.
+    Response format matches existing frontend contract.
     """
-    print(f"📥 Upload for user_id: {user_id}")
-    
+    print(f"📥 Upload for user_id={user_id}, dataset_id={dataset_id}")
     try:
         df = load_Data(file)
         df = df.replace([float("inf"), float("-inf")], None)
 
-        set_user_dataset(user_id, df)
-        print(f"✅ Dataset saved for user {user_id}")
+        # Store RAW — this is the immutable source until finalize
+        _set_raw(user_id, dataset_id, df)
+        print(f"✅ Raw dataset stored: key={_key(user_id, dataset_id)}, rows={len(df)}")
 
-        preview = preview_Data(df, n=20)
-        stats = dataset_stats(df)
-
-        # Column names (internal)
-        column_names = preview["columns"]
-
-        # Lightweight type inference (UI only)
-        numeric_cols = []
-        categorical_cols = []
-
-        for col in column_names:
-            series = df[col].dropna()
-            sample = series.iloc[0] if not series.empty else None
-
-            if isinstance(sample, (int, float)):
-                numeric_cols.append(col)
-            else:
-                categorical_cols.append(col)
-
-        # 🔒 RESPONSE SHAPE MATCHES OLD API
-        return {
-            "data": preview["rows"],
-            "rows": len(df),
-
-            # IMPORTANT: number, not list
-            "columns": len(column_names),
-
-            "numerical_columns": numeric_cols,
-            "categorical_columns": categorical_cols,
-
-            "statistics": stats,
-        }
+        resp = _build_response(df, preview_rows=20)
+        resp["dataset_id"] = dataset_id
+        return resp
 
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
 # ─────────────────────────────────────────────
-# DATA PREPROCESS (DYNAMIC PIPELINE)
+# DATA PREPROCESS (REBUILD-BASED)
 # ─────────────────────────────────────────────
 @router.post("/data/preprocess")
 async def preprocess_dataset(payload: dict):
     """
-    Execute preprocessing pipeline on uploaded dataset.
+    Deterministic rebuild: applies ALL supplied steps to a fresh
+    copy of the RAW dataset every time.  The stored raw is NEVER
+    mutated — guaranteeing undo and resume always work correctly.
     """
     user_id = payload.get("user_id", 0)
-    print(f"🧹 Preprocess for user_id: {user_id}")
-    
-    # Get user's dataset
-    df = get_user_dataset(user_id)
-    
-    if df is None:
-        print(f"❌ No dataset found for user {user_id}")
-        raise HTTPException(status_code=400, detail="No dataset uploaded. Please upload a dataset first.")
-    
-    print(f"✅ Found dataset for user {user_id} with {len(df)} rows")
+    dataset_id = payload.get("dataset_id", 0)
+    print(f"🧹 Preprocess for user_id={user_id}, dataset_id={dataset_id}")
+
+    raw_df = _get_raw(user_id, dataset_id)
+    if raw_df is None:
+        print(f"❌ No dataset found: key={_key(user_id, dataset_id)}")
+        raise HTTPException(
+            status_code=400,
+            detail="No dataset uploaded. Please upload a dataset first.",
+        )
+    print(f"✅ Found raw dataset: {len(raw_df)} rows")
 
     try:
-        # Defensive normalization of steps
+        # Normalize steps
         if "steps" in payload and isinstance(payload["steps"], list):
-            normalized_steps = []
-            for i, step in enumerate(payload["steps"]):
+            normalized = []
+            for i, s in enumerate(payload["steps"]):
                 try:
-                    normalized_steps.append(normalize_step(step, i))
+                    normalized.append(normalize_step(s, i))
                 except ValueError as e:
                     raise HTTPException(status_code=400, detail=str(e))
-            payload["steps"] = normalized_steps
+            payload["steps"] = normalized
 
         steps = payload.get("steps", [])
         start_index = payload.get("start_index", 0)
         stop_index = payload.get("stop_index")
         preview_rows = payload.get("preview_rows", 20)
 
+        # ✅ CRITICAL: work on a COPY — raw stays untouched
+        working = raw_df.copy()
         pipeline = PreprocessingPipeline(steps=steps)
-        
-        processed_df = pipeline.run(
-            df=df,
-            start_index=start_index,
-            stop_index=stop_index
+        processed = pipeline.run(
+            df=working, start_index=start_index, stop_index=stop_index
         )
 
-        # Persist cleaned data so future operations build on it
-        set_user_dataset(user_id, processed_df)
-
-        preview = preview_Data(processed_df, n=preview_rows)
-        stats = dataset_stats(processed_df)
-
-        # Column type inference (same logic as upload)
-        column_names = list(processed_df.columns)
-        numeric_cols = []
-        categorical_cols = []
-        for col in column_names:
-            series = processed_df[col].dropna()
-            sample = series.iloc[0] if not series.empty else None
-            if isinstance(sample, (int, float)):
-                numeric_cols.append(col)
-            else:
-                categorical_cols.append(col)
-
-        return {
-            "data": preview["rows"],
-            "rows": len(processed_df),
-            "columns": len(column_names),
-            "numerical_columns": numeric_cols,
-            "categorical_columns": categorical_cols,
-            "statistics": stats,
-        }
+        # ✅ CRITICAL: do NOT call _set_raw — raw is immutable until finalize
+        return _build_response(processed, preview_rows)
 
     except HTTPException:
         raise
     except Exception as e:
         print(f"ML Service Error: {str(e)}")
-        print(f"Payload: {payload}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Internal server error: {str(e)}"
+        )
+
+
+# ─────────────────────────────────────────────
+# FINALIZE — replace raw with processed
+# ─────────────────────────────────────────────
+@router.post("/data/finalize")
+async def finalize_dataset(payload: dict):
+    """
+    Apply all steps to raw and REPLACE the stored raw with the result.
+    After finalize, /download returns the processed dataset.
+    """
+    user_id = payload.get("user_id", 0)
+    dataset_id = payload.get("dataset_id", 0)
+
+    raw_df = _get_raw(user_id, dataset_id)
+    if raw_df is None:
+        raise HTTPException(status_code=400, detail="No dataset uploaded.")
+
+    try:
+        steps = payload.get("steps", [])
+        if steps:
+            normalized = [normalize_step(s, i) for i, s in enumerate(steps)]
+            pipeline = PreprocessingPipeline(steps=normalized)
+            processed = pipeline.run(df=raw_df.copy(), start_index=0)
+        else:
+            processed = raw_df.copy()
+
+        # Replace raw with processed
+        _set_raw(user_id, dataset_id, processed)
+        print(f"✅ Dataset finalized: key={_key(user_id, dataset_id)}")
+
+        return _build_response(processed, preview_rows=20)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─────────────────────────────────────────────
+# DOWNLOAD — return current dataset as CSV
+# Supports both GET (raw) and POST (with steps applied)
+# ─────────────────────────────────────────────
+@router.get("/data/download")
+async def download_dataset(
+    user_id: int = Query(...),
+    dataset_id: int = Query(0),
+):
+    """Return current (raw or finalized) dataset as CSV stream."""
+    df = _get_raw(user_id, dataset_id)
+    if df is None:
+        raise HTTPException(status_code=400, detail="No dataset found.")
+
+    buf = io.StringIO()
+    df.to_csv(buf, index=False)
+    buf.seek(0)
+
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f'attachment; filename="dataset_{dataset_id}.csv"'
+        },
+    )
+
+
+@router.post("/data/download")
+async def download_processed_dataset(payload: dict):
+    """
+    Apply all supplied steps to the raw dataset and return the
+    processed result as a CSV stream. This allows downloading the
+    dataset at any step without finalizing.
+    """
+    user_id = payload.get("user_id", 0)
+    dataset_id = payload.get("dataset_id", 0)
+    print(f"📥 Download (POST) for user_id={user_id}, dataset_id={dataset_id}")
+
+    raw_df = _get_raw(user_id, dataset_id)
+    if raw_df is None:
+        print(f"❌ No dataset found: key={_key(user_id, dataset_id)}")
+        raise HTTPException(status_code=400, detail="No dataset found. Please upload the dataset first.")
+
+    steps = payload.get("steps", [])
+    print(f"📋 Download with {len(steps)} step(s)")
+
+    if steps:
+        try:
+            normalized = [normalize_step(s, i) for i, s in enumerate(steps)]
+            pipeline = PreprocessingPipeline(steps=normalized)
+            df = pipeline.run(df=raw_df.copy(), start_index=0)
+            print(f"✅ Pipeline applied for download: {len(df)} rows")
+        except Exception as e:
+            print(f"❌ Pipeline error during download: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Pipeline error: {str(e)}")
+    else:
+        df = raw_df
+
+    buf = io.StringIO()
+    df.to_csv(buf, index=False)
+    buf.seek(0)
+
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f'attachment; filename="dataset_{dataset_id}.csv"'
+        },
+    )
