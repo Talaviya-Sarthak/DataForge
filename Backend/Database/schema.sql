@@ -82,10 +82,12 @@ CREATE TABLE IF NOT EXISTS datasets (
   column_names JSON NOT NULL,
   total_rows INT NOT NULL,
   is_active BOOLEAN NOT NULL DEFAULT FALSE,
+  status ENUM('new','in_progress','completed') NOT NULL DEFAULT 'new',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
   INDEX idx_datasets_user (user_id),
   INDEX idx_datasets_active (user_id, is_active),
+  INDEX idx_datasets_status (user_id, status),
 
   CONSTRAINT fk_datasets_user FOREIGN KEY (user_id)
     REFERENCES users(id) ON DELETE CASCADE
@@ -97,97 +99,31 @@ CREATE TABLE IF NOT EXISTS datasets (
 -- ✅ "One active dataset" is enforced in backend logic
 
 -- =========================================
--- 7️⃣ PIPELINES
+-- 6.5 DATASET PIPELINE STEPS (rebuild-based)
 -- =========================================
-CREATE TABLE IF NOT EXISTS pipelines (
+CREATE TABLE IF NOT EXISTS dataset_pipeline_steps (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id INT NOT NULL,
   dataset_id INT NOT NULL,
-  pipeline_type ENUM('manual','auto') NOT NULL DEFAULT 'manual',
-  status ENUM('draft','running','completed','failed','paused') NOT NULL DEFAULT 'draft',
-  current_step_index INT DEFAULT 0,
-  total_steps INT DEFAULT 0,
+  step_order INT NOT NULL,
+  operation_type VARCHAR(100) NOT NULL,
+  column_name VARCHAR(255) DEFAULT NULL,
+  parameters JSON NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
-  INDEX idx_pipeline_user (user_id),
-  INDEX idx_pipeline_dataset (dataset_id),
-  INDEX idx_pipeline_status (status),
+  INDEX idx_dps_dataset (dataset_id),
+  INDEX idx_dps_order (dataset_id, step_order),
 
-  CONSTRAINT fk_pipeline_user FOREIGN KEY (user_id)
-    REFERENCES users(id) ON DELETE CASCADE,
-  CONSTRAINT fk_pipeline_dataset FOREIGN KEY (dataset_id)
+  CONSTRAINT fk_dps_dataset FOREIGN KEY (dataset_id)
     REFERENCES datasets(id) ON DELETE CASCADE
 );
 
 -- =========================================
--- 8️⃣ PIPELINE STEPS
+-- QUICK SELECTS (debug helpers)
 -- =========================================
-CREATE TABLE IF NOT EXISTS pipeline_steps (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  pipeline_id INT NOT NULL,
-  step_index INT NOT NULL,
-  step_type VARCHAR(50) NOT NULL,
-  step_params JSON NOT NULL,
-  status ENUM('pending','running','completed','failed','skipped') DEFAULT 'pending',
-  execution_time_ms INT DEFAULT NULL,
-  error_message TEXT DEFAULT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-
-  INDEX idx_pipeline_steps (pipeline_id, step_index),
-  INDEX idx_step_status (status),
-
-  CONSTRAINT uq_pipeline_step UNIQUE (pipeline_id, step_index),
-  CONSTRAINT fk_step_pipeline FOREIGN KEY (pipeline_id)
-    REFERENCES pipelines(id) ON DELETE CASCADE
-);
-
--- =========================================
--- 9️⃣ PIPELINE PREVIEWS
--- =========================================
-CREATE TABLE IF NOT EXISTS pipeline_previews (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  pipeline_id INT NOT NULL,
-  step_index INT NOT NULL,
-  preview_data JSON NOT NULL,
-  row_count INT NOT NULL,
-  column_names JSON NOT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-  INDEX idx_pipeline_preview (pipeline_id, step_index),
-
-  CONSTRAINT uq_pipeline_preview UNIQUE (pipeline_id, step_index),
-  CONSTRAINT fk_preview_pipeline FOREIGN KEY (pipeline_id)
-    REFERENCES pipelines(id) ON DELETE CASCADE
-);
-
--- =========================================
--- 🔟 PIPELINE EXECUTION LOGS
--- =========================================
-CREATE TABLE IF NOT EXISTS pipeline_execution_logs (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  pipeline_id INT NOT NULL,
-  step_index INT DEFAULT NULL,
-  log_level ENUM('info','warning','error','debug') NOT NULL,
-  message TEXT NOT NULL,
-  metadata JSON DEFAULT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-  INDEX idx_pipeline_logs (pipeline_id, created_at),
-  INDEX idx_log_level (log_level),
-
-  CONSTRAINT fk_log_pipeline FOREIGN KEY (pipeline_id)
-    REFERENCES pipelines(id) ON DELETE CASCADE
-);
-
 SELECT * FROM users;
 SELECT * FROM user_onboarding;
 SELECT * FROM user_tools;
 SELECT * FROM user_project_types;
 SELECT * FROM user_preferences;
 SELECT * FROM datasets;
-SELECT * FROM pipelines;
-SELECT * FROM pipeline_steps;
-SELECT * FROM pipeline_previews;
-SELECT * FROM pipeline_execution_logs;
+SELECT * FROM dataset_pipeline_steps;

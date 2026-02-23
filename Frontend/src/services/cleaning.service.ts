@@ -4,6 +4,7 @@ export interface CleaningRequest {
     action: string;
     strategy: string;
     columns: string[];
+    dataset_id?: number;
 }
 
 export const applyCleaningAction = async (request: CleaningRequest) => {

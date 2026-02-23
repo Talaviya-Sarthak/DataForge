@@ -4,7 +4,10 @@ const fs = require("fs");
 
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL;
 
-exports.uploadDataset = async (file, userId) => {
+// ─────────────────────────────────────────────
+// UPLOAD DATASET (with optional dataset_id)
+// ─────────────────────────────────────────────
+exports.uploadDataset = async (file, userId, datasetId) => {
   if (!ML_SERVICE_URL) {
     throw new Error("ML_SERVICE_URL not configured in environment variables");
   }
@@ -16,7 +19,10 @@ exports.uploadDataset = async (file, userId) => {
     file.buffer,
     file.originalname
   );
-  formData.append("user_id", userId);
+  formData.append("user_id", String(userId));
+  if (datasetId !== undefined && datasetId !== null) {
+    formData.append("dataset_id", String(datasetId));
+  }
 
   try {
     const response = await axios.post(
@@ -46,6 +52,9 @@ exports.uploadDataset = async (file, userId) => {
 };
 
 
+// ─────────────────────────────────────────────
+// PREPROCESS DATASET (with optional rebuild)
+// ─────────────────────────────────────────────
 exports.preprocessDataset = async (payload, userId) => {
   try {
     // Add user_id to payload
@@ -105,5 +114,80 @@ exports.preprocessDataset = async (payload, userId) => {
   } catch (error) {
     console.error("❌ ML Service Error:", error.message);
     throw error;
+  }
+};
+
+
+// ─────────────────────────────────────────────
+// FINALIZE DATASET (raw = working in ML memory)
+// ─────────────────────────────────────────────
+exports.finalizeDataset = async (userId, datasetId) => {
+  try {
+    const response = await axios.post(
+      `${ML_SERVICE_URL}/api/data/finalize`,
+      { user_id: userId, dataset_id: datasetId },
+      { headers: { "Content-Type": "application/json" } }
+    );
+    return response.data;
+  } catch (error) {
+    console.error("❌ ML Finalize Error:", error.message);
+    throw new Error(error.response?.data?.detail || error.message);
+  }
+};
+
+
+// ─────────────────────────────────────────────
+// DOWNLOAD DATASET (CSV stream)
+// ─────────────────────────────────────────────
+exports.downloadDataset = async (userId, datasetId, finalized) => {
+  try {
+    const response = await axios.post(
+      `${ML_SERVICE_URL}/api/data/download`,
+      { user_id: userId, dataset_id: datasetId, finalized },
+      {
+        headers: { "Content-Type": "application/json" },
+        responseType: 'stream',
+      }
+    );
+    return response;
+  } catch (error) {
+    console.error("❌ ML Download Error:", error.message);
+    throw new Error(error.response?.data?.detail || error.message);
+  }
+};
+
+
+// ─────────────────────────────────────────────
+// VALIDATE SCHEMA (for resume flow)
+// ─────────────────────────────────────────────
+exports.validateSchema = async (userId, datasetId, requiredColumns) => {
+  try {
+    const response = await axios.post(
+      `${ML_SERVICE_URL}/api/data/validate-schema`,
+      { user_id: userId, dataset_id: datasetId, required_columns: requiredColumns },
+      { headers: { "Content-Type": "application/json" } }
+    );
+    return response.data;
+  } catch (error) {
+    console.error("❌ ML Schema Validate Error:", error.message);
+    throw new Error(error.response?.data?.detail || error.message);
+  }
+};
+
+
+// ─────────────────────────────────────────────
+// CLEAR DATASET from ML memory
+// ─────────────────────────────────────────────
+exports.clearDataset = async (userId, datasetId) => {
+  try {
+    const response = await axios.post(
+      `${ML_SERVICE_URL}/api/data/clear`,
+      { user_id: userId, dataset_id: datasetId },
+      { headers: { "Content-Type": "application/json" } }
+    );
+    return response.data;
+  } catch (error) {
+    console.error("⚠️ ML Clear Error:", error.message);
+    // Non-critical — don't throw; stale data is overwritten on next upload
   }
 };

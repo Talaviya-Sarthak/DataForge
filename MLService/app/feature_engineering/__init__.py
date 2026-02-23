@@ -12,6 +12,6 @@ This module provides automatic feature engineering capabilities with:
 - Training/prediction compatibility
 """
 
-from .feature_engineering_service import FeatureEngineeringService
+from .Feature_engineering_pipeline import FeatureEngineeringService
 
 __all__ = ["FeatureEngineeringService"]

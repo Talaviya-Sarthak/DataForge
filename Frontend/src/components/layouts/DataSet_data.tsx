@@ -1,10 +1,11 @@
 import { FileUpload } from "@/components/ui/file-upload"
 import { Spinner } from "@/components/ui/spinner"
-import { useState, Suspense, lazy } from "react"
+import { useState, useEffect, Suspense, lazy } from "react"
 import * as React from "react"
 import { useMutation } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
 import { useDataset } from "@/contexts/DatasetContext"
+import { getResumableDatasets, resumeDataset } from "@/services/pipeline.service"
 
 // Lazy load DataTable since it's only needed when data is uploaded
 const DataTable = lazy(() => import("@/components/ui/DataTable"))
@@ -63,7 +64,7 @@ const uploadDataset = async (file: File) => {
 export const useDatasetUpload = () => {
   const [file, setFile] = useState<File | null>(null)
   const [uploadKey, setUploadKey] = useState(0)
-  const { setDataset, clearDataset } = useDataset()
+  const { setDataset, clearDataset, setRawFile, setDatasetId, setStepCount, setDatasetStatus } = useDataset()
 
   const uploadMutation = useMutation({
     mutationFn: uploadDataset,
@@ -73,6 +74,12 @@ export const useDatasetUpload = () => {
       // Validate that we have the expected ML service response structure
       if (data && data.data && data.rows > 0 && data.columns > 0) {
         setDataset(data)
+        // Store dataset_id from backend response
+        if (data.dataset_id) {
+          setDatasetId(data.dataset_id)
+        }
+        setStepCount(0)
+        setDatasetStatus('in_progress')
       }
     },
     onError: (error) => {
@@ -84,6 +91,7 @@ export const useDatasetUpload = () => {
   const handleFileUpload = (files: File[]) => {
     if (!files || files.length === 0) return
     setFile(files[0])
+    setRawFile(files[0]) // keep reference for resume
     uploadMutation.mutate(files[0])
   }
 
@@ -120,10 +128,51 @@ const Dataset_tabledata = ({
   uploadKey: number
   resetUpload: () => void
 }) => {
-  const { dataset } = useDataset()
+  const { dataset, setDataset, setDatasetId, setStepCount, setDatasetStatus } = useDataset()
   const currentDataset = uploadMutation.data || dataset
   const loading = uploadMutation.isPending
   const error = uploadMutation.isError
+
+  // Resume state
+  const [resumableDatasets, setResumableDatasets] = useState<any[]>([])
+  const [showResumeModal, setShowResumeModal] = useState(false)
+  const [selectedResumeId, setSelectedResumeId] = useState<number | null>(null)
+  const [resumeFile, setResumeFile] = useState<File | null>(null)
+  const [resuming, setResuming] = useState(false)
+  const [resumeError, setResumeError] = useState<string | null>(null)
+
+  // Load resumable datasets when upload area is shown
+  useEffect(() => {
+    if (!currentDataset) {
+      getResumableDatasets()
+        .then((res) => {
+          if (res.success && res.datasets?.length > 0) {
+            setResumableDatasets(res.datasets)
+          }
+        })
+        .catch(() => {
+          // Silently ignore – user may not have any resumable datasets
+        })
+    }
+  }, [currentDataset])
+
+  const handleResume = async () => {
+    if (!selectedResumeId || !resumeFile) return
+    setResuming(true)
+    setResumeError(null)
+    try {
+      const result = await resumeDataset(selectedResumeId, resumeFile)
+      setDataset(result)
+      setDatasetId(result.dataset_id || selectedResumeId)
+      setStepCount(result.step_count || 0)
+      setDatasetStatus('in_progress')
+      setShowResumeModal(false)
+    } catch (err: any) {
+      setResumeError(err.message || "Resume failed")
+    } finally {
+      setResuming(false)
+    }
+  }
 
   return (
     <div className="min-h-screen relative bg-transeperent">
@@ -137,12 +186,95 @@ const Dataset_tabledata = ({
               Choose files and upload them below
             </p>
 
+            {/* Resume banner – shown only when resumable datasets exist */}
+            {resumableDatasets.length > 0 && (
+              <div className="w-full max-w-4xl xl:max-w-5xl 2xl:max-w-6xl mx-auto mb-6">
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-amber-200 font-medium">
+                      You have {resumableDatasets.length} in-progress dataset{resumableDatasets.length > 1 ? 's' : ''}
+                    </p>
+                    <p className="text-xs text-neutral-400 mt-0.5">
+                      Re-upload the original file to continue where you left off
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowResumeModal(true)}
+                    className="px-4 py-1.5 text-sm rounded-md bg-amber-600/20 text-amber-200 border border-amber-500/40 hover:bg-amber-600/30 transition-colors"
+                  >
+                    Resume
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="w-full max-w-4xl xl:max-w-5xl 2xl:max-w-6xl mx-auto min-h-80 rounded-lg">
               <FileUpload key={uploadKey} onChange={handleFileUpload} />
             </div>
           </>
         )}
       </div>
+
+      {/* Resume Modal */}
+      {showResumeModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowResumeModal(false)}>
+          <div className="bg-neutral-900 rounded-xl p-6 w-[480px] max-w-[90vw] border border-neutral-800 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-white mb-4">Resume Dataset</h3>
+            <p className="text-sm text-neutral-400 mb-4">Select a dataset and re-upload the original file to replay your pipeline steps.</p>
+
+            <div className="space-y-3 mb-4 max-h-48 overflow-y-auto">
+              {resumableDatasets.map((ds: any) => (
+                <button
+                  key={ds.id}
+                  onClick={() => setSelectedResumeId(ds.id)}
+                  className={`w-full text-left rounded-lg p-3 border transition-all ${
+                    selectedResumeId === ds.id
+                      ? 'border-blue-500/50 bg-blue-500/10'
+                      : 'border-neutral-700 bg-neutral-800/40 hover:border-neutral-600'
+                  }`}
+                >
+                  <div className="text-sm text-white font-medium">{ds.original_filename}</div>
+                  <div className="text-xs text-neutral-400 mt-1">
+                    {ds.step_count} step{ds.step_count !== 1 ? 's' : ''} · {ds.total_rows} rows
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {selectedResumeId && (
+              <div className="mb-4">
+                <label className="text-sm text-neutral-400 mb-2 block">Upload original CSV file</label>
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={(e) => setResumeFile(e.target.files?.[0] || null)}
+                  className="w-full text-sm text-neutral-300 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:bg-neutral-700 file:text-neutral-200 hover:file:bg-neutral-600"
+                />
+              </div>
+            )}
+
+            {resumeError && (
+              <p className="text-sm text-red-400 mb-3">{resumeError}</p>
+            )}
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowResumeModal(false)}
+                className="px-4 py-2 text-sm text-neutral-400 hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleResume}
+                disabled={!selectedResumeId || !resumeFile || resuming}
+                className="px-4 py-2 text-sm rounded-md bg-blue-600/20 text-blue-200 border border-blue-500/40 hover:bg-blue-600/30 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                {resuming ? 'Resuming...' : 'Resume & Replay'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="mb-12 -mt-16">
         {loading && (

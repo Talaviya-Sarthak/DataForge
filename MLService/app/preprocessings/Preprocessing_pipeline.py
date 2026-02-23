@@ -38,6 +38,12 @@ class PreprocessingPipeline:
         step_type = step["type"]
         params = step.get("params", [])
 
+        # Unwrap { transformations: [...] } → [...]
+        # Backend stores params as { transformations: [...] }, but each
+        # handler class expects a flat list of transformation dicts.
+        if isinstance(params, dict) and "transformations" in params:
+            params = params["transformations"]
+
         if step_type == "value_standardization":
             return ValueStandardization(params).apply(df)
 
