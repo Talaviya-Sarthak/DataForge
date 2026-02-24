@@ -74,7 +74,7 @@ export const downloadDataset = async (datasetId: number): Promise<Blob> => {
 // LIST all user datasets
 // ─────────────────────────────────────────────
 export const getUserDatasets = async () => {
-  const res = await fetch(`${apiBase}/api/datasets/user/list`, {
+  const res = await fetch(`${apiBase}/api/datasets/list`, {
     method: 'GET',
     headers: authHeaders(),
   });
@@ -85,11 +85,12 @@ export const getUserDatasets = async () => {
 // GET resumable datasets (in_progress)
 // ─────────────────────────────────────────────
 export const getResumableDatasets = async () => {
-  const res = await fetch(`${apiBase}/api/datasets/user/resumable`, {
+  const res = await fetch(`${apiBase}/api/datasets/list`, {
     method: 'GET',
     headers: authHeaders(),
   });
-  return handleResponse(res);
+  const data = await handleResponse(res);
+  return { datasets: data.datasets?.filter((d: any) => d.status === 'in_progress') || [] };
 };
 
 // ─────────────────────────────────────────────
@@ -122,7 +123,7 @@ export const resumeDataset = async (datasetId: number, file: File) => {
 // SWITCH active dataset
 // ─────────────────────────────────────────────
 export const switchDataset = async (datasetId: number) => {
-  const res = await fetch(`${apiBase}/api/datasets/${datasetId}/switch`, {
+  const res = await fetch(`${apiBase}/api/datasets/${datasetId}/activate`, {
     method: 'POST',
     headers: authHeaders(),
   });

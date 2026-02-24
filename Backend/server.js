@@ -1,10 +1,24 @@
+
 require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
+const datasetService = require("./services/dataset.service");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// =======================
+// SYSTEM INITIALIZATION
+// =======================
+(async () => {
+  try {
+    await datasetService.initializeSystem();
+    console.log("✅ Pipeline system initialized");
+  } catch (error) {
+    console.error("❌ Pipeline system initialization failed:", error.message);
+  }
+})();
 
 // =======================
 // GLOBAL MIDDLEWARE

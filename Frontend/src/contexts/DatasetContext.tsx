@@ -1,26 +1,18 @@
-import React, { createContext, useContext, useState, ReactNode, useCallback } from 'react'
+import React, { createContext, useContext, useState, ReactNode } from 'react'
 
 interface DatasetContextType {
-  /** Current dataset preview / metadata (same shape as ML response) */
   dataset: any | null
   setDataset: (data: any) => void
   clearDataset: () => void
-
-  /** Active dataset_id from backend DB */
+  // ── Pipeline state ──
   datasetId: number | null
   setDatasetId: (id: number | null) => void
-
-  /** Count of pipeline steps applied */
-  stepCount: number
-  setStepCount: (n: number) => void
-
-  /** Dataset status: new | in_progress | completed */
-  datasetStatus: string
-  setDatasetStatus: (s: string) => void
-
-  /** Original uploaded file (kept for re-upload on resume / download) */
+  pipelineId: number | null
+  setPipelineId: (id: number | null) => void
+  totalSteps: number
+  setTotalSteps: (count: number) => void
   rawFile: File | null
-  setRawFile: (f: File | null) => void
+  setRawFile: (file: File | null) => void
 }
 
 const DatasetContext = createContext<DatasetContextType | undefined>(undefined)
@@ -28,45 +20,40 @@ const DatasetContext = createContext<DatasetContextType | undefined>(undefined)
 export const DatasetProvider = ({ children }: { children: ReactNode }) => {
   const [dataset, setDatasetState] = useState<any | null>(null)
   const [datasetId, setDatasetId] = useState<number | null>(null)
-  const [stepCount, setStepCount] = useState<number>(0)
-  const [datasetStatus, setDatasetStatus] = useState<string>('new')
+  const [pipelineId, setPipelineId] = useState<number | null>(null)
+  const [totalSteps, setTotalSteps] = useState<number>(0)
   const [rawFile, setRawFile] = useState<File | null>(null)
 
-  const setDataset = useCallback((data: any) => {
+  const setDataset = (data: any) => {
     setDatasetState(data)
-    // Auto-extract dataset_id & step_count if present in response
+    // Auto-extract pipeline metadata from response if present
     if (data?.dataset_id !== undefined) {
       setDatasetId(data.dataset_id)
     }
-    if (data?.step_count !== undefined) {
-      setStepCount(data.step_count)
+    if (data?.pipeline_id !== undefined) {
+      setPipelineId(data.pipeline_id)
     }
-  }, [])
+    if (data?.total_steps !== undefined) {
+      setTotalSteps(data.total_steps)
+    }
+  }
 
-  const clearDataset = useCallback(() => {
+  const clearDataset = () => {
     setDatasetState(null)
     setDatasetId(null)
-    setStepCount(0)
-    setDatasetStatus('new')
+    setPipelineId(null)
+    setTotalSteps(0)
     setRawFile(null)
-  }, [])
+  }
 
   return (
-    <DatasetContext.Provider
-      value={{
-        dataset,
-        setDataset,
-        clearDataset,
-        datasetId,
-        setDatasetId,
-        stepCount,
-        setStepCount,
-        datasetStatus,
-        setDatasetStatus,
-        rawFile,
-        setRawFile,
-      }}
-    >
+    <DatasetContext.Provider value={{
+      dataset, setDataset, clearDataset,
+      datasetId, setDatasetId,
+      pipelineId, setPipelineId,
+      totalSteps, setTotalSteps,
+      rawFile, setRawFile,
+    }}>
       {children}
     </DatasetContext.Provider>
   )
