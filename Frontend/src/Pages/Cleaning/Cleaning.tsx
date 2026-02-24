@@ -2,7 +2,7 @@
 
 import Header from "@/components/layouts/Header"
 import { Footer } from "@/components/layouts/Footer"
-import { useState, Suspense, lazy } from "react"
+import { useState, useEffect, useCallback, Suspense, lazy } from "react"
 import {
   BarChart3,
   Eye,
@@ -25,7 +25,8 @@ import {
   Loader2
 } from "lucide-react"
 import { useDataset } from "@/contexts/DatasetContext"
-import { applyCleaningAction } from "@/services/cleaning.service"
+import { applyCleaningAction, undoLastStep, finalizeDataset, downloadDataset, getPipelineSteps, type PipelineStep } from "@/services/cleaning.service"
+import { Undo2, Download, CheckCircle, ClipboardList } from "lucide-react"
 import { useToast } from "@/components/ui/toast/Toast"
 import { BarChart, Bar, LineChart as RechartsLine, Line, ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 
@@ -52,7 +53,7 @@ const ACTION_TYPE_MAP: Record<string, string> = {
 }
 
 const Cleaning = () => {
-  const { dataset, setDataset } = useDataset()
+  const { dataset, setDataset, datasetId, totalSteps } = useDataset()
   const { show } = useToast()
   const [selectedColumn, setSelectedColumn] = useState<string | null>(null)
   const [activeDialog, setActiveDialog] = useState<string | null>(null)
@@ -64,6 +65,26 @@ const Cleaning = () => {
   const [selectedYColumn, setSelectedYColumn] = useState<string | null>(null)
   const [showChart, setShowChart] = useState<boolean>(false)
   const [chartType, setChartType] = useState<string | null>(null)
+  const [pipelineSteps, setPipelineSteps] = useState<PipelineStep[]>([])
+  const [showStepsPanel, setShowStepsPanel] = useState<boolean>(false)
+
+  // Fetch pipeline steps whenever datasetId or totalSteps changes
+  const fetchSteps = useCallback(async () => {
+    if (!datasetId) {
+      setPipelineSteps([])
+      return
+    }
+    try {
+      const steps = await getPipelineSteps(datasetId)
+      setPipelineSteps(steps)
+    } catch {
+      // silently ignore fetch errors
+    }
+  }, [datasetId])
+
+  useEffect(() => {
+    fetchSteps()
+  }, [fetchSteps, totalSteps])
 
   const handleDropColumn = async () => {
     if (!selectedColumn) return;
@@ -75,6 +96,7 @@ const Cleaning = () => {
         action: "feature_selection",
         strategy: "manual",
         columns: [selectedColumn],
+        dataset_id: datasetId || undefined,
       });
 
       setDataset(result);
@@ -121,6 +143,7 @@ const Cleaning = () => {
         action,
         strategy,
         columns: targetColumns,
+        dataset_id: datasetId || undefined,
       })
 
       // Update dataset context with full refreshed data
@@ -130,6 +153,55 @@ const Cleaning = () => {
       show({ type: "error", message: error.message || "Cleaning failed" })
     } finally {
       setIsProcessing(false)
+    }
+  }
+
+  // ── Pipeline action handlers ────────────────────────
+
+  const handleUndo = async () => {
+    if (!datasetId) {
+      show({ type: "error", message: "No active dataset" })
+      return
+    }
+    setIsProcessing(true)
+    try {
+      const result = await undoLastStep(datasetId)
+      setDataset(result)
+      show({ type: "success", message: result.message || "Step undone" })
+    } catch (error: any) {
+      show({ type: "error", message: error.message || "Undo failed" })
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleFinalize = async () => {
+    if (!datasetId) {
+      show({ type: "error", message: "No active dataset" })
+      return
+    }
+    setIsProcessing(true)
+    try {
+      const result = await finalizeDataset(datasetId)
+      setDataset(result)
+      show({ type: "success", message: "Dataset finalized successfully!" })
+    } catch (error: any) {
+      show({ type: "error", message: error.message || "Finalize failed" })
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleDownload = async () => {
+    if (!datasetId) {
+      show({ type: "error", message: "No active dataset" })
+      return
+    }
+    try {
+      await downloadDataset(datasetId)
+      show({ type: "success", message: "Download started" })
+    } catch (error: any) {
+      show({ type: "error", message: error.message || "Download failed" })
     }
   }
 
@@ -652,7 +724,117 @@ const Cleaning = () => {
               </div>
             </div>
 
+            {/* Pipeline Steps History */}
+            {pipelineSteps.length > 0 && (
+              <div className="bg-gradient-to-b from-neutral-900/80 to-neutral-950/80 rounded-lg border border-neutral-800/70 p-4 mb-6 shadow-[0_8px_30px_rgba(0,0,0,0.4)]">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <ClipboardList className="h-4 w-4 text-violet-400" />
+                    <h3 className="font-medium text-white">
+                      Applied Steps
+                      <span className="ml-2 text-xs font-semibold bg-violet-500/20 text-violet-300 border border-violet-500/40 rounded-full px-2 py-0.5">
+                        {pipelineSteps.length}
+                      </span>
+                    </h3>
+                  </div>
+                  <button
+                    onClick={() => setShowStepsPanel(!showStepsPanel)}
+                    className="text-xs text-neutral-400 hover:text-white transition-colors px-2 py-1 rounded border border-neutral-700 hover:border-neutral-500"
+                  >
+                    {showStepsPanel ? 'Collapse' : 'Expand'}
+                  </button>
+                </div>
 
+                {/* Always show a compact summary row */}
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {pipelineSteps.map((step, idx) => {
+
+                    const colorMap: Record<string, string> = {
+                      missing_values: 'bg-amber-500/15 text-amber-300 border-amber-500/40',
+                      outliers: 'bg-red-500/15 text-red-300 border-red-500/40',
+                      encoding: 'bg-green-500/15 text-green-300 border-green-500/40',
+                      scaling: 'bg-blue-500/15 text-blue-300 border-blue-500/40',
+                      feature_selection: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/40',
+                      imbalance: 'bg-purple-500/15 text-purple-300 border-purple-500/40',
+                    }
+                    const badgeColor = colorMap[step.type] || 'bg-neutral-500/15 text-neutral-300 border-neutral-500/40'
+
+                    return (
+                      <span
+                        key={idx}
+                        className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium ${badgeColor}`}
+                        title={`Step ${step.step_index + 1}: ${step.type} (${step.strategy}) on ${step.columns.join(', ') || 'all columns'}`}
+                      >
+                        <span className="font-bold">{step.step_index + 1}.</span>
+                        {step.type.replace('_', ' ')}
+                      </span>
+                    )
+                  })}
+                </div>
+
+                {/* Expanded detailed view */}
+                {showStepsPanel && (
+                  <div className="mt-3 space-y-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
+                    {pipelineSteps.map((step, idx) => {
+
+                      const iconMap: Record<string, { icon: typeof AlertTriangle; color: string }> = {
+                        missing_values: { icon: AlertTriangle, color: 'text-amber-400' },
+                        outliers: { icon: Target, color: 'text-red-400' },
+                        encoding: { icon: Shuffle, color: 'text-green-400' },
+                        scaling: { icon: Scale, color: 'text-blue-400' },
+                        feature_selection: { icon: Filter, color: 'text-cyan-400' },
+                        imbalance: { icon: Scale, color: 'text-purple-400' },
+                      }
+                      const { icon: StepIcon, color: iconColor } = iconMap[step.type] || { icon: Hash, color: 'text-neutral-400' }
+
+                      return (
+                        <div
+                          key={idx}
+                          className="flex items-start gap-3 rounded-lg border border-neutral-800/70 bg-neutral-900/50 px-3 py-2.5"
+                        >
+                          {/* Step number */}
+                          <div className="flex-shrink-0 w-6 h-6 rounded-full bg-neutral-800 flex items-center justify-center mt-0.5">
+                            <span className="text-[10px] font-bold text-neutral-300">{step.step_index + 1}</span>
+                          </div>
+
+                          {/* Icon */}
+                          <div className="flex-shrink-0 mt-0.5">
+                            <StepIcon className={`h-4 w-4 ${iconColor}`} />
+                          </div>
+
+                          {/* Details */}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium text-white capitalize">
+                                {step.type.replace(/_/g, ' ')}
+                              </span>
+                              <span className="text-[10px] font-medium text-neutral-500 bg-neutral-800 rounded px-1.5 py-0.5">
+                                {step.strategy}
+                              </span>
+                            </div>
+                            <div className="mt-1 text-xs text-neutral-400">
+                              {step.columns.length > 0 ? (
+                                <span>
+                                  Columns: {' '}
+                                  {step.columns.map((col, ci) => (
+                                    <span key={ci}>
+                                      <span className="text-neutral-300 font-medium">{col}</span>
+                                      {ci < step.columns.length - 1 && ', '}
+                                    </span>
+                                  ))}
+                                </span>
+                              ) : (
+                                <span className="text-neutral-500 italic">All applicable columns</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
 
 
             <div className="grid grid-cols-3 gap-4">
@@ -763,6 +945,59 @@ const Cleaning = () => {
                   >
                     <BarChart3 className="h-4 w-4" />
                     Generate Graph
+                  </button>
+                </div>
+
+                {/* ── Undo Last Step ── */}
+                <div className="bg-gradient-to-b from-neutral-900/80 to-neutral-950/80 rounded-lg border border-neutral-800/70 p-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.5)] transition-shadow duration-300">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Undo2 className="h-4 w-4 text-orange-400" />
+                    <span className="font-medium text-white">Undo Step</span>
+                    {totalSteps > 0 && (
+                      <span className="ml-auto text-[10px] font-semibold bg-orange-500/20 text-orange-300 border border-orange-500/40 rounded-full px-2 py-0.5">
+                        {totalSteps} step{totalSteps !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-neutral-400 mb-3">Remove last cleaning step</p>
+                  <button
+                    onClick={handleUndo}
+                    disabled={!totalSteps || totalSteps === 0}
+                    className="w-full px-3 py-2 bg-orange-600/20 text-orange-300 rounded border border-orange-500/50 hover:bg-orange-600/30 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                  >
+                    Undo Last Step
+                  </button>
+                </div>
+
+                {/* ── Download ── */}
+                <div className="bg-gradient-to-b from-neutral-900/80 to-neutral-950/80 rounded-lg border border-neutral-800/70 p-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.5)] transition-shadow duration-300">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Download className="h-4 w-4 text-cyan-400" />
+                    <span className="font-medium text-white">Download</span>
+                  </div>
+                  <p className="text-sm text-neutral-400 mb-3">Download dataset as CSV</p>
+                  <button
+                    onClick={handleDownload}
+                    disabled={!datasetId}
+                    className="w-full px-3 py-2 bg-cyan-600/20 text-cyan-300 rounded border border-cyan-500/50 hover:bg-cyan-600/30 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                  >
+                    Download CSV
+                  </button>
+                </div>
+
+                {/* ── Finalize ── */}
+                <div className="bg-gradient-to-b from-neutral-900/80 to-neutral-950/80 rounded-lg border border-neutral-800/70 p-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.5)] transition-shadow duration-300">
+                  <div className="flex items-center gap-2 mb-2">
+                    <CheckCircle className="h-4 w-4 text-emerald-400" />
+                    <span className="font-medium text-white">Finalize</span>
+                  </div>
+                  <p className="text-sm text-neutral-400 mb-3">Lock in all changes permanently</p>
+                  <button
+                    onClick={handleFinalize}
+                    disabled={!totalSteps || totalSteps === 0}
+                    className="w-full px-3 py-2 bg-emerald-600/20 text-emerald-300 rounded border border-emerald-500/50 hover:bg-emerald-600/30 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                  >
+                    Finalize Dataset
                   </button>
                 </div>
               </div>
