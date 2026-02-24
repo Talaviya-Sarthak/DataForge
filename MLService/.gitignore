@@ -6,6 +6,7 @@ __pycache__/
 *.pyo
 *.pyd
 *$py.class
+cache/
 
 # =========================
 # Virtual environments
@@ -27,6 +28,12 @@ Thumbs.db
 .idea/
 
 # =========================
-.__init__.pypyc
-.__init__.PY
+# Python init & junk files
+# =========================
+__init__.pypyc
+__init__.PY
+
+# =========================
 # Jupyter Notebook checkpoints
+# =========================
+.ipynb_checkpoints/
