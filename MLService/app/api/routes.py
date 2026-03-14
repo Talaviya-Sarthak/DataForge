@@ -10,6 +10,7 @@ from app.data.preview import preview_Data
 from app.data.stats import dataset_stats
 from app.preprocessings.pipeline import PreprocessingPipeline
 from app.feature_engineering.feature_engineering_service import FeatureEngineeringService
+from app.training.training_pipeline import run_training
 
 router = APIRouter()
 
@@ -45,7 +46,7 @@ def get_user_dataset(user_id: int) -> pd.DataFrame | None:
     """Get dataset for user from memory or cache"""
     if user_id in USER_DATASETS:
         return USER_DATASETS[user_id]
-    
+
     # Try loading from cache
     cached = load_dataset_cache(user_id)
     if cached is not None:
@@ -66,18 +67,18 @@ def normalize_step(step, step_index=0):
             step = json.loads(step)
         except json.JSONDecodeError:
             raise ValueError(f"Step {step_index}: Invalid JSON string")
-    
+
     # Validate step is dict
     if not isinstance(step, dict):
         raise ValueError(f"Step {step_index}: Must be dict, got {type(step)}")
-    
+
     # Ensure params is dict
     if "params" in step and isinstance(step["params"], str):
         try:
             step["params"] = json.loads(step["params"])
         except json.JSONDecodeError:
             raise ValueError(f"Step {step_index}: Invalid params JSON")
-    
+
     return step
 
 
@@ -91,7 +92,7 @@ async def upload_dataset(file: UploadFile = File(...), user_id: int = Form(...))
     Response format matches OLD frontend contract.
     """
     print(f"📥 Upload for user_id: {user_id}")
-    
+
     try:
         df = load_Data(file)
         df = df.replace([float("inf"), float("-inf")], None)
@@ -146,14 +147,14 @@ async def preprocess_dataset(payload: dict):
     """
     user_id = payload.get("user_id", 0)
     print(f"🧹 Preprocess for user_id: {user_id}")
-    
+
     # Get user's dataset
     df = get_user_dataset(user_id)
-    
+
     if df is None:
         print(f"❌ No dataset found for user {user_id}")
         raise HTTPException(status_code=400, detail="No dataset uploaded. Please upload a dataset first.")
-    
+
     print(f"✅ Found dataset for user {user_id} with {len(df)} rows")
 
     try:
@@ -173,7 +174,7 @@ async def preprocess_dataset(payload: dict):
         preview_rows = payload.get("preview_rows", 20)
 
         pipeline = PreprocessingPipeline(steps=steps)
-        
+
         processed_df = pipeline.run(
             df=df,
             start_index=start_index,
@@ -225,14 +226,14 @@ async def feature_engineering_dataset(payload: dict):
     """
     user_id = payload.get("user_id", 0)
     print(f"🔧 Feature Engineering for user_id: {user_id}")
-    
+
     # Get user's dataset
     df = get_user_dataset(user_id)
-    
+
     if df is None:
         print(f"❌ No dataset found for user {user_id}")
         raise HTTPException(status_code=400, detail="No dataset uploaded. Please upload a dataset first.")
-    
+
     print(f"✅ Found dataset for user {user_id} with {len(df)} rows")
 
     try:
@@ -253,7 +254,7 @@ async def feature_engineering_dataset(payload: dict):
 
         # pipeline = FeatureEngineeringService(steps=steps)
         pipeline = FeatureEngineeringService()
-        
+
         # processed_df = pipeline.run(
         #     df=df,
         #     start_index=start_index,
@@ -274,12 +275,6 @@ async def feature_engineering_dataset(payload: dict):
         numeric_cols = []
         categorical_cols = []
         for col in column_names:
-            # series = processed_df[col].dropna()
-            # sample = series.iloc[0] if not series.empty else None
-            # if isinstance(sample, (int, float)):
-            #     numeric_cols.append(col)
-            # else:
-            #     categorical_cols.append(col)
             if pd.api.types.is_numeric_dtype(processed_df[col]):
                 numeric_cols.append(col)
             else:
@@ -300,3 +295,58 @@ async def feature_engineering_dataset(payload: dict):
         print(f"Feature Engineering Error: {str(e)}")
         print(f"Payload: {payload}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+# ─────────────────────────────────────────────
+# MODEL TRAINING
+# ─────────────────────────────────────────────
+@router.post("/train")
+async def train_models(payload: dict):
+    """
+    Train multiple ML models on the current in-memory dataset.
+
+    Expects JSON:
+        {
+            "user_id": int,
+            "task_type": "classification" | "regression",
+            "target_column": str
+        }
+
+    Returns the leaderboard JSON with metrics for every trained model.
+    """
+    user_id = payload.get("user_id", 0)
+    task_type = payload.get("task_type")
+    target_column = payload.get("target_column")
+
+    if not task_type or task_type not in ("classification", "regression"):
+        raise HTTPException(
+            status_code=400,
+            detail="task_type must be 'classification' or 'regression'.",
+        )
+
+    if not target_column:
+        raise HTTPException(
+            status_code=400,
+            detail="target_column is required.",
+        )
+
+    df = get_user_dataset(user_id)
+    if df is None:
+        raise HTTPException(
+            status_code=400,
+            detail="No dataset found. Please upload and preprocess a dataset first.",
+        )
+
+    try:
+        leaderboard = run_training(
+            df=df,
+            target_column=target_column,
+            task_type=task_type,
+            dataset_id=user_id,
+        )
+        return leaderboard
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Training failed: {str(e)}")
