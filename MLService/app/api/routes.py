@@ -8,6 +8,8 @@ from app.data.loader import load_Data
 from app.data.preview import preview_Data
 from app.data.stats import dataset_stats
 from app.preprocessings.Preprocessing_pipeline import PreprocessingPipeline
+from app.training.training_pipeline import run_training_pipeline
+from app.feature_engineering import FeatureEngineeringService
 
 router = APIRouter()
 
@@ -17,6 +19,12 @@ router = APIRouter()
 # No disk cache, no pickle persistence.
 # Lost on restart — user must re-upload.
 _RAW_STORE: dict[str, pd.DataFrame] = {}
+
+# ── In-memory PIPELINE dataset storage ────────────────────────
+# Key: pipeline_id (str) → pd.DataFrame
+# Stores finalized (preprocessed) datasets ready for ML training.
+# Populated by the /pipeline/finalize endpoint.
+PIPELINE_DATASETS: dict[str, pd.DataFrame] = {}
 
 
 def _key(user_id: int, dataset_id: int = 0) -> str:
@@ -220,3 +228,109 @@ async def download_dataset_with_steps(payload: dict):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─────────────────────────────────────────────
+# PIPELINE FINALIZE (for training)
+# ─────────────────────────────────────────────
+@router.post("/pipeline/finalize")
+async def finalize_pipeline(payload: dict):
+    """Finalize a preprocessing pipeline and store its dataset for training.
+
+    Expects:
+        pipeline_id (str): Unique pipeline identifier.
+        user_id (int): Owner of the source dataset.
+        dataset_id (int, optional): Defaults to 0.
+        steps (list, optional): Preprocessing steps to replay.
+
+    The resulting DataFrame is stored in ``PIPELINE_DATASETS[pipeline_id]``
+    and is ready for the ``/train`` endpoint.
+    """
+    pipeline_id = payload.get("pipeline_id")
+    if not pipeline_id:
+        raise HTTPException(status_code=400, detail="pipeline_id is required.")
+
+    user_id = payload.get("user_id", 0)
+    dataset_id = payload.get("dataset_id", 0)
+
+    raw_df = _get_raw(user_id, dataset_id)
+    if raw_df is None:
+        raise HTTPException(status_code=400, detail="No dataset uploaded.")
+
+    try:
+        steps = payload.get("steps", [])
+        if steps:
+            steps = [normalize_step(s, i) for i, s in enumerate(steps)]
+            pipeline = PreprocessingPipeline(steps=steps)
+            processed = pipeline.run(df=raw_df.copy(), start_index=0)
+        else:
+            processed = raw_df.copy()
+
+        PIPELINE_DATASETS[pipeline_id] = processed
+
+        resp = _build_response(processed)
+        resp["pipeline_id"] = pipeline_id
+        return resp
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─────────────────────────────────────────────
+# ML TRAINING
+# ─────────────────────────────────────────────
+@router.post("/train")
+async def train(payload: dict):
+    """Train models on a finalized pipeline dataset.
+
+    Expects:
+        pipeline_id (str): Must already exist in ``PIPELINE_DATASETS``.
+        task_type (str): ``"classification"`` or ``"regression"``.
+        target_column (str): Name of the target column.
+
+    Returns:
+        dict: Leaderboard JSON sorted by primary metric.
+    """
+    pipeline_id = payload.get("pipeline_id")
+    task_type = payload.get("task_type")
+    target_column = payload.get("target_column")
+
+    if not pipeline_id:
+        raise HTTPException(status_code=400, detail="pipeline_id is required.")
+    if not task_type:
+        raise HTTPException(status_code=400, detail="task_type is required.")
+    if not target_column:
+        raise HTTPException(status_code=400, detail="target_column is required.")
+
+    df = PIPELINE_DATASETS.get(pipeline_id)
+    if df is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No finalized dataset for pipeline '{pipeline_id}'. "
+                   f"Finalize the pipeline first via /pipeline/finalize.",
+        )
+
+    try:
+        # ── Run feature engineering automatically ──────────
+        fe_service = FeatureEngineeringService()
+        engineered_df = fe_service.apply(
+            df=df.copy(),
+            target_column=target_column,
+        )
+        fe_metadata = fe_service.get_metadata()
+
+        # ── Train models on engineered data ────────────────
+        result = run_training_pipeline(
+            df=engineered_df,
+            pipeline_id=pipeline_id,
+            task_type=task_type,
+            target_column=target_column,
+        )
+        result["feature_engineering"] = fe_metadata
+        return result
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        print(f"Training error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")

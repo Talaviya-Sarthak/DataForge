@@ -18,8 +18,13 @@ import numpy as np
 from typing import Dict, List, Optional
 from .core.feature_registry import FeatureRegistry
 from .core.safe_executor import SafeExecutor
+from .pca_reduction import apply_pca
 
 logger = logging.getLogger(__name__)
+
+# If the number of features exceeds this threshold after engineering,
+# PCA is applied automatically to reduce dimensionality.
+FEATURE_THRESHOLD = 50
 
 
 class FeatureEngineeringService:
@@ -165,6 +170,36 @@ class FeatureEngineeringService:
             transformers=transformers, df=df, target_column=target_col
         )
 
+        # ── Automatic PCA if feature count exceeds threshold ─────
+        pca_applied = False
+        pca_model = None
+        pre_pca_feature_count = len(result["df"].columns)
+        if target_col and target_col in result["df"].columns:
+            pre_pca_feature_count -= 1
+
+        if pre_pca_feature_count > FEATURE_THRESHOLD:
+            if verbose:
+                logger.info(
+                    f"Feature count ({pre_pca_feature_count}) exceeds threshold "
+                    f"({FEATURE_THRESHOLD}). Applying PCA..."
+                )
+            result["df"], pca_model = apply_pca(
+                result["df"], target_column=target_col
+            )
+            if pca_model is not None:
+                pca_applied = True
+                if verbose:
+                    logger.info(
+                        f"PCA reduced features to {pca_model.n_components_} components "
+                        f"(variance retained: {pca_model.explained_variance_ratio_.sum():.4f})"
+                    )
+        else:
+            if verbose:
+                logger.info(
+                    f"Feature count ({pre_pca_feature_count}) within threshold "
+                    f"({FEATURE_THRESHOLD}). PCA skipped."
+                )
+
         # Calculate final feature count
         final_feature_count = len(result["df"].columns)
         if target_col and target_col in result["df"].columns:
@@ -183,6 +218,8 @@ class FeatureEngineeringService:
             "failed_transformations": result["failed_transformations"],
             "column_types": column_types,
             "execution_details": result["execution_details"],
+            "pca_applied": pca_applied,
+            "pre_pca_feature_count": pre_pca_feature_count,
         }
 
         # Log summary

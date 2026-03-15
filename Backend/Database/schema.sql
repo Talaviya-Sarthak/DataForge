@@ -116,3 +116,42 @@ CREATE TABLE pipeline_steps (
   UNIQUE (pipeline_id, step_index),
   FOREIGN KEY (pipeline_id) REFERENCES pipelines(id) ON DELETE CASCADE
 );
+
+-- =========================================
+-- ML TRAINING JOBS
+-- =========================================
+CREATE TABLE training_jobs (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  pipeline_id VARCHAR(255) NOT NULL,
+  dataset_id INT,
+  user_id INT NOT NULL,
+  task_type ENUM('classification', 'regression') NOT NULL,
+  target_column VARCHAR(255) NOT NULL,
+  status ENUM('pending', 'running', 'completed', 'failed') DEFAULT 'pending',
+  error_message TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (dataset_id) REFERENCES datasets(id) ON DELETE SET NULL,
+  INDEX idx_pipeline_id (pipeline_id),
+  INDEX idx_user_id (user_id),
+  INDEX idx_status (status)
+);
+
+-- =========================================
+-- MODEL RESULTS (per training job)
+-- =========================================
+CREATE TABLE model_results (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  training_job_id INT NOT NULL,
+  pipeline_id VARCHAR(255) NOT NULL,
+  model_name VARCHAR(255) NOT NULL,
+  metrics_json JSON NOT NULL,
+  model_path VARCHAR(512) NOT NULL,
+  execution_time_ms INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (training_job_id) REFERENCES training_jobs(id) ON DELETE CASCADE,
+  INDEX idx_training_job_id (training_job_id),
+  INDEX idx_pipeline_id (pipeline_id),
+  INDEX idx_model_name (model_name)
+);
