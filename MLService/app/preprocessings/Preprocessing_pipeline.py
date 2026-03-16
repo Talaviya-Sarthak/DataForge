@@ -65,8 +65,73 @@ class PreprocessingPipeline:
         elif step_type == "imbalance":
             return HandlingImbalance(params).apply(df)
 
+        elif step_type == "drop_duplicates":
+            return df.drop_duplicates().reset_index(drop=True)
+
+        elif step_type == "replace_values":
+            return self._apply_replace_values(df, params)
+
         else:
             raise ValueError(f"Unknown preprocessing step type: {step_type}")
+
+    # ─────────────────────────────────────────────
+    # REPLACE VALUES HELPER
+    # ─────────────────────────────────────────────
+    @staticmethod
+    def _apply_replace_values(df: pd.DataFrame, params: list | dict) -> pd.DataFrame:
+        """
+        Replace placeholder / sentinel values with NaN so downstream
+        imputation steps can handle them.
+
+        Supports:
+          - strategy "auto"  → replaces common placeholders (?, --, N/A, empty strings, etc.)
+          - strategy "custom" with explicit mapping per column
+        """
+        df = df.copy()
+
+        if isinstance(params, dict):
+            params = [params]
+
+        strategy = "auto"
+        if params and isinstance(params, list) and len(params) > 0:
+            strategy = params[0].get("strategy", "auto")
+
+        if strategy == "auto":
+            import numpy as np
+
+            placeholders = [
+                "?",
+                "??",
+                "---",
+                "--",
+                "-",
+                "N/A",
+                "n/a",
+                "NA",
+                "na",
+                "null",
+                "NULL",
+                "None",
+                "none",
+                "NaN",
+                "nan",
+                "missing",
+                "MISSING",
+                "undefined",
+                "",
+            ]
+            df.replace(placeholders, np.nan, inplace=True)
+            # Also strip whitespace-only strings
+            for col in df.select_dtypes(include=["object"]).columns:
+                df[col] = df[col].apply(
+                    lambda x: np.nan if isinstance(x, str) and x.strip() == "" else x
+                )
+        else:
+            # custom: expect params like [{ column, mapping }]
+            vs = ValueStandardization(params)
+            df = vs.apply(df)
+
+        return df
 
     # ─────────────────────────────────────────────
     # PIPELINE EXECUTION

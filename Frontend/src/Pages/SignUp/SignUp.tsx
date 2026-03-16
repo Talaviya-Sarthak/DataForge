@@ -34,7 +34,24 @@ export default function SignUp() {
     const { login } = useAuth()
     const navigate = useNavigate();
 
+    const getTokenFromResponse = (data: any): string | null => {
+        return (
+            data?.token ||
+            data?.accessToken ||
+            data?.jwt ||
+            data?.data?.token ||
+            data?.data?.accessToken ||
+            data?.data?.jwt ||
+            null
+        );
+    }
+
     const handleOnboardingComplete = (formData: any) => {
+        const token = getTokenFromResponse(tempUserData)
+        if (token) {
+            localStorage.setItem('token', token)
+        }
+
         const userData = {
             id: tempUserData?.id || "USR-2024-001",
             name: tempUserData?.name || name,
@@ -108,6 +125,11 @@ export default function SignUp() {
             .then(async (r) => {
                 const data = await r.json().catch(() => ({}));
                 if (!r.ok) throw new Error(data?.error || "Signup failed");
+
+                const token = getTokenFromResponse(data)
+                if (token) {
+                    localStorage.setItem('token', token)
+                }
 
                 // Store temp user data and show onboarding
                 setTempUserData({ name, email, ...data });

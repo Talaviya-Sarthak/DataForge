@@ -12,12 +12,14 @@ def _safe_number(value):
         return None
     return float(value)
 
+
 def dataset_stats(df):
     """
     Calculate statistics for ALL columns:
     - Numeric: min, mean, median, std, max, outliers (IQR)
     - Categorical: top values
-    - Both: missing values, unique values, value counts (top 5)
+    - Both: missing values, unique values
+    - Categorical: value counts (all)
     """
     stats = {}
 
@@ -43,28 +45,24 @@ def dataset_stats(df):
             "missing_percentage": round(col_series.isna().mean() * 100, 2),
             "unique_values": int(col_series.nunique(dropna=True)),
             "outliers": outlier_count,
-            "value_counts": {
-                str(k): int(v)
-                for k, v in col_series.value_counts(dropna=True).head(5).items()
-            }
+            # Numeric value counts are intentionally omitted.
+            "value_counts": {},
         }
 
         if col_data.empty:
-            stats[column].update({
-                "min": None,
-                "mean": None,
-                "median": None,
-                "std": None,
-                "max": None
-            })
+            stats[column].update(
+                {"min": None, "mean": None, "median": None, "std": None, "max": None}
+            )
         else:
-            stats[column].update({
-                "min": _safe_number(col_data.min()),
-                "mean": _safe_number(col_data.mean()),
-                "median": _safe_number(col_data.median()),
-                "std": _safe_number(col_data.std()),
-                "max": _safe_number(col_data.max())
-            })
+            stats[column].update(
+                {
+                    "min": _safe_number(col_data.min()),
+                    "mean": _safe_number(col_data.mean()),
+                    "median": _safe_number(col_data.median()),
+                    "std": _safe_number(col_data.std()),
+                    "max": _safe_number(col_data.max()),
+                }
+            )
 
     # ── Categorical columns ──────────────────────
     for column in categorical_df.columns:
@@ -76,8 +74,7 @@ def dataset_stats(df):
             "unique_values": int(col_series.nunique(dropna=True)),
             "outliers": 0,
             "value_counts": {
-                str(k): int(v)
-                for k, v in col_series.value_counts(dropna=True).head(5).items()
+                str(k): int(v) for k, v in col_series.value_counts(dropna=True).items()
             },
             "min": None,
             "mean": None,
