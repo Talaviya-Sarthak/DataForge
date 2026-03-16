@@ -16,6 +16,7 @@ import logging
 import pandas as pd
 import numpy as np
 from typing import Dict, List, Optional
+from sklearn.feature_selection import VarianceThreshold
 from .core.feature_registry import FeatureRegistry
 from .core.safe_executor import SafeExecutor
 from .pca_reduction import apply_pca
@@ -25,6 +26,134 @@ logger = logging.getLogger(__name__)
 # If the number of features exceeds this threshold after engineering,
 # PCA is applied automatically to reduce dimensionality.
 FEATURE_THRESHOLD = 50
+
+# Variance threshold for low-variance feature filtering
+LOW_VARIANCE_THRESHOLD = 0.01
+
+# Correlation threshold for high-correlation feature filtering
+HIGH_CORRELATION_THRESHOLD = 0.95
+
+
+def _drop_low_variance_features(
+    df: pd.DataFrame, target_col: str = None, threshold: float = LOW_VARIANCE_THRESHOLD
+) -> pd.DataFrame:
+    """
+    Remove numeric features with variance below a threshold.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input dataframe
+    target_col : str, optional
+        Target column to exclude from filtering
+    threshold : float
+        Minimum variance to keep a feature
+
+    Returns
+    -------
+    pd.DataFrame
+        Dataframe with low-variance numeric features removed
+    """
+    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+
+    # Exclude target column
+    if target_col and target_col in numeric_cols:
+        numeric_cols.remove(target_col)
+
+    if len(numeric_cols) == 0:
+        logger.debug("Feature Filtering: no numeric columns for variance check, skipping.")
+        return df
+
+    numeric_subset = df[numeric_cols].dropna()
+
+    if numeric_subset.empty or numeric_subset.shape[0] < 2:
+        logger.debug("Feature Filtering: insufficient rows for variance check, skipping.")
+        return df
+
+    try:
+        selector = VarianceThreshold(threshold=threshold)
+        selector.fit(numeric_subset)
+        low_variance_mask = ~selector.get_support()
+        cols_to_drop = [numeric_cols[i] for i, drop in enumerate(low_variance_mask) if drop]
+    except Exception as e:
+        logger.warning(f"Feature Filtering: variance filtering failed: {e}")
+        return df
+
+    if cols_to_drop:
+        logger.info(
+            f"Feature Filtering: dropped {len(cols_to_drop)} low variance features: "
+            f"{cols_to_drop}"
+        )
+        df = df.drop(columns=cols_to_drop)
+    else:
+        logger.debug("Feature Filtering: no low variance features found.")
+
+    return df
+
+
+def _drop_high_correlation_features(
+    df: pd.DataFrame, target_col: str = None, threshold: float = HIGH_CORRELATION_THRESHOLD
+) -> pd.DataFrame:
+    """
+    Remove one of each pair of highly correlated numeric features.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input dataframe
+    target_col : str, optional
+        Target column to exclude from filtering
+    threshold : float
+        Correlation threshold above which one feature is dropped
+
+    Returns
+    -------
+    pd.DataFrame
+        Dataframe with redundant correlated features removed
+    """
+    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+
+    # Exclude target column
+    if target_col and target_col in numeric_cols:
+        numeric_cols.remove(target_col)
+
+    if len(numeric_cols) < 2:
+        logger.debug("Feature Filtering: fewer than 2 numeric columns, skipping correlation check.")
+        return df
+
+    try:
+        corr_matrix = df[numeric_cols].corr().abs()
+    except Exception as e:
+        logger.warning(f"Feature Filtering: correlation computation failed: {e}")
+        return df
+
+    if corr_matrix.empty:
+        logger.debug("Feature Filtering: empty correlation matrix, skipping.")
+        return df
+
+    # Upper triangle mask (excluding diagonal)
+    upper_tri = np.triu(np.ones(corr_matrix.shape, dtype=bool), k=1)
+    cols_to_drop = set()
+
+    for i in range(corr_matrix.shape[0]):
+        for j in range(i + 1, corr_matrix.shape[1]):
+            if upper_tri[i, j] and corr_matrix.iloc[i, j] > threshold:
+                # Drop the later column (j) to keep earlier features
+                col_to_drop = corr_matrix.columns[j]
+                cols_to_drop.add(col_to_drop)
+
+    cols_to_drop = list(cols_to_drop)
+
+    if cols_to_drop:
+        logger.info(
+            f"Feature Filtering: dropped {len(cols_to_drop)} highly correlated features: "
+            f"{cols_to_drop}"
+        )
+        df = df.drop(columns=cols_to_drop)
+    else:
+        logger.debug("Feature Filtering: no highly correlated features found.")
+
+    return df
 
 
 class FeatureEngineeringService:
@@ -169,6 +298,25 @@ class FeatureEngineeringService:
         result = SafeExecutor.execute_batch(
             transformers=transformers, df=df, target_column=target_col
         )
+
+        # ── Automatic feature filtering (post-engineering, pre-PCA) ──
+        pre_filter_count = len(result["df"].columns)
+        if target_col and target_col in result["df"].columns:
+            pre_filter_count -= 1
+
+        result["df"] = _drop_low_variance_features(result["df"], target_col)
+        result["df"] = _drop_high_correlation_features(result["df"], target_col)
+
+        post_filter_count = len(result["df"].columns)
+        if target_col and target_col in result["df"].columns:
+            post_filter_count -= 1
+
+        total_filtered = pre_filter_count - post_filter_count
+        if verbose and total_filtered > 0:
+            logger.info(
+                f"Feature Filtering: {total_filtered} features removed "
+                f"({pre_filter_count} → {post_filter_count})"
+            )
 
         # ── Automatic PCA if feature count exceeds threshold ─────
         pca_applied = False
