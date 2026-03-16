@@ -95,6 +95,9 @@ exports.preprocessDataset = async (req, res) => {
     let transformations;
     if (action === "feature_selection" && strategy === "manual") {
       transformations = [{ strategy: "manual", columns: columns || [] }];
+    } else if (action === "drop_duplicates" || action === "replace_values") {
+      // Dataset-level operations — no per-column params needed
+      transformations = [{ strategy: strategy || "auto" }];
     } else {
       transformations = (columns || []).map(col => ({
         column: col,

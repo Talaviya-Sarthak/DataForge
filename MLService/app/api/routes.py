@@ -3,6 +3,7 @@ from fastapi.responses import StreamingResponse
 import pandas as pd
 import json
 import io
+from pandas.api.types import is_bool_dtype, is_datetime64_any_dtype, is_numeric_dtype
 
 from app.data.loader import load_Data
 from app.data.preview import preview_Data
@@ -39,15 +40,61 @@ def _set_raw(user_id: int, dataset_id: int, df: pd.DataFrame):
     _RAW_STORE[_key(user_id, dataset_id)] = df
 
 
+def _detect_column_kind(series: pd.Series) -> str:
+    """
+    Detect a column kind using robust coercion rules.
+
+    Returns one of: numeric | datetime | boolean | categorical
+    """
+    non_null = series.dropna()
+    if non_null.empty:
+        return "categorical"
+
+    # Native pandas dtypes first.
+    if is_bool_dtype(series):
+        return "boolean"
+    if is_datetime64_any_dtype(series):
+        return "datetime"
+    if is_numeric_dtype(series):
+        return "numeric"
+
+    as_text = non_null.astype(str).str.strip()
+    if as_text.empty:
+        return "categorical"
+
+    lowered = as_text.str.lower()
+
+    # Boolean-like text or binary values.
+    boolean_tokens = {"true", "false", "yes", "no", "y", "n", "t", "f", "0", "1"}
+    if lowered.isin(boolean_tokens).mean() >= 0.8:
+        return "boolean"
+
+    # Datetime-like strings.
+    dt_coerced = pd.to_datetime(as_text, errors="coerce")
+    if dt_coerced.notna().mean() >= 0.8:
+        return "datetime"
+
+    # Numeric-like strings (handles values like "1,234.5").
+    numeric_coerced = pd.to_numeric(
+        as_text.str.replace(",", "", regex=False), errors="coerce"
+    )
+    if numeric_coerced.notna().mean() >= 0.8:
+        return "numeric"
+
+    return "categorical"
+
+
 def _classify_columns(df: pd.DataFrame):
     numeric_cols, categorical_cols = [], []
+
     for col in df.columns:
-        series = df[col].dropna()
-        sample = series.iloc[0] if not series.empty else None
-        if isinstance(sample, (int, float)):
+        kind = _detect_column_kind(df[col])
+        if kind == "numeric":
             numeric_cols.append(col)
         else:
+            # Keep response structure unchanged: non-numeric columns remain categorical bucket.
             categorical_cols.append(col)
+
     return numeric_cols, categorical_cols
 
 
@@ -307,7 +354,7 @@ async def train(payload: dict):
         raise HTTPException(
             status_code=400,
             detail=f"No finalized dataset for pipeline '{pipeline_id}'. "
-                   f"Finalize the pipeline first via /pipeline/finalize.",
+            f"Finalize the pipeline first via /pipeline/finalize.",
         )
 
     try:
