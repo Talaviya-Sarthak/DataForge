@@ -43,10 +43,10 @@ def dataset_stats(df):
             "missing_percentage": round(col_series.isna().mean() * 100, 2),
             "unique_values": int(col_series.nunique(dropna=True)),
             "outliers": outlier_count,
-            "value_counts": {
-                str(k): int(v)
-                for k, v in col_series.value_counts(dropna=True).head(5).items()
-            }
+            # "value_counts": {
+            #     str(k): int(v)
+            #     for k, v in col_series.value_counts(dropna=True).head(5).items()
+            # }
         }
 
         if col_data.empty:

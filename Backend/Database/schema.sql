@@ -155,3 +155,28 @@ CREATE TABLE model_results (
   INDEX idx_pipeline_id (pipeline_id),
   INDEX idx_model_name (model_name)
 );
+
+-- =========================================
+-- TRAINED MODELS (leaderboard per pipeline)
+-- =========================================
+CREATE TABLE trained_models (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  pipeline_id VARCHAR(255) NOT NULL,
+  model VARCHAR(255) NOT NULL,
+  model_path VARCHAR(512) NOT NULL,
+  task_type ENUM('classification', 'regression') NOT NULL,
+  target_column VARCHAR(255) NOT NULL,
+  accuracy DOUBLE DEFAULT NULL,
+  `precision` DOUBLE DEFAULT NULL,
+  recall DOUBLE DEFAULT NULL,
+  f1_score DOUBLE DEFAULT NULL,
+  roc_auc DOUBLE DEFAULT NULL,
+  r2_score DOUBLE DEFAULT NULL,
+  mse DOUBLE DEFAULT NULL,
+  rmse DOUBLE DEFAULT NULL,
+  mae DOUBLE DEFAULT NULL,
+  `rank` INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_trained_pipeline_id (pipeline_id),
+  INDEX idx_trained_rank (`rank`)
+);

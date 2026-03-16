@@ -51,6 +51,11 @@ app.use("/api/user", require("./routes/preferencesEntry"));
 app.use("/api/datasets", require("./routes/dataset.routes"));
 
 // =======================
+// TRAINING ROUTES
+// =======================
+app.use("/api/training", require("./routes/training.routes"));
+
+// =======================
 // HEALTH CHECK
 // =======================
 app.get("/", (req, res) => {

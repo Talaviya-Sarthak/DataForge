@@ -123,7 +123,47 @@ exports.finalizeDataset = async (payload) => {
 };
 
 // =========================================
-// 4. DOWNLOAD — get dataset as CSV stream
+// 4. FINALIZE PIPELINE — store dataset in PIPELINE_DATASETS for training
+// =========================================
+exports.finalizePipeline = async (payload) => {
+  try {
+    const response = await axios.post(
+      `${ML_SERVICE_URL}/api/pipeline/finalize`,
+      payload,
+      { headers: { "Content-Type": "application/json" } }
+    );
+    return response.data;
+  } catch (error) {
+    console.error("❌ ML Pipeline Finalize Error:", error.message);
+    if (error.code === "ECONNREFUSED") {
+      throw new Error(`ML Service not reachable at ${ML_SERVICE_URL}. Please ensure it's running.`);
+    }
+    throw new Error(error.response?.data?.detail || error.message);
+  }
+};
+
+// =========================================
+// 5. TRAIN — call MLService /api/train
+// =========================================
+exports.trainPipeline = async (payload) => {
+  try {
+    const response = await axios.post(
+      `${ML_SERVICE_URL}/api/train`,
+      payload,
+      { headers: { "Content-Type": "application/json" } }
+    );
+    return response.data;
+  } catch (error) {
+    console.error("❌ ML Train Error:", error.message);
+    if (error.code === "ECONNREFUSED") {
+      throw new Error(`ML Service not reachable at ${ML_SERVICE_URL}. Please ensure it's running.`);
+    }
+    throw new Error(error.response?.data?.detail || error.message);
+  }
+};
+
+// =========================================
+// 6. DOWNLOAD — get dataset as CSV stream
 //    If steps are provided, rebuilds from raw first.
 //    Otherwise returns raw/finalized dataset.
 // =========================================
