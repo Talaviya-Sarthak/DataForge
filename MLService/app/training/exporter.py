@@ -1,69 +1,49 @@
-"""
-Model Exporter
-==============
+"""Model exporter — persists trained scikit-learn estimators to disk.
 
-Handles saving trained model artifacts to disk using joblib.
+All models are saved under ``MLService/app/artifacts/models/`` using the
+naming convention ``{pipeline_id}_{model_name}.pkl``.
 """
 
 import os
+import joblib
 from pathlib import Path
 
-import joblib
 
-# Base directory for all model artifacts
+# Resolve artifacts directory relative to *this* file so it works
+# regardless of the current working directory.
 _ARTIFACTS_DIR = Path(__file__).resolve().parent.parent / "artifacts" / "models"
 
 
-def _sanitize_model_name(model_name: str) -> str:
-    """Convert model class name to a filesystem-safe snake_case string."""
-    sanitized = ""
-    for i, ch in enumerate(model_name):
-        if ch.isupper() and i > 0:
-            sanitized += "_"
-        sanitized += ch.lower()
-    return sanitized
-
-
-def save_model(model, dataset_id: int | str, model_name: str) -> str:
-    """
-    Save a trained model to disk as a .pkl file.
+def export_model(model, pipeline_id: str, model_name: str) -> str:
+    """Save a trained model to disk using joblib.
 
     Args:
-        model:      Trained scikit-learn estimator.
-        dataset_id: Identifier for the dataset (used in filename).
-        model_name: Display name of the model (e.g. "RandomForestClassifier").
+        model: A fitted scikit-learn estimator.
+        pipeline_id: The owning pipeline identifier.
+        model_name: Human-readable model name (e.g. ``"RandomForestClassifier"``).
 
     Returns:
-        str: Relative path to the saved model file
-             (e.g. "artifacts/models/123_random_forest_classifier.pkl").
+        str: Relative path to the saved ``.pkl`` file
+             (relative to the ``artifacts/`` directory).
     """
     _ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
 
-    safe_name = _sanitize_model_name(model_name)
-    filename = f"{dataset_id}_{safe_name}.pkl"
+    # Normalise name: "RandomForestClassifier" → "random_forest_classifier"
+    safe_name = _to_snake_case(model_name)
+    filename = f"{pipeline_id}_{safe_name}.pkl"
     filepath = _ARTIFACTS_DIR / filename
 
     joblib.dump(model, filepath)
 
-    # Return a portable relative path from MLService/app/
+    # Return a relative path for the JSON response
     return f"artifacts/models/{filename}"
 
 
-def load_model(model_path: str):
-    """
-    Load a previously saved model from disk.
-
-    Args:
-        model_path: Relative path as returned by save_model().
-
-    Returns:
-        The deserialized scikit-learn estimator.
-
-    Raises:
-        FileNotFoundError: If the model file does not exist.
-    """
-    base = Path(__file__).resolve().parent.parent
-    filepath = base / model_path
-    if not filepath.exists():
-        raise FileNotFoundError(f"Model not found at {filepath}")
-    return joblib.load(filepath)
+def _to_snake_case(name: str) -> str:
+    """Convert a PascalCase name to snake_case."""
+    result: list[str] = []
+    for char in name:
+        if char.isupper() and result:
+            result.append("_")
+        result.append(char.lower())
+    return "".join(result)

@@ -37,3 +37,40 @@ __init__.PY
 # Jupyter Notebook checkpoints
 # =========================
 .ipynb_checkpoints/
+
+# =========================
+# Build / Artifacts
+# =========================
+build/
+dist/
+artifacts/
+*.egg-info/
+.eggs/
+*.whl
+
+# =========================
+# Logs
+# =========================
+logs/
+*.log
+
+# =========================
+# Environment variables
+# =========================
+.env
+.env.*
+
+# =========================
+# Test / coverage artifacts
+# =========================
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# =========================
+# Temporary files
+# =========================
+tmp/
+temp/
+*.tmp

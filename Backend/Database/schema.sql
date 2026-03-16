@@ -4,22 +4,21 @@
 CREATE DATABASE IF NOT EXISTS dataforge;
 USE dataforge;
 -- =========================================
--- 1️⃣ USERS
+-- USERS
 -- =========================================
-CREATE TABLE IF NOT EXISTS users (
+CREATE TABLE users (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(50) NOT NULL,
-  email VARCHAR(150) NOT NULL,
+  email VARCHAR(150) NOT NULL UNIQUE,
   password VARCHAR(255) NOT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT uq_users_email UNIQUE (email)
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 -- =========================================
--- 2️⃣ USER ONBOARDING (1–1)
+-- USER ONBOARDING (1–1)
 -- =========================================
-CREATE TABLE IF NOT EXISTS user_onboarding (
+CREATE TABLE user_onboarding (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id INT NOT NULL,
+  user_id INT NOT NULL UNIQUE,
   company VARCHAR(150),
   profession VARCHAR(150),
   experience VARCHAR(100),
@@ -28,184 +27,147 @@ CREATE TABLE IF NOT EXISTS user_onboarding (
   primary_goal VARCHAR(100),
   additional_info TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT uq_user_onboarding_user UNIQUE (user_id),
-  CONSTRAINT fk_onboarding_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 -- =========================================
--- 3️⃣ USER TOOLS (1–M)
+-- USER TOOLS
 -- =========================================
-CREATE TABLE IF NOT EXISTS user_tools (
+CREATE TABLE user_tools (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT NOT NULL,
   tool_name VARCHAR(100) NOT NULL,
-  CONSTRAINT uq_user_tools UNIQUE (user_id, tool_name),
-  CONSTRAINT fk_tools_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  UNIQUE (user_id, tool_name),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 -- =========================================
--- 4️⃣ USER PROJECT TYPES (1–M)
+-- USER PROJECT TYPES
 -- =========================================
-CREATE TABLE IF NOT EXISTS user_project_types (
+CREATE TABLE user_project_types (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT NOT NULL,
   project_type VARCHAR(150) NOT NULL,
-  CONSTRAINT uq_user_project_types UNIQUE (user_id, project_type),
-  CONSTRAINT fk_project_types_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  UNIQUE (user_id, project_type),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 -- =========================================
--- 5️⃣ USER PREFERENCES
+-- USER PREFERENCES
 -- =========================================
-CREATE TABLE IF NOT EXISTS user_preferences (
+CREATE TABLE user_preferences (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT NOT NULL,
   preference_type ENUM('DATA_TYPE', 'FEATURE') NOT NULL,
   preference_value VARCHAR(150) NOT NULL,
-  CONSTRAINT uq_user_preferences UNIQUE (user_id, preference_type, preference_value),
-  CONSTRAINT fk_preferences_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  UNIQUE (user_id, preference_type, preference_value),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 -- =========================================
--- 6️⃣ DATASETS (METADATA ONLY)
+-- DATASETS (METADATA ONLY)
 -- =========================================
-CREATE TABLE IF NOT EXISTS datasets (
+CREATE TABLE datasets (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT NOT NULL,
   original_filename VARCHAR(255) NOT NULL,
   column_names JSON NOT NULL,
   total_rows INT NOT NULL,
-  is_active BOOLEAN NOT NULL DEFAULT FALSE,
+  is_active BOOLEAN DEFAULT FALSE,
+  status ENUM('new','in_progress','completed') DEFAULT 'in_progress',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_datasets_user (user_id),
-  INDEX idx_datasets_active (user_id, is_active),
-  CONSTRAINT fk_datasets_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
--- 🚫 IMPORTANT:
--- ❌ NO UNIQUE (user_id, is_active)
--- ❌ NO uq_user_active_dataset
--- ✅ "One active dataset" is enforced in backend logic
+
 -- =========================================
--- 7️⃣ PIPELINES
+-- PIPELINES
 -- =========================================
-CREATE TABLE IF NOT EXISTS pipelines (
+CREATE TABLE pipelines (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT NOT NULL,
   dataset_id INT NOT NULL,
-  pipeline_type ENUM('manual', 'auto') NOT NULL DEFAULT 'manual',
-  status ENUM(
-    'draft',
-    'running',
-    'completed',
-    'failed',
-    'paused'
-  ) NOT NULL DEFAULT 'draft',
+  pipeline_type ENUM('manual','auto') DEFAULT 'manual',
+  status ENUM('draft','running','completed','failed','paused') DEFAULT 'draft',
   current_step_index INT DEFAULT 0,
   total_steps INT DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX idx_pipeline_user (user_id),
-  INDEX idx_pipeline_dataset (dataset_id),
-  INDEX idx_pipeline_status (status),
-  CONSTRAINT fk_pipeline_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  CONSTRAINT fk_pipeline_dataset FOREIGN KEY (dataset_id) REFERENCES datasets(id) ON DELETE CASCADE
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (dataset_id) REFERENCES datasets(id) ON DELETE CASCADE
 );
 -- =========================================
--- 8️⃣ PIPELINE STEPS
+-- PIPELINE STEPS
 -- =========================================
-CREATE TABLE IF NOT EXISTS pipeline_steps (
+CREATE TABLE pipeline_steps (
   id INT AUTO_INCREMENT PRIMARY KEY,
   pipeline_id INT NOT NULL,
   step_index INT NOT NULL,
   step_type VARCHAR(50) NOT NULL,
   step_params JSON NOT NULL,
-  status ENUM(
-    'pending',
-    'running',
-    'completed',
-    'failed',
-    'skipped'
-  ) DEFAULT 'pending',
-  execution_time_ms INT DEFAULT NULL,
-  error_message TEXT DEFAULT NULL,
+  status ENUM('pending','running','completed','failed','skipped') DEFAULT 'pending',
+  execution_time_ms INT,
+  error_message TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX idx_pipeline_steps (pipeline_id, step_index),
-  INDEX idx_step_status (status),
-  CONSTRAINT uq_pipeline_step UNIQUE (pipeline_id, step_index),
-  CONSTRAINT fk_step_pipeline FOREIGN KEY (pipeline_id) REFERENCES pipelines(id) ON DELETE CASCADE
+  UNIQUE (pipeline_id, step_index),
+  FOREIGN KEY (pipeline_id) REFERENCES pipelines(id) ON DELETE CASCADE
 );
 -- =========================================
--- 9️⃣ PIPELINE PREVIEWS
+-- ML TRAINING JOBS
 -- =========================================
-CREATE TABLE IF NOT EXISTS pipeline_previews (
+CREATE TABLE training_jobs (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  pipeline_id INT NOT NULL,
-  step_index INT NOT NULL,
-  preview_data JSON NOT NULL,
-  row_count INT NOT NULL,
-  column_names JSON NOT NULL,
+  pipeline_id VARCHAR(255) NOT NULL,
+  dataset_id INT,
+  user_id INT NOT NULL,
+  task_type ENUM('classification', 'regression') NOT NULL,
+  target_column VARCHAR(255) NOT NULL,
+  status ENUM('pending', 'running', 'completed', 'failed') DEFAULT 'pending',
+  error_message TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_pipeline_preview (pipeline_id, step_index),
-  CONSTRAINT uq_pipeline_preview UNIQUE (pipeline_id, step_index),
-  CONSTRAINT fk_preview_pipeline FOREIGN KEY (pipeline_id) REFERENCES pipelines(id) ON DELETE CASCADE
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (dataset_id) REFERENCES datasets(id) ON DELETE SET NULL,
+  INDEX idx_pipeline_id (pipeline_id),
+  INDEX idx_user_id (user_id),
+  INDEX idx_status (status)
 );
 -- =========================================
--- 🔟 PIPELINE EXECUTION LOGS
+-- MODEL RESULTS (per training job)
 -- =========================================
-CREATE TABLE IF NOT EXISTS pipeline_execution_logs (
+CREATE TABLE model_results (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  pipeline_id INT NOT NULL,
-  step_index INT DEFAULT NULL,
-  log_level ENUM('info', 'warning', 'error', 'debug') NOT NULL,
-  message TEXT NOT NULL,
-  metadata JSON DEFAULT NULL,
+  training_job_id INT NOT NULL,
+  pipeline_id VARCHAR(255) NOT NULL,
+  model_name VARCHAR(255) NOT NULL,
+  metrics_json JSON NOT NULL,
+  model_path VARCHAR(512) NOT NULL,
+  execution_time_ms INT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_pipeline_logs (pipeline_id, created_at),
-  INDEX idx_log_level (log_level),
-  CONSTRAINT fk_log_pipeline FOREIGN KEY (pipeline_id) REFERENCES pipelines(id) ON DELETE CASCADE
+  FOREIGN KEY (training_job_id) REFERENCES training_jobs(id) ON DELETE CASCADE,
+  INDEX idx_training_job_id (training_job_id),
+  INDEX idx_pipeline_id (pipeline_id),
+  INDEX idx_model_name (model_name)
 );
+
 -- =========================================
--- 1️⃣1️⃣ TRAINING JOBS
+-- TRAINED MODELS (leaderboard per pipeline)
 -- =========================================
-CREATE TABLE IF NOT EXISTS training_jobs (
+CREATE TABLE trained_models (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  dataset_id INT NOT NULL,
-  task_type VARCHAR(20) NOT NULL,
-  target_column VARCHAR(100) NOT NULL,
-  status VARCHAR(20) DEFAULT 'pending',
+  pipeline_id VARCHAR(255) NOT NULL,
+  model VARCHAR(255) NOT NULL,
+  model_path VARCHAR(512) NOT NULL,
+  task_type ENUM('classification', 'regression') NOT NULL,
+  target_column VARCHAR(255) NOT NULL,
+  accuracy DOUBLE DEFAULT NULL,
+  `precision` DOUBLE DEFAULT NULL,
+  recall DOUBLE DEFAULT NULL,
+  f1_score DOUBLE DEFAULT NULL,
+  roc_auc DOUBLE DEFAULT NULL,
+  r2_score DOUBLE DEFAULT NULL,
+  mse DOUBLE DEFAULT NULL,
+  rmse DOUBLE DEFAULT NULL,
+  mae DOUBLE DEFAULT NULL,
+  `rank` INT NOT NULL DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_training_job_dataset FOREIGN KEY (dataset_id) REFERENCES datasets(id) ON DELETE CASCADE
+  INDEX idx_trained_pipeline_id (pipeline_id),
+  INDEX idx_trained_rank (`rank`)
 );
--- =========================================
--- 1️⃣2️⃣ MODEL RESULTS
--- =========================================
-CREATE TABLE IF NOT EXISTS model_results (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  job_id INT,
-  model_name VARCHAR(100) NOT NULL,
-  metrics_json JSON,
-  model_path VARCHAR(255),
-  CONSTRAINT fk_model_result_job FOREIGN KEY (job_id) REFERENCES training_jobs(id) ON DELETE
-  SET NULL
-);
-SELECT *
-FROM users;
-SELECT *
-FROM user_onboarding;
-SELECT *
-FROM user_tools;
-SELECT *
-FROM user_project_types;
-SELECT *
-FROM user_preferences;
-SELECT *
-FROM datasets;
-SELECT *
-FROM pipelines;
-SELECT *
-FROM pipeline_steps;
-SELECT *
-FROM pipeline_previews;
-SELECT *
-FROM pipeline_execution_logs;
-SELECT *
-FROM training_jobs;
-SELECT *
-FROM model_results;

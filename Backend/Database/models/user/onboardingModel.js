@@ -1,8 +1,5 @@
 const pool = require("../../db");
 
-/**
- * Insert OR update onboarding data
- */
 const upsertOnboarding = async (
   userId,
   company,

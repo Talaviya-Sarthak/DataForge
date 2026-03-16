@@ -1,8 +1,9 @@
+
 "use client"
 
 import Header from "@/components/layouts/Header"
 import { Footer } from "@/components/layouts/Footer"
-import { useState, Suspense, lazy } from "react"
+import { useState, useEffect, useCallback, Suspense, lazy } from "react"
 import {
   BarChart3,
   Eye,
@@ -22,48 +23,76 @@ import {
   ChartArea,
   TriangleAlert,
   Info,
-  Loader2
+  Loader2,
+  Copy,
+  RefreshCw,
 } from "lucide-react"
 import { useDataset } from "@/contexts/DatasetContext"
-import { applyCleaningAction } from "@/services/cleaning.service"
+import { applyCleaningAction, undoLastStep, finalizeDataset, downloadDataset, getPipelineSteps, type PipelineStep } from "@/services/cleaning.service"
+import { Undo2, Download, CheckCircle } from "lucide-react"
 import { useToast } from "@/components/ui/toast/Toast"
 import { BarChart, Bar, LineChart as RechartsLine, Line, ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { StepsStepper } from "@/components/cleaning/StepsStepper"
 
 const DataTable = lazy(() => import("@/components/ui/DataTable"))
 
 // Strategy options based on ML service implementations
 const STRATEGIES = {
+  drop_duplicates: ["auto"],
+  replace_values: ["auto", "custom"],
   missing: ["auto", "mean", "median", "mode", "custom"],
+  imbalance: ["auto", "undersample", "oversample", "smote"],
   outliers: ["auto", "cap", "remove"],
   encoding: ["auto", "onehot", "ordinal", "target"],
   scaling: ["auto", "standardize", "normalize", "robust", "log"],
-  feature_selection: ["auto", "variance", "correlation", "manual"],
-  imbalance: ["auto", "undersample", "oversample", "smote"]
+  feature_selection: ["auto", "variance", "correlation", "manual"]
 }
 
 // Map UI dialog keys to MLService operation types
 const ACTION_TYPE_MAP: Record<string, string> = {
+  drop_duplicates: "drop_duplicates",
+  replace_values: "replace_values",
   missing: "missing_values",
+  imbalance: "imbalance",
   outliers: "outliers",
   encoding: "encoding",
   scaling: "scaling",
-  feature_selection: "feature_selection",
-  imbalance: "imbalance",
+  feature_selection: "feature_selection"
 }
 
 const Cleaning = () => {
-  const { dataset, setDataset } = useDataset()
+  const { dataset, setDataset, datasetId, totalSteps } = useDataset()
   const { show } = useToast()
   const [selectedColumn, setSelectedColumn] = useState<string | null>(null)
   const [activeDialog, setActiveDialog] = useState<string | null>(null)
   const [showPreviewDialog, setShowPreviewDialog] = useState<boolean>(false)
   const [showGraphDialog, setShowGraphDialog] = useState<boolean>(false)
   const [showColumnInfo, setShowColumnInfo] = useState<boolean>(false)
+  const [showValueCounts, setShowValueCounts] = useState<boolean>(false)
   const [isProcessing, setIsProcessing] = useState<boolean>(false)
   const [selectedXColumn, setSelectedXColumn] = useState<string | null>(null)
   const [selectedYColumn, setSelectedYColumn] = useState<string | null>(null)
   const [showChart, setShowChart] = useState<boolean>(false)
   const [chartType, setChartType] = useState<string | null>(null)
+  const [pipelineSteps, setPipelineSteps] = useState<PipelineStep[]>([])
+
+  // Fetch pipeline steps whenever datasetId or totalSteps changes
+  const fetchSteps = useCallback(async () => {
+    if (!datasetId) {
+      setPipelineSteps([])
+      return
+    }
+    try {
+      const steps = await getPipelineSteps(datasetId)
+      setPipelineSteps(steps)
+    } catch {
+      // silently ignore fetch errors
+    }
+  }, [datasetId])
+
+  useEffect(() => {
+    fetchSteps()
+  }, [fetchSteps, totalSteps])
 
   const handleDropColumn = async () => {
     if (!selectedColumn) return;
@@ -75,6 +104,7 @@ const Cleaning = () => {
         action: "feature_selection",
         strategy: "manual",
         columns: [selectedColumn],
+        dataset_id: datasetId || undefined,
       });
 
       setDataset(result);
@@ -96,11 +126,19 @@ const Cleaning = () => {
     if (selectedColumn) {
       targetColumns = [selectedColumn]
     } else {
-      // Apply to all applicable columns
+      // Apply to all applicable columns based on action type
       if (action === "missing_values" || action === "scaling" || action === "outliers") {
         targetColumns = dataset?.numerical_columns || []
       } else if (action === "encoding") {
         targetColumns = dataset?.categorical_columns || []
+      } else if (action === "drop_duplicates") {
+        // Drop duplicates works on all rows, send all columns
+        const allCols = dataset?.data?.[0] ? Object.keys(dataset.data[0]) : []
+        targetColumns = allCols
+      } else if (action === "replace_values") {
+        // Replace values can work on any column type
+        const allCols = dataset?.data?.[0] ? Object.keys(dataset.data[0]) : []
+        targetColumns = allCols
       } else {
         // For feature_selection, imbalance — use all columns
         const allCols = dataset?.data?.[0] ? Object.keys(dataset.data[0]) : []
@@ -121,6 +159,7 @@ const Cleaning = () => {
         action,
         strategy,
         columns: targetColumns,
+        dataset_id: datasetId || undefined,
       })
 
       // Update dataset context with full refreshed data
@@ -133,17 +172,92 @@ const Cleaning = () => {
     }
   }
 
+  // ── Pipeline action handlers ────────────────────────
+
+  const handleUndo = async () => {
+    if (!datasetId) {
+      show({ type: "error", message: "No active dataset" })
+      return
+    }
+    setIsProcessing(true)
+    try {
+      const result = await undoLastStep(datasetId)
+      setDataset(result)
+      show({ type: "success", message: result.message || "Step undone" })
+    } catch (error: any) {
+      show({ type: "error", message: error.message || "Undo failed" })
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleFinalize = async () => {
+    if (!datasetId) {
+      show({ type: "error", message: "No active dataset" })
+      return
+    }
+    setIsProcessing(true)
+    try {
+      const result = await finalizeDataset(datasetId)
+      setDataset(result)
+      show({ type: "success", message: "Dataset finalized successfully!" })
+    } catch (error: any) {
+      show({ type: "error", message: error.message || "Finalize failed" })
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleDownload = async () => {
+    if (!datasetId) {
+      show({ type: "error", message: "No active dataset" })
+      return
+    }
+    try {
+      await downloadDataset(datasetId)
+      show({ type: "success", message: "Download started" })
+    } catch (error: any) {
+      show({ type: "error", message: error.message || "Download failed" })
+    }
+  }
+
   const getColumnStats = (columnName: string) => {
     const stats = dataset?.statistics?.[columnName]
     return {
       missing: stats?.missing_count || 0,
       outliers: stats?.outliers || 0,
-      unique: stats?.unique_values || 0
+      unique: stats?.unique_values || 0,
+      valueCounts: stats?.value_counts || {}
     }
   }
 
   const getColumnType = (columnName: string) => {
     if (dataset?.numerical_columns?.includes(columnName)) return "numeric"
+
+    const sampleValues = (dataset?.data || [])
+      .map((row: any) => row?.[columnName])
+      .filter((v: any) => v !== null && v !== undefined && String(v).trim() !== "")
+      .slice(0, 300)
+
+    if (sampleValues.length === 0) {
+      if (dataset?.categorical_columns?.includes(columnName)) return "categorical"
+      return "text"
+    }
+
+    const lower = sampleValues.map((v: any) => String(v).trim().toLowerCase())
+    const booleanTokens = new Set(["true", "false", "yes", "no", "y", "n", "t", "f", "0", "1"])
+    const booleanRatio = lower.filter((v: string) => booleanTokens.has(v)).length / sampleValues.length
+    if (booleanRatio >= 0.8) return "boolean"
+
+    const datetimeRatio = sampleValues.filter((v: any) => !Number.isNaN(new Date(v as any).getTime())).length / sampleValues.length
+    if (datetimeRatio >= 0.8) return "datetime"
+
+    const numericRatio = sampleValues.filter((v: any) => {
+      const cleaned = String(v).replaceAll(",", "")
+      return cleaned !== "" && !Number.isNaN(Number(cleaned))
+    }).length / sampleValues.length
+    if (numericRatio >= 0.8) return "numeric"
+
     if (dataset?.categorical_columns?.includes(columnName)) return "categorical"
     return "text"
   }
@@ -242,6 +356,66 @@ const Cleaning = () => {
               </div>
             </div>
 
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const ValueCountsDialog = ({ onClose }: { onClose: () => void }) => {
+    const selectedColumnData = columns.find(col => col.name === selectedColumn)
+    const valueCountsEntries = Object.entries((selectedColumnData?.valueCounts || {}) as Record<string, number>)
+    const totalRows = valueCountsEntries.reduce((sum, [, count]) => sum + Number(count || 0), 0)
+    const isNumericColumn = selectedColumnData?.type === "numeric"
+
+    return (
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
+        <div className="relative bg-neutral-900 rounded-xl p-6 w-96 max-w-[90vw] border border-neutral-800 shadow-[0_0_0_1px_rgba(255,255,255,0.03),0_20px_40px_rgba(0,0,0,0.6)]" onClick={(e) => e.stopPropagation()}>
+          <div className="flex justify-between items-center mb-5">
+            <div>
+              <h3 className="text-lg font-semibold text-white">
+                Value Counts — {selectedColumn}
+              </h3>
+              <p className="text-xs text-neutral-500 mt-0.5">
+                Unique values and their frequencies
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-neutral-400 hover:text-white transition-colors"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="rounded-lg border border-neutral-800 px-3 py-3 bg-neutral-900/60">
+            {valueCountsEntries.length === 0 ? (
+              <div className="text-xs text-neutral-500 italic">
+                {isNumericColumn ? "Value counts are not available for numeric columns" : "No value counts available"}
+              </div>
+            ) : (
+              <>
+                <div className="mb-2 px-1 grid grid-cols-[1fr_auto] text-xs font-medium text-neutral-500 uppercase tracking-wide">
+                  <span>Value</span>
+                  <span>Count</span>
+                </div>
+                <div className="max-h-64 overflow-y-auto pr-1 divide-y divide-neutral-800">
+                  {valueCountsEntries.map(([value, count]) => (
+                    <div
+                      key={`${value}-${count}`}
+                      className="grid grid-cols-[1fr_auto] items-center gap-3 px-1 py-2 text-sm"
+                    >
+                      <span className="text-neutral-200 truncate">{value}</span>
+                      <span className="text-neutral-300 tabular-nums">{count}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <div className="mt-3 pt-2 border-t border-neutral-800 text-sm text-neutral-300">
+              Total Rows: <span className="font-medium text-white tabular-nums">{totalRows}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -482,19 +656,69 @@ const Cleaning = () => {
         </p>
       </div>
 
-
+      {/* Stepper Component */}
+      {pipelineSteps.length > 0 && (
+        <div className="max-w-7xl mx-auto px-6">
+          <StepsStepper steps={pipelineSteps} />
+        </div>
+      )}
 
 
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-6 py-6">
-        <div className="grid grid-cols-3 gap-6">
+
+        {/* Dataset Summary - Full Width */}
+        <div className="bg-neutral-900/80 rounded-lg border border-neutral-800 p-4 mb-6">
+          <h3 className="font-medium text-white mb-4">Dataset Summary</h3>
+          <div className="grid grid-cols-6 gap-4 text-sm">
+            {[
+              { label: "Columns", value: columns.length, icon: Columns },
+              { label: "Total Values", value: dataset.rows || 0, icon: Database },
+              { label: "Missing Values", value: totalMissing, icon: AlertTriangle, color: "text-amber-400" },
+              { label: "Outliers", value: totalOutliers, icon: Target, color: "text-red-400" },
+              { label: "Numeric", value: dataset.numerical_columns?.length || 0, icon: Hash, color: "text-blue-400" },
+              { label: "Categorical", value: dataset.categorical_columns?.length || 0, icon: Type, color: "text-emerald-400" },
+            ].map(({ label, value, icon: Icon, color }) => (
+              <div
+                key={label}
+                className="
+                  flex items-center gap-3
+                  rounded-lg px-3 py-2
+                  border border-neutral-800/70
+                  bg-gradient-to-b from-neutral-900/60 to-neutral-950
+                  shadow-[0_6px_20px_rgba(0,0,0,0.35)]
+                  hover:border-neutral-700
+                  transition-all duration-200
+                "
+              >
+                {/* Icon badge */}
+                <div className="p-2 rounded-md bg-neutral-800/60">
+                  <Icon className={`h-3.5 w-3.5 ${color ?? "text-neutral-300"}`} />
+                </div>
+
+                {/* Text */}
+                <div className="leading-tight">
+                  <div className="text-[11px] text-neutral-500 tracking-wide">
+                    {label}
+                  </div>
+                  <div className="text-base font-semibold text-white">
+                    {value}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Three Column Layout */}
+        <div className="grid grid-cols-12 gap-6">
 
           {/* Left Panel - Column List */}
-          <div className="col-span-1">
-            <div className="bg-gradient-to-b from-neutral-900/80 to-neutral-950/80 rounded-lg border border-neutral-800/70 p-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.5)] transition-shadow duration-300">
+          <div className="col-span-3">
+            <div className="bg-gradient-to-b from-neutral-900/80 to-neutral-950/80 rounded-lg border border-neutral-800/70 p-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.5)] transition-shadow duration-300 max-h-[640px] flex flex-col">
               <h3 className="font-medium text-white mb-3">Columns</h3>
-              <div className="space-y-2 max-h-135 overflow-y-auto pr-1 custom-scrollbar">
+              <div className="space-y-2 overflow-y-auto flex-1 min-h-0 pr-1">
                 {columns.map(column => {
                   const isActive = selectedColumn === column.name
                   const isNumeric = column.type === "numeric"
@@ -588,6 +812,20 @@ const Cleaning = () => {
                             <Info className="h-4 w-4" />
                           </button>
 
+                          {/* Value Counts Button */}
+                          {(column.type === "categorical" || column.type === "boolean") && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setSelectedColumn(column.name)
+                                setShowValueCounts(true)
+                              }}
+                              className="p-1 rounded-full text-neutral-500 hover:text-cyan-400 hover:bg-cyan-500/10 transition-colors"
+                            >
+                              <BarChart3 className="h-4 w-4" />
+                            </button>
+                          )}
+
                           {/* Chevron */}
                           <span
                             className={`
@@ -603,131 +841,113 @@ const Cleaning = () => {
                   )
                 })}
               </div>
-
             </div>
           </div>
 
-          {/* Right Panel */}
-          <div className="col-span-2">
-            {/* Dataset Summary */}
-            <div className="bg-neutral-900/80 rounded-lg border border-neutral-800 p-4 mb-6">
-              <h3 className="font-medium text-white mb-4">Dataset Summary</h3>
-              <div className="grid grid-cols-6 gap-4 text-sm">
-                {[
-                  { label: "Columns", value: columns.length, icon: Columns },
-                  { label: "Total Values", value: dataset.rows || 0, icon: Database },
-                  { label: "Missing Values", value: totalMissing, icon: AlertTriangle, color: "text-amber-400" },
-                  { label: "Outliers", value: totalOutliers, icon: Target, color: "text-red-400" },
-                  { label: "Numeric", value: dataset.numerical_columns?.length || 0, icon: Hash, color: "text-blue-400" },
-                  { label: "Categorical", value: dataset.categorical_columns?.length || 0, icon: Type, color: "text-emerald-400" },
-                ].map(({ label, value, icon: Icon, color }) => (
-                  <div
-                    key={label}
-                    className="
-                      flex items-center gap-3
-                      rounded-lg px-3 py-2
-                      border border-neutral-800/70
-                      bg-gradient-to-b from-neutral-900/60 to-neutral-950
-                      shadow-[0_6px_20px_rgba(0,0,0,0.35)]
-                      hover:border-neutral-700
-                      transition-all duration-200
-                    "
-                  >
-                    {/* Icon badge */}
-                    <div className="p-2 rounded-md bg-neutral-800/60">
-                      <Icon className={`h-3.5 w-3.5 ${color ?? "text-neutral-300"}`} />
-                    </div>
-
-                    {/* Text */}
-                    <div className="leading-tight">
-                      <div className="text-[11px] text-neutral-500 tracking-wide">
-                        {label}
-                      </div>
-                      <div className="text-base font-semibold text-white">
-                        {value}
-                      </div>
-                    </div>
+          {/* Middle Panel - Cleaning Actions */}
+          <div className="col-span-5">
+            <div className="bg-gradient-to-b from-neutral-900/80 to-neutral-950/80 rounded-lg border border-neutral-800/70 p-4 max-h-[630px] flex flex-col shadow-[0_8px_30px_rgba(0,0,0,0.4)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.5)] transition-shadow duration-300">
+              <h3 className="font-medium text-white mb-3">Cleaning Actions</h3>
+              <div className="space-y-4 overflow-y-auto flex-1 min-h-0">
+                {/* 1. Drop Duplicates */}
+                <button
+                  onClick={() => setActiveDialog('drop_duplicates')}
+                  className="w-full p-3 border border-neutral-700/70 rounded-lg bg-gradient-to-r from-neutral-900/40 to-neutral-950/40 hover:from-neutral-800/60 hover:to-neutral-900/60 hover:border-neutral-600/70 hover:shadow-[0_4px_20px_rgba(0,0,0,0.3)] text-left flex items-center gap-3 transition-all duration-200"
+                >
+                  <Copy className="h-4 w-4 text-indigo-400" />
+                  <div>
+                    <div className="font-medium text-white text-sm">Drop Duplicates</div>
+                    <div className="text-xs text-neutral-400">Remove duplicate rows from dataset</div>
                   </div>
-                ))}
+                </button>
+
+                {/* 2. Replace Values */}
+                <button
+                  onClick={() => setActiveDialog('replace_values')}
+                  className="w-full p-3 border border-neutral-700/70 rounded-lg bg-gradient-to-r from-neutral-900/40 to-neutral-950/40 hover:from-neutral-800/60 hover:to-neutral-900/60 hover:border-neutral-600/70 hover:shadow-[0_4px_20px_rgba(0,0,0,0.3)] text-left flex items-center gap-3 transition-all duration-200"
+                >
+                  <RefreshCw className="h-4 w-4 text-teal-400" />
+                  <div>
+                    <div className="font-medium text-white text-sm">Replace Values</div>
+                    <div className="text-xs text-neutral-400">Replace selected values in columns</div>
+                  </div>
+                </button>
+
+                {/* 3. Handle Missing Values */}
+                <button
+                  onClick={() => setActiveDialog('missing')}
+                  className="w-full p-3 border border-neutral-700/70 rounded-lg bg-gradient-to-r from-neutral-900/40 to-neutral-950/40 hover:from-neutral-800/60 hover:to-neutral-900/60 hover:border-neutral-600/70 hover:shadow-[0_4px_20px_rgba(0,0,0,0.3)] text-left flex items-center gap-3 transition-all duration-200"
+                >
+                  <AlertTriangle className="h-4 w-4 text-amber-400" />
+                  <div>
+                    <div className="font-medium text-white text-sm">Handle Missing Values</div>
+                    <div className="text-xs text-neutral-400">Fill or remove missing data</div>
+                  </div>
+                </button>
+
+                {/* 4. Handle Imbalance */}
+                <button
+                  onClick={() => setActiveDialog('imbalance')}
+                  className="w-full p-3 border border-neutral-700/70 rounded-lg bg-gradient-to-r from-neutral-900/40 to-neutral-950/40 hover:from-neutral-800/60 hover:to-neutral-900/60 hover:border-neutral-600/70 hover:shadow-[0_4px_20px_rgba(0,0,0,0.3)] text-left flex items-center gap-3 transition-all duration-200"
+                >
+                  <Scale className="h-4 w-4 text-purple-400" />
+                  <div>
+                    <div className="font-medium text-white text-sm">Handle Imbalance</div>
+                    <div className="text-xs text-neutral-400">Balance target classes</div>
+                  </div>
+                </button>
+
+                {/* 5. Handle Outliers */}
+                <button
+                  onClick={() => setActiveDialog('outliers')}
+                  className="w-full p-3 border border-neutral-700/70 rounded-lg bg-gradient-to-r from-neutral-900/40 to-neutral-950/40 hover:from-neutral-800/60 hover:to-neutral-900/60 hover:border-neutral-600/70 hover:shadow-[0_4px_20px_rgba(0,0,0,0.3)] text-left flex items-center gap-3 transition-all duration-200"
+                >
+                  <Target className="h-4 w-4 text-red-400" />
+                  <div>
+                    <div className="font-medium text-white text-sm">Handle Outliers</div>
+                    <div className="text-xs text-neutral-400">Detect and handle outliers</div>
+                  </div>
+                </button>
+
+                {/* 6. Encoding */}
+                <button
+                  onClick={() => setActiveDialog('encoding')}
+                  className="w-full p-3 border border-neutral-700/70 rounded-lg bg-gradient-to-r from-neutral-900/40 to-neutral-950/40 hover:from-neutral-800/60 hover:to-neutral-900/60 hover:border-neutral-600/70 hover:shadow-[0_4px_20px_rgba(0,0,0,0.3)] text-left flex items-center gap-3 transition-all duration-200"
+                >
+                  <Shuffle className="h-4 w-4 text-green-400" />
+                  <div>
+                    <div className="font-medium text-white text-sm">Encoding</div>
+                    <div className="text-xs text-neutral-400">Convert categorical to numeric</div>
+                  </div>
+                </button>
+
+                {/* 7. Feature Scaling */}
+                <button
+                  onClick={() => setActiveDialog('scaling')}
+                  className="w-full p-3 border border-neutral-700/70 rounded-lg bg-gradient-to-r from-neutral-900/40 to-neutral-950/40 hover:from-neutral-800/60 hover:to-neutral-900/60 hover:border-neutral-600/70 hover:shadow-[0_4px_20px_rgba(0,0,0,0.3)] text-left flex items-center gap-3 transition-all duration-200"
+                >
+                  <Filter className="h-4 w-4 text-blue-400" />
+                  <div>
+                    <div className="font-medium text-white text-sm">Feature Scaling</div>
+                    <div className="text-xs text-neutral-400">Scale numerical features</div>
+                  </div>
+                </button>
               </div>
             </div>
+          </div>
 
-
-
-
-            <div className="grid grid-cols-3 gap-4">
-
-              {/* Main Cleaning Actions */}
-              <div className="col-span-2">
-                <div className="bg-gradient-to-b from-neutral-900/80 to-neutral-950/80 rounded-lg border border-neutral-800/70 p-4 h-auto shadow-[0_8px_30px_rgba(0,0,0,0.4)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.5)] transition-shadow duration-300">
-                  <h3 className="font-medium text-white mb-3">Cleaning Actions</h3>
-                  <div className="space-y-4">
-                    <button
-                      onClick={() => setActiveDialog('missing')}
-                      className="w-full p-3 border border-neutral-700/70 rounded-lg bg-gradient-to-r from-neutral-900/40 to-neutral-950/40 hover:from-neutral-800/60 hover:to-neutral-900/60 hover:border-neutral-600/70 hover:shadow-[0_4px_20px_rgba(0,0,0,0.3)] text-left flex items-center gap-3 transition-all duration-200"
-                    >
-                      <AlertTriangle className="h-4 w-4 text-amber-400" />
-                      <div>
-                        <div className="font-medium text-white text-sm">Handle Missing Values</div>
-                        <div className="text-xs text-neutral-400">Fill or remove missing data</div>
-                      </div>
-                    </button>
-
-                    <button
-                      onClick={() => setActiveDialog('encoding')}
-                      className="w-full p-3 border border-neutral-700/70 rounded-lg bg-gradient-to-r from-neutral-900/40 to-neutral-950/40 hover:from-neutral-800/60 hover:to-neutral-900/60 hover:border-neutral-600/70 hover:shadow-[0_4px_20px_rgba(0,0,0,0.3)] text-left flex items-center gap-3 transition-all duration-200"
-                    >
-                      <Shuffle className="h-4 w-4 text-green-400" />
-                      <div>
-                        <div className="font-medium text-white text-sm">Encoding</div>
-                        <div className="text-xs text-neutral-400">Convert categorical to numeric</div>
-                      </div>
-                    </button>
-
-                    <button
-                      onClick={() => setActiveDialog('feature_selection')}
-                      className="w-full p-3 border border-neutral-700/70 rounded-lg bg-gradient-to-r from-neutral-900/40 to-neutral-950/40 hover:from-neutral-800/60 hover:to-neutral-900/60 hover:border-neutral-600/70 hover:shadow-[0_4px_20px_rgba(0,0,0,0.3)] text-left flex items-center gap-3 transition-all duration-200"
-                    >
-                      <Filter className="h-4 w-4 text-blue-400" />
-                      <div>
-                        <div className="font-medium text-white text-sm">Feature Selection</div>
-                        <div className="text-xs text-neutral-400">Remove irrelevant features</div>
-                      </div>
-                    </button>
-
-                    <button
-                      onClick={() => setActiveDialog('imbalance')}
-                      className="w-full p-3 border border-neutral-700/70 rounded-lg bg-gradient-to-r from-neutral-900/40 to-neutral-950/40 hover:from-neutral-800/60 hover:to-neutral-900/60 hover:border-neutral-600/70 hover:shadow-[0_4px_20px_rgba(0,0,0,0.3)] text-left flex items-center gap-3 transition-all duration-200"
-                    >
-                      <Scale className="h-4 w-4 text-purple-400" />
-                      <div>
-                        <div className="font-medium text-white text-sm">Handle Imbalance</div>
-                        <div className="text-xs text-neutral-400">Balance target classes</div>
-                      </div>
-                    </button>
-
-                    <button
-                      onClick={() => setActiveDialog('outliers')}
-                      className="w-full p-3 border border-neutral-700/70 rounded-lg bg-gradient-to-r from-neutral-900/40 to-neutral-950/40 hover:from-neutral-800/60 hover:to-neutral-900/60 hover:border-neutral-600/70 hover:shadow-[0_4px_20px_rgba(0,0,0,0.3)] text-left flex items-center gap-3 transition-all duration-200"
-                    >
-                      <Target className="h-4 w-4 text-red-400" />
-                      <div>
-                        <div className="font-medium text-white text-sm">Outliers</div>
-                        <div className="text-xs text-neutral-400">Detect and handle outliers</div>
-                      </div>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Utility Actions */}
-              <div className="col-span-1 space-y-4">
-                <div className="bg-gradient-to-b from-neutral-900/80 to-neutral-950/80 rounded-lg border border-neutral-800/70 p-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.5)] transition-shadow duration-300">
+          {/* Right Panel - Utility Actions */}
+          <div className="col-span-4">
+            <div className="bg-gradient-to-b from-neutral-900/80 to-neutral-950/80 rounded-lg border border-neutral-800/70 p-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.5)] transition-shadow duration-300">
+              <h3 className="font-medium text-white mb-3">Utility Actions</h3>
+              <div className="space-y-3">
+                {/* Drop Column */}
+                <div className="rounded-lg border border-neutral-800/50 p-3">
                   <div className="flex items-center gap-2 mb-2">
                     <Trash2 className="h-4 w-4 text-red-400" />
-                    <span className="font-medium text-white">Drop Column</span>
+                    <span className="font-medium text-white text-sm">Drop Column</span>
                   </div>
-                  <p className="text-sm text-neutral-400 mb-3">Remove selected column</p>
+                  <p className="text-xs text-neutral-400 mb-2">Remove selected column</p>
                   <button
                     onClick={handleDropColumn}
                     disabled={!selectedColumn}
@@ -737,12 +957,13 @@ const Cleaning = () => {
                   </button>
                 </div>
 
-                <div className="bg-gradient-to-b from-neutral-900/80 to-neutral-950/80 rounded-lg border border-neutral-800/70 p-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.5)] transition-shadow duration-300">
+                {/* Preview Data */}
+                <div className="rounded-lg border border-neutral-800/50 p-3">
                   <div className="flex items-center gap-2 mb-2">
                     <Eye className="h-4 w-4 text-blue-400" />
-                    <span className="font-medium text-white">Preview Data</span>
+                    <span className="font-medium text-white text-sm">Preview Data</span>
                   </div>
-                  <p className="text-sm text-neutral-400 mb-3">View processed data</p>
+                  <p className="text-xs text-neutral-400 mb-2">View processed data</p>
                   <button
                     onClick={() => setShowPreviewDialog(true)}
                     className="w-full px-3 py-2 bg-neutral-800/60 text-neutral-300 rounded border border-neutral-700 hover:bg-neutral-700/60 text-sm"
@@ -751,12 +972,13 @@ const Cleaning = () => {
                   </button>
                 </div>
 
-                <div className="bg-gradient-to-b from-neutral-900/80 to-neutral-950/80 rounded-lg border border-neutral-800/70 p-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.5)] transition-shadow duration-300">
-                  <h3 className="font-medium flex gap-1 text-white mb-3">
-                    <ChartArea className="text-green-400" />
-                    Visualization
-                  </h3>
-                  <p className="text-sm text-neutral-400 mb-3">View visual representation</p>
+                {/* Visualization */}
+                <div className="rounded-lg border border-neutral-800/50 p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <ChartArea className="h-4 w-4 text-green-400" />
+                    <span className="font-medium text-white text-sm">Visualization</span>
+                  </div>
+                  <p className="text-xs text-neutral-400 mb-2">View visual representation</p>
                   <button
                     onClick={() => setShowGraphDialog(true)}
                     className="w-full px-3 py-2 bg-neutral-800/60 text-neutral-300 rounded border border-neutral-700 hover:bg-neutral-700/60 text-sm flex items-center justify-center gap-2"
@@ -765,17 +987,60 @@ const Cleaning = () => {
                     Generate Graph
                   </button>
                 </div>
+
+                {/* Dataset Controls */}
+                <div className="rounded-lg border border-neutral-800/50 p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Database className="h-4 w-4 text-neutral-400" />
+                    <span className="font-medium text-white text-sm">Dataset Controls</span>
+                    {totalSteps > 0 && (
+                      <span className="ml-auto text-[10px] font-semibold bg-orange-500/20 text-orange-300 border border-orange-500/40 rounded-full px-2 py-0.5">
+                        {totalSteps} step{totalSteps !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <button
+                      onClick={handleUndo}
+                      disabled={!totalSteps || totalSteps === 0}
+                      className="w-full px-3 py-2 bg-orange-600/20 text-orange-300 rounded border border-orange-500/50 hover:bg-orange-600/30 disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center gap-2"
+                    >
+                      <Undo2 className="h-3.5 w-3.5" />
+                      Undo Last Step
+                    </button>
+                    <button
+                      onClick={handleDownload}
+                      disabled={!datasetId}
+                      className="w-full px-3 py-2 bg-cyan-600/20 text-cyan-300 rounded border border-cyan-500/50 hover:bg-cyan-600/30 disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center gap-2"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      Download CSV
+                    </button>
+                    <button
+                      onClick={handleFinalize}
+                      disabled={!totalSteps || totalSteps === 0}
+                      className="w-full px-3 py-2 bg-emerald-600/20 text-emerald-300 rounded border border-emerald-500/50 hover:bg-emerald-600/30 disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center gap-2"
+                    >
+                      <CheckCircle className="h-3.5 w-3.5" />
+                      Finalize Dataset
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
-
-            {/* Dataset preview is handled via the Preview dialog */}
           </div>
+
         </div>
       </div>
 
       {/* Column Info Dialog */}
       {showColumnInfo && selectedColumn && (
         <ColumnInfoDialog onClose={() => setShowColumnInfo(false)} />
+      )}
+
+      {/* Value Counts Dialog */}
+      {showValueCounts && selectedColumn && (
+        <ValueCountsDialog onClose={() => setShowValueCounts(false)} />
       )}
 
       {/* Preview Dialog */}
@@ -815,21 +1080,21 @@ const Cleaning = () => {
         const rawData = dataset?.data?.slice(0, 100) || [];
         console.log('🔍 Raw data:', rawData);
         console.log('🔍 Selected columns:', { selectedXColumn, selectedYColumn });
-        
+
         // Group by X column and aggregate Y values
         const aggregated = rawData.reduce((acc: any, row: any) => {
           const xValue = String(row[selectedXColumn]);
           const yValue = Number(row[selectedYColumn]);
-          
+
           if (!acc[xValue]) {
             acc[xValue] = { count: 0, sum: 0 };
           }
           acc[xValue].count += 1;
           acc[xValue].sum += isNaN(yValue) ? 0 : yValue;
-          
+
           return acc;
         }, {});
-        
+
         // Transform to chart format
         const chartData = Object.entries(aggregated).map(([key, value]: [string, any]) => ({
           [selectedXColumn]: key,
@@ -837,9 +1102,9 @@ const Cleaning = () => {
           sum: value.sum,
           average: value.sum / value.count
         }));
-        
+
         console.log('📊 Chart data:', chartData);
-        
+
         return (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[70]" onClick={() => setShowChart(false)}>
             <div className="bg-neutral-900 rounded-xl p-6 w-[800px] max-w-[90vw] border border-neutral-800 shadow-2xl" onClick={(e) => e.stopPropagation()}>

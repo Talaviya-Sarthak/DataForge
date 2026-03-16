@@ -1,127 +1,96 @@
+"""Training pipeline orchestrator.
+
+Coordinates the full training workflow:
+    1. Retrieve the finalized DataFrame by pipeline_id.
+    2. Separate features and target.
+    3. Split into train / test sets.
+    4. Train all models for the chosen task type.
+    5. Export trained models to disk.
+    6. Build and return a sorted leaderboard JSON.
 """
-Training Pipeline
-=================
-
-Top-level orchestrator for the full ML training workflow:
-
-    DataFrame -> split -> train all models -> evaluate -> export -> leaderboard JSON
-
-This is the single entry point called by the API layer.
-"""
-
-import logging
 
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-from app.training.trainer import train_all_models
-
-logger = logging.getLogger(__name__)
-
-# ── defaults ────────────────────────────────────────────────────────────────
-_TEST_SIZE = 0.2
-_RANDOM_STATE = 42
+from app.training.model_registry import get_models_for_task
+from app.training.trainer import train_models
+from app.training.exporter import export_model
 
 
-def run_training(
+# ── Primary metric used for leaderboard sorting ──────────────
+_PRIMARY_METRIC: dict[str, str] = {
+    "classification": "accuracy",
+    "regression": "r2_score",
+}
+
+
+def run_training_pipeline(
     df: pd.DataFrame,
-    target_column: str,
+    pipeline_id: str,
     task_type: str,
-    dataset_id: int | str,
-    test_size: float = _TEST_SIZE,
-    random_state: int = _RANDOM_STATE,
+    target_column: str,
 ) -> dict:
-    """
-    Execute the full training pipeline on a finalized DataFrame.
-
-    Steps:
-        1. Separate features / target.
-        2. Split into train / test sets.
-        3. Train all registered models for the given task type.
-        4. Build and return the leaderboard JSON.
+    """Execute the full training pipeline for a single preprocessing pipeline.
 
     Args:
-        df:            Finalized pandas DataFrame (post-preprocessing).
-        target_column: Name of the target column.
-        task_type:     "classification" or "regression".
-        dataset_id:    Unique identifier for the dataset (used in filenames).
-        test_size:     Fraction of data reserved for testing (default 0.2).
-        random_state:  Seed for reproducibility (default 42).
+        df: The finalized DataFrame (already preprocessed).
+        pipeline_id: Unique pipeline identifier.
+        task_type: ``"classification"`` or ``"regression"``.
+        target_column: Name of the target column in *df*.
 
     Returns:
-        dict matching the leaderboard schema:
-        {
-            "task_type": str,
-            "target_column": str,
-            "models": [ { "model": ..., <metrics>, "model_path": ... }, ... ]
-        }
+        dict: Leaderboard JSON with pipeline metadata and per-model metrics.
 
     Raises:
-        ValueError: If target_column is missing or task_type is invalid.
+        ValueError: If *target_column* is not present in *df*, or
+                     *task_type* is unsupported.
     """
-    # ── validate inputs ─────────────────────────────────────────────────────
+    # ── 1. Validate inputs ────────────────────────────────────
     if target_column not in df.columns:
         raise ValueError(
-            f"Target column '{target_column}' not found in DataFrame. "
+            f"Target column '{target_column}' not found in dataset. "
             f"Available columns: {list(df.columns)}"
         )
 
-    if task_type not in ("classification", "regression"):
+    if task_type not in _PRIMARY_METRIC:
         raise ValueError(
-            f"Invalid task_type '{task_type}'. Must be 'classification' or 'regression'."
+            f"Unsupported task type '{task_type}'. "
+            f"Use 'classification' or 'regression'."
         )
 
-    # ── separate features and target ────────────────────────────────────────
+    # ── 2. Separate features and target ───────────────────────
     X = df.drop(columns=[target_column])
     y = df[target_column]
 
-    logger.info(
-        "Starting training — task=%s, target=%s, rows=%d, features=%d",
-        task_type,
-        target_column,
-        len(df),
-        X.shape[1],
-    )
-
-    # ── train / test split ──────────────────────────────────────────────────
-    split_kwargs = dict(
-        test_size=test_size,
-        random_state=random_state,
-    )
+    # ── 3. Train / test split ─────────────────────────────────
+    split_kwargs: dict = {
+        "test_size": 0.2,
+        "random_state": 42,
+    }
     if task_type == "classification":
         split_kwargs["stratify"] = y
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, **split_kwargs)
 
-    logger.info("Split — train=%d, test=%d", len(X_train), len(X_test))
+    # ── 4. Fetch models and train ─────────────────────────────
+    models = get_models_for_task(task_type)
+    results = train_models(models, X_train, y_train, X_test, y_test, task_type)
 
-    # ── train models ────────────────────────────────────────────────────────
-    model_results = train_all_models(
-        X_train,
-        y_train,
-        X_test,
-        y_test,
-        task_type=task_type,
-        dataset_id=dataset_id,
-    )
+    # ── 5. Export models and build leaderboard entries ────────
+    leaderboard: list[dict] = []
+    for result in results:
+        model_path = export_model(result["instance"], pipeline_id, result["name"])
 
-    # ── build leaderboard (sort by primary metric, descending) ──────────────
-    primary_metric = "accuracy" if task_type == "classification" else "r2_score"
-    successful = [r for r in model_results if "error" not in r]
-    failed = [r for r in model_results if "error" in r]
+        entry = {"model": result["name"], **result["metrics"], "model_path": model_path}
+        leaderboard.append(entry)
 
-    successful.sort(key=lambda r: r.get(primary_metric, 0), reverse=True)
+    # ── 6. Sort by primary metric (descending) ────────────────
+    primary = _PRIMARY_METRIC[task_type]
+    leaderboard.sort(key=lambda m: m.get(primary, 0), reverse=True)
 
-    leaderboard = {
+    return {
+        "pipeline_id": pipeline_id,
         "task_type": task_type,
         "target_column": target_column,
-        "models": successful + failed,
+        "models": leaderboard,
     }
-
-    logger.info(
-        "Training complete — %d models succeeded, %d failed",
-        len(successful),
-        len(failed),
-    )
-
-    return leaderboard
