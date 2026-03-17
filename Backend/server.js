@@ -1,8 +1,9 @@
+
 require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
-const pipelineService = require("./services/pipeline.service");
+const datasetService = require("./services/dataset.service");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -12,7 +13,7 @@ const PORT = process.env.PORT || 5000;
 // =======================
 (async () => {
   try {
-    await pipelineService.initializeSystem();
+    await datasetService.initializeSystem();
     console.log("✅ Pipeline system initialized");
   } catch (error) {
     console.error("❌ Pipeline system initialization failed:", error.message);
@@ -48,7 +49,6 @@ app.use("/api/user", require("./routes/preferencesEntry"));
 // DATASET ROUTES (OPTIONAL)
 // =======================
 app.use("/api/datasets", require("./routes/dataset.routes"));
-app.use("/api/pipelines", require("./routes/pipeline.routes"));
 
 // =======================
 // HEALTH CHECK

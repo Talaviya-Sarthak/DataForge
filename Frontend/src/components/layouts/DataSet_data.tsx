@@ -1,10 +1,11 @@
 import { FileUpload } from "@/components/ui/file-upload"
 import { Spinner } from "@/components/ui/spinner"
-import { useState, Suspense, lazy } from "react"
+import { useState, useEffect, useRef, Suspense, lazy } from "react"
 import * as React from "react"
 import { useMutation } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
 import { useDataset } from "@/contexts/DatasetContext"
+import { getUserDatasets, resumeDataset, DatasetListItem } from "@/services/cleaning.service"
 
 // Lazy load DataTable since it's only needed when data is uploaded
 const DataTable = lazy(() => import("@/components/ui/DataTable"))
@@ -42,16 +43,16 @@ const uploadDataset = async (file: File) => {
   }
 
   const data = await res.json()
-  
+
   // Validate successful upload based on ML service response format
   if (!data.data || !Array.isArray(data.data)) {
     throw new Error("Invalid response: missing data")
   }
-  
+
   if (typeof data.rows !== 'number' || data.rows <= 0) {
     throw new Error("Invalid response: invalid row count")
   }
-  
+
   if (typeof data.columns !== 'number' || data.columns <= 0) {
     throw new Error("Invalid response: invalid column count")
   }
@@ -63,7 +64,7 @@ const uploadDataset = async (file: File) => {
 export const useDatasetUpload = () => {
   const [file, setFile] = useState<File | null>(null)
   const [uploadKey, setUploadKey] = useState(0)
-  const { setDataset, clearDataset } = useDataset()
+  const { setDataset, clearDataset, setRawFile } = useDataset()
 
   const uploadMutation = useMutation({
     mutationFn: uploadDataset,
@@ -84,6 +85,7 @@ export const useDatasetUpload = () => {
   const handleFileUpload = (files: File[]) => {
     if (!files || files.length === 0) return
     setFile(files[0])
+    setRawFile(files[0]) // Keep raw file for potential resume
     uploadMutation.mutate(files[0])
   }
 
@@ -120,13 +122,48 @@ const Dataset_tabledata = ({
   uploadKey: number
   resetUpload: () => void
 }) => {
-  const { dataset } = useDataset()
+  const { dataset, setDataset } = useDataset()
   const currentDataset = uploadMutation.data || dataset
   const loading = uploadMutation.isPending
   const error = uploadMutation.isError
 
+  // ── Resume previous datasets ──
+  const [previousDatasets, setPreviousDatasets] = useState<DatasetListItem[]>([])
+  const [resumingId, setResumingId] = useState<number | null>(null)
+  const resumeFileRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!currentDataset) {
+      const token = localStorage.getItem('token')
+      if (token) {
+        getUserDatasets()
+          .then(ds => setPreviousDatasets(ds.filter(d => d.status === 'in_progress' && (d.total_steps ?? 0) > 0)))
+          .catch(() => { })
+      }
+    }
+  }, [currentDataset])
+
+  const handleResumeClick = (id: number) => {
+    setResumingId(id)
+    resumeFileRef.current?.click()
+  }
+
+  const handleResumeFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !resumingId) return
+    try {
+      const result = await resumeDataset(resumingId, file)
+      setDataset(result)
+    } catch (err: any) {
+      console.error('Resume failed:', err)
+    } finally {
+      setResumingId(null)
+      if (resumeFileRef.current) resumeFileRef.current.value = ''
+    }
+  }
+
   return (
-    <div className="min-h-screen relative bg-transeperent">
+    <div className="relative bg-transeperent pb-10">
       <div className="mt-8">
         {!currentDataset && (
           <>
@@ -140,11 +177,51 @@ const Dataset_tabledata = ({
             <div className="w-full max-w-4xl xl:max-w-5xl 2xl:max-w-6xl mx-auto min-h-80 rounded-lg">
               <FileUpload key={uploadKey} onChange={handleFileUpload} />
             </div>
+
+            {/* Hidden file input for resume */}
+            <input
+              ref={resumeFileRef}
+              type="file"
+              accept=".csv"
+              className="hidden"
+              onChange={handleResumeFile}
+            />
+
+            {/* Previous datasets (resume) */}
+            {previousDatasets.length > 0 && (
+              <div className="w-full max-w-4xl xl:max-w-5xl 2xl:max-w-6xl mx-auto mt-10">
+                <h3 className="text-sm font-semibold text-neutral-400 uppercase tracking-wider mb-3">
+                  Resume a previous dataset
+                </h3>
+                <div className="space-y-2">
+                  {previousDatasets.map(ds => (
+                    <div
+                      key={ds.id}
+                      className="flex items-center justify-between rounded-lg border border-neutral-800 bg-neutral-900/60 px-4 py-3 hover:border-neutral-700 transition-colors"
+                    >
+                      <div>
+                        <div className="text-sm text-white font-medium">{ds.original_filename}</div>
+                        <div className="text-xs text-neutral-500 mt-0.5">
+                          {ds.total_rows} rows &middot; {ds.total_steps ?? 0} step{(ds.total_steps ?? 0) !== 1 ? 's' : ''} applied
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleResumeClick(ds.id)}
+                        disabled={resumingId === ds.id}
+                        className="px-3 py-1.5 text-xs font-medium rounded-md bg-blue-600/20 text-blue-300 border border-blue-500/40 hover:bg-blue-600/30 disabled:opacity-50"
+                      >
+                        {resumingId === ds.id ? 'Resuming…' : 'Resume'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>
 
-      <div className="mb-12 -mt-16">
+      <div className="mb-12 mt-6">
         {loading && (
           <div className="flex justify-center mt-15">
             <Spinner variant="bars" size={40} className="text-white" />
@@ -279,7 +356,7 @@ const Dataset_tabledata = ({
           </div>
         )}
 
-        
+
 
         {currentDataset?.statistics && (
           <div className="max-w-6xl xl:max-w-7xl 2xl:max-w-8xl mx-auto mt-10">

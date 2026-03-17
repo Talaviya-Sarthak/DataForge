@@ -5,6 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/contexts/AuthContext"
+import { fetchOnboardingProfile } from "@/services/onboarding.service"
 
 interface UserProfileDialogProps {
   open: boolean
@@ -14,9 +15,28 @@ interface UserProfileDialogProps {
 const UserProfileDialog: React.FC<UserProfileDialogProps> = ({ open, onOpenChange }) => {
   const { user, logout } = useAuth()
   const [copiedField, setCopiedField] = useState<string | null>(null)
+  const [profileRole, setProfileRole] = useState<string | null>(null)
+  const [profileCompany, setProfileCompany] = useState<string | null>(null)
 
   React.useEffect(() => {
     if (!open) setCopiedField(null)
+  }, [open])
+
+  React.useEffect(() => {
+    if (!open) return
+
+    const token = localStorage.getItem("token")
+    if (!token) return
+
+    fetchOnboardingProfile(token)
+      .then((data) => {
+        setProfileRole(data.role)
+        setProfileCompany(data.company)
+      })
+      .catch(() => {
+        setProfileRole(null)
+        setProfileCompany(null)
+      })
   }, [open])
 
   const copyToClipboard = async (text: string, field: string) => {
@@ -40,6 +60,9 @@ const UserProfileDialog: React.FC<UserProfileDialogProps> = ({ open, onOpenChang
     return null
   }
 
+  const resolvedRole = profileRole || user?.role || "Not provided"
+  const resolvedCompany = profileCompany || user?.organization
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md bg-gradient-to-br from-[#0B0D10] via-[#111315] to-[#0B0D10] border-[#9FA4B7]/20 text-white p-0 overflow-hidden shadow-[0_25px_80px_rgba(0,0,0,0.9)] transition-all duration-200 hover:shadow-[0_30px_100px_rgba(0,0,0,0.95)]">
@@ -50,7 +73,7 @@ const UserProfileDialog: React.FC<UserProfileDialogProps> = ({ open, onOpenChang
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#C9CCD6]/5 to-transparent opacity-60" />
             {/* Top-right light reflection */}
             <div className="absolute -top-10 -right-10 w-32 h-32 bg-gradient-radial from-[#C9CCD6]/10 to-transparent rounded-full blur-xl" />
-            
+
             <DialogHeader className="space-y-3 relative z-10">
               <DialogTitle className="text-xl font-semibold text-[#C9CCD6] tracking-wide">
                 Profile
@@ -71,7 +94,7 @@ const UserProfileDialog: React.FC<UserProfileDialogProps> = ({ open, onOpenChang
                 {/* Metallic ring glow */}
                 <div className="absolute inset-0 rounded-full bg-gradient-to-r from-[#C9CCD6]/20 via-transparent to-[#9FA4B7]/20 blur-sm" />
               </div>
-              
+
               <div className="flex-1 min-w-0">
                 <h3 className="text-lg font-semibold text-[#C9CCD6] truncate tracking-wide">
                   {user?.name}
@@ -94,7 +117,7 @@ const UserProfileDialog: React.FC<UserProfileDialogProps> = ({ open, onOpenChang
                 <p className="text-xs text-[#9FA4B7]/50 uppercase tracking-widest font-medium">
                   Role
                 </p>
-                <p className="text-sm text-[#C9CCD6] tracking-wide">{user?.role}</p>
+                <p className="text-sm text-[#C9CCD6] tracking-wide">{resolvedRole}</p>
               </div>
             </div>
 
@@ -110,14 +133,14 @@ const UserProfileDialog: React.FC<UserProfileDialogProps> = ({ open, onOpenChang
               </div>
             )}
 
-            {user?.organization && (
+            {resolvedCompany && (
               <div className="flex items-center gap-3 transition-all duration-200 hover:bg-[#111315]/30 rounded-lg p-2 -m-2">
                 <Building className="h-4 w-4 text-[#9FA4B7]/60" />
                 <div className="flex-1">
                   <p className="text-xs text-[#9FA4B7]/50 uppercase tracking-widest font-medium">
-                    Organization
+                    Company
                   </p>
-                  <p className="text-sm text-[#C9CCD6] tracking-wide">{user.organization}</p>
+                  <p className="text-sm text-[#C9CCD6] tracking-wide">{resolvedCompany}</p>
                 </div>
               </div>
             )}
@@ -126,8 +149,8 @@ const UserProfileDialog: React.FC<UserProfileDialogProps> = ({ open, onOpenChang
               <div className="h-4 w-4 flex items-center justify-center">
                 <div className={cn(
                   "h-2 w-2 rounded-full transition-all duration-200",
-                  user?.status === "active" 
-                    ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" 
+                  user?.status === "active"
+                    ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]"
                     : "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]"
                 )} />
               </div>

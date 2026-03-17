@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight, Check, Loader2 } from "lucide-react";
 import { submitOnboardingData } from "@/services/onboarding.service";
@@ -142,6 +142,9 @@ const UserInfoForm = ({ onComplete, initialData, userCredentials }: UserInfoForm
       }
 
       const signinData = await signinResponse.json();
+      if (signinData?.token) {
+        localStorage.setItem('token', signinData.token);
+      }
       await submitOnboardingData(formData, signinData.token);
       onComplete(formData);
     } catch (error) {

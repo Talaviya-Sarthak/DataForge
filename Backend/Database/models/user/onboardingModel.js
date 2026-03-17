@@ -1,8 +1,5 @@
 const pool = require("../../db");
 
-/**
- * Insert OR update onboarding data
- */
 const upsertOnboarding = async (
   userId,
   company,
@@ -43,6 +40,19 @@ const upsertOnboarding = async (
   return result;
 };
 
+const getOnboardingByUserId = async (userId) => {
+  const sql = `
+    SELECT company, profession
+    FROM user_onboarding
+    WHERE user_id = ?
+    LIMIT 1
+  `;
+
+  const [results] = await pool.execute(sql, [userId]);
+  return results.length ? results[0] : null;
+};
+
 module.exports = {
-  upsertOnboarding
+  upsertOnboarding,
+  getOnboardingByUserId
 };

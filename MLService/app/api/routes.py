@@ -1,170 +1,176 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Form
+from fastapi import APIRouter, UploadFile, File, HTTPException, Form, Query
+from fastapi.responses import StreamingResponse
 import pandas as pd
 import json
-import pickle
-import os
-from pathlib import Path
+import io
+from pandas.api.types import is_bool_dtype, is_datetime64_any_dtype, is_numeric_dtype
 
 from app.data.loader import load_Data
 from app.data.preview import preview_Data
 from app.data.stats import dataset_stats
-from app.preprocessings.pipeline import PreprocessingPipeline
+from app.preprocessings.Preprocessing_pipeline import PreprocessingPipeline
+from app.training.training_pipeline import run_training_pipeline
+from app.feature_engineering import FeatureEngineeringService
 
 router = APIRouter()
 
-# Cache directory
-CACHE_DIR = Path("cache")
-CACHE_DIR.mkdir(exist_ok=True)
+# ── In-memory RAW dataset storage ─────────────────────────────
+# Key: "u{user_id}_d{dataset_id}" → pd.DataFrame
+# Stores ONLY the raw (unprocessed) dataset.
+# No disk cache, no pickle persistence.
+# Lost on restart — user must re-upload.
+_RAW_STORE: dict[str, pd.DataFrame] = {}
 
-# Per-user dataset storage
-USER_DATASETS: dict[int, pd.DataFrame] = {}
+# ── In-memory PIPELINE dataset storage ────────────────────────
+# Key: pipeline_id (str) → pd.DataFrame
+# Stores finalized (preprocessed) datasets ready for ML training.
+# Populated by the /pipeline/finalize endpoint.
+PIPELINE_DATASETS: dict[str, pd.DataFrame] = {}
 
-def get_cache_file(user_id: int) -> Path:
-    """Get cache file path for specific user"""
-    return CACHE_DIR / f"dataset_user_{user_id}.pkl"
 
-def save_dataset_cache(user_id: int, df: pd.DataFrame):
-    """Save dataset to disk cache for specific user"""
-    cache_file = get_cache_file(user_id)
-    with open(cache_file, 'wb') as f:
-        pickle.dump(df, f)
+def _key(user_id: int, dataset_id: int = 0) -> str:
+    return f"u{user_id}_d{dataset_id}"
 
-def load_dataset_cache(user_id: int) -> pd.DataFrame | None:
-    """Load dataset from disk cache for specific user"""
-    cache_file = get_cache_file(user_id)
-    if cache_file.exists():
-        try:
-            with open(cache_file, 'rb') as f:
-                return pickle.load(f)
-        except:
-            return None
-    return None
 
-def get_user_dataset(user_id: int) -> pd.DataFrame | None:
-    """Get dataset for user from memory or cache"""
-    if user_id in USER_DATASETS:
-        return USER_DATASETS[user_id]
-    
-    # Try loading from cache
-    cached = load_dataset_cache(user_id)
-    if cached is not None:
-        USER_DATASETS[user_id] = cached
-    return cached
+def _get_raw(user_id: int, dataset_id: int = 0) -> pd.DataFrame | None:
+    return _RAW_STORE.get(_key(user_id, dataset_id))
 
-def set_user_dataset(user_id: int, df: pd.DataFrame):
-    """Set dataset for user in memory and cache"""
-    USER_DATASETS[user_id] = df
-    save_dataset_cache(user_id, df)
+
+def _set_raw(user_id: int, dataset_id: int, df: pd.DataFrame):
+    _RAW_STORE[_key(user_id, dataset_id)] = df
+
+
+def _detect_column_kind(series: pd.Series) -> str:
+    """
+    Detect a column kind using robust coercion rules.
+
+    Returns one of: numeric | datetime | boolean | categorical
+    """
+    non_null = series.dropna()
+    if non_null.empty:
+        return "categorical"
+
+    # Native pandas dtypes first.
+    if is_bool_dtype(series):
+        return "boolean"
+    if is_datetime64_any_dtype(series):
+        return "datetime"
+    if is_numeric_dtype(series):
+        return "numeric"
+
+    as_text = non_null.astype(str).str.strip()
+    if as_text.empty:
+        return "categorical"
+
+    lowered = as_text.str.lower()
+
+    # Boolean-like text or binary values.
+    boolean_tokens = {"true", "false", "yes", "no", "y", "n", "t", "f", "0", "1"}
+    if lowered.isin(boolean_tokens).mean() >= 0.8:
+        return "boolean"
+
+    # Datetime-like strings.
+    dt_coerced = pd.to_datetime(as_text, errors="coerce")
+    if dt_coerced.notna().mean() >= 0.8:
+        return "datetime"
+
+    # Numeric-like strings (handles values like "1,234.5").
+    numeric_coerced = pd.to_numeric(
+        as_text.str.replace(",", "", regex=False), errors="coerce"
+    )
+    if numeric_coerced.notna().mean() >= 0.8:
+        return "numeric"
+
+    return "categorical"
+
+
+def _classify_columns(df: pd.DataFrame):
+    numeric_cols, categorical_cols = [], []
+
+    for col in df.columns:
+        kind = _detect_column_kind(df[col])
+        if kind == "numeric":
+            numeric_cols.append(col)
+        else:
+            # Keep response structure unchanged: non-numeric columns remain categorical bucket.
+            categorical_cols.append(col)
+
+    return numeric_cols, categorical_cols
+
+
+def _build_response(df: pd.DataFrame, preview_rows: int = 20) -> dict:
+    preview = preview_Data(df, n=preview_rows)
+    stats = dataset_stats(df)
+    numeric_cols, categorical_cols = _classify_columns(df)
+    return {
+        "data": preview["rows"],
+        "rows": len(df),
+        "columns": len(df.columns),
+        "numerical_columns": numeric_cols,
+        "categorical_columns": categorical_cols,
+        "statistics": stats,
+    }
 
 
 def normalize_step(step, step_index=0):
-    """Defensive normalization of preprocessing step"""
-    # If step is string, parse to dict
     if isinstance(step, str):
         try:
             step = json.loads(step)
         except json.JSONDecodeError:
             raise ValueError(f"Step {step_index}: Invalid JSON string")
-    
-    # Validate step is dict
     if not isinstance(step, dict):
-        raise ValueError(f"Step {step_index}: Must be dict, got {type(step)}")
-    
-    # Ensure params is dict
+        raise ValueError(f"Step {step_index}: Must be dict")
     if "params" in step and isinstance(step["params"], str):
         try:
             step["params"] = json.loads(step["params"])
         except json.JSONDecodeError:
             raise ValueError(f"Step {step_index}: Invalid params JSON")
-    
     return step
 
 
 # ─────────────────────────────────────────────
-# DATA UPLOAD (BACKWARD-COMPATIBLE RESPONSE)
+# DATA UPLOAD
 # ─────────────────────────────────────────────
 @router.post("/data/upload")
-async def upload_dataset(file: UploadFile = File(...), user_id: int = Form(...)):
-    """
-    Upload dataset for preview + metadata.
-    Response format matches OLD frontend contract.
-    """
-    print(f"📥 Upload for user_id: {user_id}")
-    
+async def upload_dataset(
+    file: UploadFile = File(...),
+    user_id: int = Form(...),
+    dataset_id: int = Form(0),
+):
     try:
         df = load_Data(file)
         df = df.replace([float("inf"), float("-inf")], None)
 
-        set_user_dataset(user_id, df)
-        print(f"✅ Dataset saved for user {user_id}")
+        _set_raw(user_id, dataset_id, df)
 
-        preview = preview_Data(df, n=20)
-        stats = dataset_stats(df)
-
-        # Column names (internal)
-        column_names = preview["columns"]
-
-        # Lightweight type inference (UI only)
-        numeric_cols = []
-        categorical_cols = []
-
-        for col in column_names:
-            series = df[col].dropna()
-            sample = series.iloc[0] if not series.empty else None
-
-            if isinstance(sample, (int, float)):
-                numeric_cols.append(col)
-            else:
-                categorical_cols.append(col)
-
-        # 🔒 RESPONSE SHAPE MATCHES OLD API
-        return {
-            "data": preview["rows"],
-            "rows": len(df),
-
-            # IMPORTANT: number, not list
-            "columns": len(column_names),
-
-            "numerical_columns": numeric_cols,
-            "categorical_columns": categorical_cols,
-
-            "statistics": stats,
-        }
+        resp = _build_response(df)
+        resp["dataset_id"] = dataset_id
+        return resp
 
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
 # ─────────────────────────────────────────────
-# DATA PREPROCESS (DYNAMIC PIPELINE)
+# DATA PREPROCESS (REBUILD-BASED)
 # ─────────────────────────────────────────────
 @router.post("/data/preprocess")
 async def preprocess_dataset(payload: dict):
-    """
-    Execute preprocessing pipeline on uploaded dataset.
-    """
     user_id = payload.get("user_id", 0)
-    print(f"🧹 Preprocess for user_id: {user_id}")
-    
-    # Get user's dataset
-    df = get_user_dataset(user_id)
-    
-    if df is None:
-        print(f"❌ No dataset found for user {user_id}")
-        raise HTTPException(status_code=400, detail="No dataset uploaded. Please upload a dataset first.")
-    
-    print(f"✅ Found dataset for user {user_id} with {len(df)} rows")
+    dataset_id = payload.get("dataset_id", 0)
+
+    raw_df = _get_raw(user_id, dataset_id)
+    if raw_df is None:
+        raise HTTPException(
+            status_code=400,
+            detail="No dataset uploaded. Please upload a dataset first.",
+        )
 
     try:
-        # Defensive normalization of steps
         if "steps" in payload and isinstance(payload["steps"], list):
-            normalized_steps = []
-            for i, step in enumerate(payload["steps"]):
-                try:
-                    normalized_steps.append(normalize_step(step, i))
-                except ValueError as e:
-                    raise HTTPException(status_code=400, detail=str(e))
-            payload["steps"] = normalized_steps
+            payload["steps"] = [
+                normalize_step(s, i) for i, s in enumerate(payload["steps"])
+            ]
 
         steps = payload.get("steps", [])
         start_index = payload.get("start_index", 0)
@@ -172,43 +178,206 @@ async def preprocess_dataset(payload: dict):
         preview_rows = payload.get("preview_rows", 20)
 
         pipeline = PreprocessingPipeline(steps=steps)
-        
-        processed_df = pipeline.run(
-            df=df,
+        processed = pipeline.run(
+            df=raw_df.copy(),
             start_index=start_index,
-            stop_index=stop_index
+            stop_index=stop_index,
         )
 
-        # Persist cleaned data so future operations build on it
-        set_user_dataset(user_id, processed_df)
+        return _build_response(processed, preview_rows)
 
-        preview = preview_Data(processed_df, n=preview_rows)
-        stats = dataset_stats(processed_df)
-
-        # Column type inference (same logic as upload)
-        column_names = list(processed_df.columns)
-        numeric_cols = []
-        categorical_cols = []
-        for col in column_names:
-            series = processed_df[col].dropna()
-            sample = series.iloc[0] if not series.empty else None
-            if isinstance(sample, (int, float)):
-                numeric_cols.append(col)
-            else:
-                categorical_cols.append(col)
-
-        return {
-            "data": preview["rows"],
-            "rows": len(processed_df),
-            "columns": len(column_names),
-            "numerical_columns": numeric_cols,
-            "categorical_columns": categorical_cols,
-            "statistics": stats,
-        }
-
-    except HTTPException:
-        raise
     except Exception as e:
-        print(f"ML Service Error: {str(e)}")
-        print(f"Payload: {payload}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        print(f"Data Preprocessing error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+# ─────────────────────────────────────────────
+# FINALIZE
+# ─────────────────────────────────────────────
+@router.post("/data/finalize")
+async def finalize_dataset(payload: dict):
+    user_id = payload.get("user_id", 0)
+    dataset_id = payload.get("dataset_id", 0)
+
+    raw_df = _get_raw(user_id, dataset_id)
+    if raw_df is None:
+        raise HTTPException(status_code=400, detail="No dataset uploaded.")
+
+    try:
+        steps = payload.get("steps", [])
+        if steps:
+            steps = [normalize_step(s, i) for i, s in enumerate(steps)]
+            pipeline = PreprocessingPipeline(steps=steps)
+            processed = pipeline.run(df=raw_df.copy(), start_index=0)
+        else:
+            processed = raw_df.copy()
+
+        _set_raw(user_id, dataset_id, processed)
+        return _build_response(processed)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─────────────────────────────────────────────
+# DOWNLOAD
+# ─────────────────────────────────────────────
+@router.get("/data/download")
+async def download_dataset(
+    user_id: int = Query(...),
+    dataset_id: int = Query(0),
+):
+    df = _get_raw(user_id, dataset_id)
+    if df is None:
+        raise HTTPException(status_code=400, detail="No dataset found.")
+
+    buf = io.StringIO()
+    df.to_csv(buf, index=False)
+    buf.seek(0)
+
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f'attachment; filename="dataset_{dataset_id}.csv"'
+        },
+    )
+
+
+@router.post("/data/download")
+async def download_dataset_with_steps(payload: dict):
+    user_id = payload.get("user_id", 0)
+    dataset_id = payload.get("dataset_id", 0)
+
+    raw_df = _get_raw(user_id, dataset_id)
+    if raw_df is None:
+        raise HTTPException(status_code=400, detail="No dataset found.")
+
+    try:
+        steps = payload.get("steps", [])
+        if steps:
+            steps = [normalize_step(s, i) for i, s in enumerate(steps)]
+            pipeline = PreprocessingPipeline(steps=steps)
+            df = pipeline.run(df=raw_df.copy(), start_index=0)
+        else:
+            df = raw_df.copy()
+
+        buf = io.StringIO()
+        df.to_csv(buf, index=False)
+        buf.seek(0)
+
+        return StreamingResponse(
+            iter([buf.getvalue()]),
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": f'attachment; filename="dataset_{dataset_id}.csv"'
+            },
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─────────────────────────────────────────────
+# PIPELINE FINALIZE (for training)
+# ─────────────────────────────────────────────
+@router.post("/pipeline/finalize")
+async def finalize_pipeline(payload: dict):
+    """Finalize a preprocessing pipeline and store its dataset for training.
+
+    Expects:
+        pipeline_id (str): Unique pipeline identifier.
+        user_id (int): Owner of the source dataset.
+        dataset_id (int, optional): Defaults to 0.
+        steps (list, optional): Preprocessing steps to replay.
+
+    The resulting DataFrame is stored in ``PIPELINE_DATASETS[pipeline_id]``
+    and is ready for the ``/train`` endpoint.
+    """
+    pipeline_id = payload.get("pipeline_id")
+    if not pipeline_id:
+        raise HTTPException(status_code=400, detail="pipeline_id is required.")
+
+    user_id = payload.get("user_id", 0)
+    dataset_id = payload.get("dataset_id", 0)
+
+    raw_df = _get_raw(user_id, dataset_id)
+    if raw_df is None:
+        raise HTTPException(status_code=400, detail="No dataset uploaded.")
+
+    try:
+        steps = payload.get("steps", [])
+        if steps:
+            steps = [normalize_step(s, i) for i, s in enumerate(steps)]
+            pipeline = PreprocessingPipeline(steps=steps)
+            processed = pipeline.run(df=raw_df.copy(), start_index=0)
+        else:
+            processed = raw_df.copy()
+
+        PIPELINE_DATASETS[pipeline_id] = processed
+
+        resp = _build_response(processed)
+        resp["pipeline_id"] = pipeline_id
+        return resp
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─────────────────────────────────────────────
+# ML TRAINING
+# ─────────────────────────────────────────────
+@router.post("/train")
+async def train(payload: dict):
+    """Train models on a finalized pipeline dataset.
+
+    Expects:
+        pipeline_id (str): Must already exist in ``PIPELINE_DATASETS``.
+        task_type (str): ``"classification"`` or ``"regression"``.
+        target_column (str): Name of the target column.
+
+    Returns:
+        dict: Leaderboard JSON sorted by primary metric.
+    """
+    pipeline_id = payload.get("pipeline_id")
+    task_type = payload.get("task_type")
+    target_column = payload.get("target_column")
+
+    if not pipeline_id:
+        raise HTTPException(status_code=400, detail="pipeline_id is required.")
+    if not task_type:
+        raise HTTPException(status_code=400, detail="task_type is required.")
+    if not target_column:
+        raise HTTPException(status_code=400, detail="target_column is required.")
+
+    df = PIPELINE_DATASETS.get(pipeline_id)
+    if df is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No finalized dataset for pipeline '{pipeline_id}'. "
+            f"Finalize the pipeline first via /pipeline/finalize.",
+        )
+
+    try:
+        # ── Run feature engineering automatically ──────────
+        fe_service = FeatureEngineeringService()
+        engineered_df = fe_service.apply(
+            df=df.copy(),
+            target_column=target_column,
+        )
+        fe_metadata = fe_service.get_metadata()
+
+        # ── Train models on engineered data ────────────────
+        result = run_training_pipeline(
+            df=engineered_df,
+            pipeline_id=pipeline_id,
+            task_type=task_type,
+            target_column=target_column,
+        )
+        result["feature_engineering"] = fe_metadata
+        return result
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        print(f"Training error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")

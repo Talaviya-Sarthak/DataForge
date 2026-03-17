@@ -1,10 +1,38 @@
 const apiBase = import.meta.env.VITE_NODE_API_URL || 'http://localhost:5000';
 
+// ── Helpers ─────────────────────────────────────────────
+
+const getAuthHeaders = (): Record<string, string> => {
+    const token = localStorage.getItem('token');
+    if (!token) throw new Error('Authentication required');
+    return {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+    };
+};
+
+// ── Types ───────────────────────────────────────────────
+
 export interface CleaningRequest {
     action: string;
     strategy: string;
     columns: string[];
+    dataset_id?: number;
 }
+
+export interface DatasetListItem {
+    id: number;
+    original_filename: string;
+    status: string;
+    is_active: boolean;
+    total_rows: number;
+    pipeline_id: number | null;
+    pipeline_status: string | null;
+    total_steps: number | null;
+    created_at: string;
+}
+
+// ── 1. CLEAN (existing, backward-compatible) ────────────
 
 export const applyCleaningAction = async (request: CleaningRequest) => {
     const token = localStorage.getItem('token');
@@ -24,5 +52,154 @@ export const applyCleaningAction = async (request: CleaningRequest) => {
         throw new Error(err.message || err.error || 'Cleaning failed');
     }
 
+    return res.json();
+};
+
+// ── 2. UNDO LAST STEP ──────────────────────────────────
+
+export const undoLastStep = async (datasetId: number) => {
+    const res = await fetch(`${apiBase}/api/datasets/${datasetId}/undo`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+    });
+
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: 'Undo failed' }));
+        throw new Error(err.message || err.error || 'Undo failed');
+    }
+    return res.json();
+};
+
+// ── 3. FINALIZE DATASET ────────────────────────────────
+
+export const finalizeDataset = async (datasetId: number) => {
+    const res = await fetch(`${apiBase}/api/datasets/${datasetId}/finalize`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+    });
+
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: 'Finalize failed' }));
+        throw new Error(err.message || err.error || 'Finalize failed');
+    }
+    return res.json();
+};
+
+// ── 4. DOWNLOAD DATASET (CSV) ──────────────────────────
+
+export const downloadDataset = async (datasetId: number, filename?: string) => {
+    const token = localStorage.getItem('token');
+    if (!token) throw new Error('Authentication required');
+
+    let res: Response;
+    try {
+        res = await fetch(`${apiBase}/api/datasets/${datasetId}/download`, {
+            headers: { 'Authorization': `Bearer ${token}` },
+        });
+    } catch (networkErr: any) {
+        throw new Error('Cannot reach server. Please check if the backend is running.');
+    }
+
+    if (!res.ok) {
+        // Try to parse error as JSON, fall back to status text
+        let errorMsg = `Download failed (${res.status})`;
+        try {
+            const contentType = res.headers.get('content-type') || '';
+            if (contentType.includes('application/json')) {
+                const err = await res.json();
+                errorMsg = err.message || err.error || err.detail || errorMsg;
+            } else {
+                const text = await res.text();
+                // Try parsing as JSON anyway (some servers don't set content-type)
+                try {
+                    const parsed = JSON.parse(text);
+                    errorMsg = parsed.message || parsed.error || parsed.detail || errorMsg;
+                } catch { /* use default errorMsg */ }
+            }
+        } catch { /* use default errorMsg */ }
+        throw new Error(errorMsg);
+    }
+
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename || `dataset_${datasetId}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+};
+
+// ── 5. LIST USER DATASETS ──────────────────────────────
+
+export const getUserDatasets = async (): Promise<DatasetListItem[]> => {
+    const res = await fetch(`${apiBase}/api/datasets/list`, {
+        headers: getAuthHeaders(),
+    });
+
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: 'Failed to get datasets' }));
+        throw new Error(err.message || err.error || 'Failed to get datasets');
+    }
+    const json = await res.json();
+    return json.datasets || [];
+};
+
+// ── 6. RESUME DATASET (re-upload + rebuild) ─────────────
+
+export const resumeDataset = async (datasetId: number, file: File) => {
+    const token = localStorage.getItem('token');
+    if (!token) throw new Error('Authentication required');
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const res = await fetch(`${apiBase}/api/datasets/${datasetId}/resume`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData,
+    });
+
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: 'Resume failed' }));
+        throw new Error(err.message || err.error || 'Resume failed');
+    }
+    return res.json();
+};
+
+// ── 7. GET PIPELINE STEPS ────────────────────────────────
+
+export interface PipelineStep {
+    step_index: number;
+    type: string;
+    strategy: string;
+    columns: string[];
+    created_at: string;
+}
+
+export const getPipelineSteps = async (datasetId: number): Promise<PipelineStep[]> => {
+    const res = await fetch(`${apiBase}/api/datasets/${datasetId}/steps`, {
+        headers: getAuthHeaders(),
+    });
+
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: 'Failed to get steps' }));
+        throw new Error(err.message || err.error || 'Failed to get steps');
+    }
+    const json = await res.json();
+    return json.steps || [];
+};
+
+// ── 8. ACTIVATE DATASET ────────────────────────────────
+
+export const activateDataset = async (datasetId: number) => {
+    const res = await fetch(`${apiBase}/api/datasets/${datasetId}/activate`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+    });
+
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: 'Activation failed' }));
+        throw new Error(err.message || err.error || 'Activation failed');
+    }
     return res.json();
 };
