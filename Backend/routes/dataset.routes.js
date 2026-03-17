@@ -3,6 +3,7 @@ const router = express.Router();
 
 const upload = require("../middlewares/upload.middleware");
 const auth = require("../middlewares/authMiddleware");
+const { validateDatasetUpload } = require("../middlewares/validation.middleware");
 const {
   uploadDataset,
   preprocessDataset,
@@ -16,7 +17,7 @@ const {
 } = require("../controllers/dataset.controller");
 
 // ── Existing routes (preserved) ─────────────────────
-router.post("/upload", auth, upload.single("file"), uploadDataset);
+router.post("/upload", auth, upload.single("file"), validateDatasetUpload, uploadDataset);
 router.post("/preprocess", auth, preprocessDataset);
 router.post("/clean", auth, preprocessDataset);
 

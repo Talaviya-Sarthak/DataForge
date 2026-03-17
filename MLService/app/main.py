@@ -1,6 +1,15 @@
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import router
+
+# ── Configure logging for the dataforge namespace ─────────
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(name)s %(levelname)s %(message)s",
+)
+logging.getLogger("dataforge").setLevel(logging.INFO)
 
 def create_app() -> FastAPI:
     app = FastAPI(
