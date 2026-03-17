@@ -3,7 +3,7 @@
 
 import Header from "@/components/layouts/Header"
 import { Footer } from "@/components/layouts/Footer"
-import { useState, useEffect, useCallback, Suspense, lazy } from "react"
+import { useState, useEffect, useCallback, Suspense, lazy, useRef } from "react"
 import {
   BarChart3,
   Eye,
@@ -22,6 +22,8 @@ import {
   PieChart,
   ChartArea,
   TriangleAlert,
+  ChevronUp,
+  ChevronDown,
   Info,
   Loader2,
   Copy,
@@ -75,6 +77,15 @@ const Cleaning = () => {
   const [showChart, setShowChart] = useState<boolean>(false)
   const [chartType, setChartType] = useState<string | null>(null)
   const [pipelineSteps, setPipelineSteps] = useState<PipelineStep[]>([])
+  const columnListRef = useRef<HTMLDivElement | null>(null)
+
+  const scrollColumns = (direction: "up" | "down") => {
+    if (!columnListRef.current) return
+    columnListRef.current.scrollBy({
+      top: direction === "up" ? -160 : 160,
+      behavior: "smooth",
+    })
+  }
 
   // Fetch pipeline steps whenever datasetId or totalSteps changes
   const fetchSteps = useCallback(async () => {
@@ -715,10 +726,26 @@ const Cleaning = () => {
         <div className="grid grid-cols-12 gap-6">
 
           {/* Left Panel - Column List */}
-          <div className="col-span-3">
-            <div className="bg-gradient-to-b from-neutral-900/80 to-neutral-950/80 rounded-lg border border-neutral-800/70 p-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.5)] transition-shadow duration-300 max-h-[640px] flex flex-col">
+          <div className="col-span-4">
+            <div className="relative bg-gradient-to-b from-neutral-900/80 to-neutral-950/80 rounded-lg border border-neutral-800/70 p-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.5)] transition-shadow duration-300 h-[630px] flex flex-col">
               <h3 className="font-medium text-white mb-3">Columns</h3>
-              <div className="space-y-2 overflow-y-auto flex-1 min-h-0 pr-1">
+              <button
+                type="button"
+                onClick={() => scrollColumns("up")}
+                className="absolute right-2 top-2 z-10 rounded-md border border-neutral-700/70 bg-neutral-900/80 p-1 text-neutral-300 hover:text-white hover:border-neutral-500 transition-colors"
+                aria-label="Scroll column list up"
+              >
+                <ChevronUp className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollColumns("down")}
+                className="absolute right-2 bottom-2 z-10 rounded-md border border-neutral-700/70 bg-neutral-900/80 p-1 text-neutral-300 hover:text-white hover:border-neutral-500 transition-colors"
+                aria-label="Scroll column list down"
+              >
+                <ChevronDown className="h-3.5 w-3.5" />
+              </button>
+              <div ref={columnListRef} className="space-y-4 overflow-y-auto hide-scrollbar h-[544px] min-h-0 pr-2">
                 {columns.map(column => {
                   const isActive = selectedColumn === column.name
                   const isNumeric = column.type === "numeric"
@@ -730,7 +757,7 @@ const Cleaning = () => {
                         setSelectedColumn(column.name)
                       }}
                       className={`
-                        group relative w-full rounded-xl p-3 text-left
+                        group relative w-full rounded-lg h-15.5 px-3 py-2 text-left overflow-hidden
                         border transition-all duration-300 cursor-pointer
                         backdrop-blur-sm
                         ${isActive
@@ -755,9 +782,9 @@ const Cleaning = () => {
                         <span className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-br from-blue-400/10 via-transparent to-transparent" />
                       )}
 
-                      <div className="relative flex items-start justify-between gap-3">
+                      <div className="relative flex items-center justify-between gap-3">
                         {/* Left content */}
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           {/* Column name */}
                           <div
                             className={`
@@ -769,31 +796,18 @@ const Cleaning = () => {
                           </div>
 
                           {/* Meta row */}
-                          <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                            {/* Type badge */}
-                            <span
-                              className={`
-                                flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium border
-                                ${isNumeric
-                                  ? "border-blue-500/40 text-blue-400 bg-blue-500/5"
-                                  : "border-emerald-500/40 text-emerald-400 bg-emerald-500/5"
-                                }
-                              `}
-                            >
+                          <div className="mt-0.5 flex items-center gap-2 text-xs text-neutral-400 truncate">
+                            <span className={isNumeric ? "text-blue-400" : "text-emerald-400"}>
                               {isNumeric ? "#" : "Aa"} {column.type}
                             </span>
-
-                            {/* Missing badge */}
                             {column.missing > 0 && (
-                              <span className="rounded-full flex gap-0.5 border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-400">
-                                <TriangleAlert className="h-3 w-3 pt-0.5" /> {column.missing} missing
+                              <span className="inline-flex items-center gap-1 text-amber-400">
+                                <TriangleAlert className="h-3 w-3" /> {column.missing}
                               </span>
                             )}
-
-                            {/* Outliers badge */}
                             {column.outliers > 0 && (
-                              <span className="rounded-full gap-0.5 border flex border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-400">
-                                <Target className="h-3 w-3 pt-0.5" /> {column.outliers} outliers
+                              <span className="inline-flex items-center gap-1 text-red-400">
+                                <Target className="h-3 w-3" /> {column.outliers}
                               </span>
                             )}
                           </div>
@@ -846,7 +860,7 @@ const Cleaning = () => {
 
           {/* Middle Panel - Cleaning Actions */}
           <div className="col-span-5">
-            <div className="bg-gradient-to-b from-neutral-900/80 to-neutral-950/80 rounded-lg border border-neutral-800/70 p-4 max-h-[630px] flex flex-col shadow-[0_8px_30px_rgba(0,0,0,0.4)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.5)] transition-shadow duration-300">
+            <div className="bg-gradient-to-b from-neutral-900/80 to-neutral-950/80 rounded-lg border border-neutral-800/70 p-4 h-[630px] flex flex-col shadow-[0_8px_30px_rgba(0,0,0,0.4)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.5)] transition-shadow duration-300">
               <h3 className="font-medium text-white mb-3">Cleaning Actions</h3>
               <div className="space-y-4 overflow-y-auto flex-1 min-h-0">
                 {/* 1. Drop Duplicates */}
@@ -937,8 +951,8 @@ const Cleaning = () => {
           </div>
 
           {/* Right Panel - Utility Actions */}
-          <div className="col-span-4">
-            <div className="bg-gradient-to-b from-neutral-900/80 to-neutral-950/80 rounded-lg border border-neutral-800/70 p-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.5)] transition-shadow duration-300">
+          <div className="col-span-3">
+            <div className="bg-gradient-to-b from-neutral-900/80 to-neutral-950/80 rounded-lg border border-neutral-800/70 p-4 h-[630px] flex flex-col shadow-[0_8px_30px_rgba(0,0,0,0.4)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.5)] transition-shadow duration-300">
               <h3 className="font-medium text-white mb-3">Utility Actions</h3>
               <div className="space-y-3">
                 {/* Drop Column */}
