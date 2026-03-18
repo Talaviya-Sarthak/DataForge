@@ -16,7 +16,8 @@ from app.data.persistence import (
 )
 from app.preprocessings.Preprocessing_pipeline import PreprocessingPipeline
 from app.training.training_pipeline import run_training_pipeline
-from app.feature_engineering import FeatureEngineeringService
+from app.feature_engineering.Feature_engineering_pipeline import FeatureEngineeringService
+from app.tuning.hyperparameter_tuning import tune_top_models
 
 router = APIRouter()
 
