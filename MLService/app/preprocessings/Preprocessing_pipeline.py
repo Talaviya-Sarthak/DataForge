@@ -5,7 +5,6 @@ from .missing_values import ColumnWiseMissingValueImputer
 from .outliers import HandlingOutliers
 from .encoding import EncodingValue
 from .scaling import ScalingValues
-from .feature_selection import FeatureSelection
 from .imbalance import HandlingImbalance
 
 
@@ -58,9 +57,6 @@ class PreprocessingPipeline:
 
         elif step_type == "scaling":
             return ScalingValues(params).apply(df)
-
-        elif step_type == "feature_selection":
-            return FeatureSelection(params).apply(df)
 
         elif step_type == "imbalance":
             return HandlingImbalance(params).apply(df)

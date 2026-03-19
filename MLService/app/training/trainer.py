@@ -79,6 +79,8 @@ one on the training data, and returns the trained model alongside its
 evaluation metrics.
 """
 
+import time
+
 import pandas as pd
 
 from app.training.evaluator import evaluate_model
@@ -103,8 +105,8 @@ def train_models(
         task_type: ``"classification"`` or ``"regression"``.
 
     Returns:
-        list[dict]: Each dict has ``name``, ``instance`` (fitted), and
-        ``metrics``.
+        list[dict]: Each dict has ``name``, ``instance`` (fitted),
+        ``metrics``, and ``training_time_ms``.
     """
     results: list[dict] = []
 
@@ -112,7 +114,9 @@ def train_models(
         name = descriptor["name"]
         model = descriptor["instance"]
 
+        start = time.perf_counter()
         model.fit(X_train, y_train)
+        training_time_ms = int((time.perf_counter() - start) * 1000)
 
         metrics = evaluate_model(model, X_test, y_test, task_type)
 
@@ -120,6 +124,7 @@ def train_models(
             "name": name,
             "instance": model,
             "metrics": metrics,
+            "training_time_ms": training_time_ms,
         })
 
     return results

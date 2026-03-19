@@ -166,8 +166,19 @@ CREATE TABLE trained_models (
   mse DOUBLE DEFAULT NULL,
   rmse DOUBLE DEFAULT NULL,
   mae DOUBLE DEFAULT NULL,
+  best_params JSON DEFAULT NULL,
+  tuning_method VARCHAR(50) DEFAULT NULL,
+  cv_score DOUBLE DEFAULT NULL,
+  is_tuned BOOLEAN DEFAULT FALSE,
+  base_model_id INT DEFAULT NULL,
+  tuning_iterations INT DEFAULT NULL,
+  tuning_time_ms INT DEFAULT NULL,
+  training_time_ms INT DEFAULT NULL,
   `rank` INT NOT NULL DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_trained_pipeline_id (pipeline_id),
-  INDEX idx_trained_rank (`rank`)
+  INDEX idx_trained_rank (`rank`),
+  INDEX idx_is_tuned (is_tuned),
+  INDEX idx_base_model_id (base_model_id),
+  CONSTRAINT fk_base_model FOREIGN KEY (base_model_id) REFERENCES trained_models(id) ON DELETE SET NULL
 );

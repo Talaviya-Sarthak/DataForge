@@ -43,16 +43,16 @@ const uploadDataset = async (file: File) => {
   }
 
   const data = await res.json()
-  
+
   // Validate successful upload based on ML service response format
   if (!data.data || !Array.isArray(data.data)) {
     throw new Error("Invalid response: missing data")
   }
-  
+
   if (typeof data.rows !== 'number' || data.rows <= 0) {
     throw new Error("Invalid response: invalid row count")
   }
-  
+
   if (typeof data.columns !== 'number' || data.columns <= 0) {
     throw new Error("Invalid response: invalid column count")
   }
@@ -138,7 +138,7 @@ const Dataset_tabledata = ({
       if (token) {
         getUserDatasets()
           .then(ds => setPreviousDatasets(ds.filter(d => d.status === 'in_progress' && (d.total_steps ?? 0) > 0)))
-          .catch(() => {})
+          .catch(() => { })
       }
     }
   }, [currentDataset])
@@ -163,7 +163,7 @@ const Dataset_tabledata = ({
   }
 
   return (
-    <div className="min-h-screen relative bg-transeperent">
+    <div className="relative bg-transeperent pb-10">
       <div className="mt-8">
         {!currentDataset && (
           <>
@@ -221,7 +221,7 @@ const Dataset_tabledata = ({
         )}
       </div>
 
-      <div className="mb-12 -mt-16">
+      <div className="mb-12 mt-6">
         {loading && (
           <div className="flex justify-center mt-15">
             <Spinner variant="bars" size={40} className="text-white" />
@@ -356,7 +356,7 @@ const Dataset_tabledata = ({
           </div>
         )}
 
-        
+
 
         {currentDataset?.statistics && (
           <div className="max-w-6xl xl:max-w-7xl 2xl:max-w-8xl mx-auto mt-10">

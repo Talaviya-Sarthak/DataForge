@@ -8,9 +8,16 @@ from pandas.api.types import is_bool_dtype, is_datetime64_any_dtype, is_numeric_
 from app.data.loader import load_Data
 from app.data.preview import preview_Data
 from app.data.stats import dataset_stats
+from app.data.persistence import (
+    save_raw_to_disk,
+    load_raw_from_disk,
+    save_pipeline_to_disk,
+    load_pipeline_from_disk,
+)
 from app.preprocessings.Preprocessing_pipeline import PreprocessingPipeline
 from app.training.training_pipeline import run_training_pipeline
-from app.feature_engineering import FeatureEngineeringService
+from app.feature_engineering.Feature_engineering_pipeline import FeatureEngineeringService
+from app.tuning.hyperparameter_tuning import tune_top_models
 
 router = APIRouter()
 
@@ -33,11 +40,20 @@ def _key(user_id: int, dataset_id: int = 0) -> str:
 
 
 def _get_raw(user_id: int, dataset_id: int = 0) -> pd.DataFrame | None:
-    return _RAW_STORE.get(_key(user_id, dataset_id))
+    key = _key(user_id, dataset_id)
+    df = _RAW_STORE.get(key)
+    if df is None:
+        # Fallback: try loading from disk
+        df = load_raw_from_disk(key)
+        if df is not None:
+            _RAW_STORE[key] = df  # Re-populate memory
+    return df
 
 
 def _set_raw(user_id: int, dataset_id: int, df: pd.DataFrame):
-    _RAW_STORE[_key(user_id, dataset_id)] = df
+    key = _key(user_id, dataset_id)
+    _RAW_STORE[key] = df
+    save_raw_to_disk(key, df)  # Persist to disk as fallback
 
 
 def _detect_column_kind(series: pd.Series) -> str:
@@ -314,6 +330,7 @@ async def finalize_pipeline(payload: dict):
             processed = raw_df.copy()
 
         PIPELINE_DATASETS[pipeline_id] = processed
+        save_pipeline_to_disk(pipeline_id, processed)  # Persist to disk as fallback
 
         resp = _build_response(processed)
         resp["pipeline_id"] = pipeline_id
@@ -350,6 +367,11 @@ async def train(payload: dict):
         raise HTTPException(status_code=400, detail="target_column is required.")
 
     df = PIPELINE_DATASETS.get(pipeline_id)
+    if df is None:
+        # Fallback: try loading from disk
+        df = load_pipeline_from_disk(pipeline_id)
+        if df is not None:
+            PIPELINE_DATASETS[pipeline_id] = df  # Re-populate memory
     if df is None:
         raise HTTPException(
             status_code=400,

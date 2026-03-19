@@ -31,16 +31,21 @@ function App() {
           <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/">
+                {/* Public routes - accessible without login */}
                 <Route index element={<HomePage />} />
-                <Route index path='/HomePage' element={<HomePage />} />
-                <Route index path='/DataSet' element={<ProtectedRoute><Dataset /></ProtectedRoute>} />
-                <Route index path='/Cleaning' element={<ProtectedRoute><Cleaning /></ProtectedRoute>} />
-                <Route index path='/SignIn' element={<SignIn />} />
-                <Route index path='/SignUp' element={<Signup />} />
-                <Route index path='/FAQ' element={<FAQDemo />} />
-                <Route index path='/Lamp' element={<LampDemo />} />
-                <Route index path='/About' element={<AboutPage />} />
-                <Route index path='*' element={<NotFound />} />
+                <Route path='/HomePage' element={<HomePage />} />
+                <Route path='/SignIn' element={<SignIn />} />
+                <Route path='/SignUp' element={<Signup />} />
+
+                {/* Protected routes - require authentication */}
+                <Route path='/DataSet' element={<ProtectedRoute><Dataset /></ProtectedRoute>} />
+                <Route path='/Cleaning' element={<ProtectedRoute><Cleaning /></ProtectedRoute>} />
+                <Route path='/FAQ' element={<ProtectedRoute><FAQDemo /></ProtectedRoute>} />
+                <Route path='/Lamp' element={<ProtectedRoute><LampDemo /></ProtectedRoute>} />
+                <Route path='/About' element={<ProtectedRoute><AboutPage /></ProtectedRoute>} />
+
+                {/* 404 - Not Found */}
+                <Route path='*' element={<NotFound />} />
               </Route>
             </Routes>
           </Suspense>
