@@ -14,7 +14,7 @@ const NotFound = lazy(() => import("./Pages/NotFound/not-found"));
 const AboutPage = lazy(() => import("./Pages/About/About"));
 const FAQDemo = lazy(() => import("./Pages/FAQ/demo"));
 const Cleaning = lazy(() => import("./Pages/Cleaning/Cleaning"));
-const LampDemo = lazy(() => import("./components/layouts/BgLamp").then(module => ({ default: module.LampDemo })));
+const MLDashboard = lazy(() => import("./Pages/Models/MLDashboard"));
 
 // Loading component for suspense fallback
 const PageLoader = () => (
@@ -31,8 +31,18 @@ function App() {
           <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/">
-                {/* Public routes - accessible without login */}
                 <Route index element={<HomePage />} />
+<<<<<<< Updated upstream
+                <Route index path='/HomePage' element={<HomePage />} />
+                <Route index path='/DataSet' element={<ProtectedRoute><Dataset /></ProtectedRoute>} />
+                <Route index path='/Cleaning' element={<ProtectedRoute><Cleaning /></ProtectedRoute>} />
+                <Route index path='/SignIn' element={<SignIn />} />
+                <Route index path='/SignUp' element={<Signup />} />
+                <Route index path='/FAQ' element={<FAQDemo />} />
+                <Route index path='/Lamp' element={<LampDemo />} />
+                <Route index path='/About' element={<AboutPage />} />
+                <Route index path='*' element={<NotFound />} />
+=======
                 <Route path='/HomePage' element={<HomePage />} />
                 <Route path='/SignIn' element={<SignIn />} />
                 <Route path='/SignUp' element={<Signup />} />
@@ -40,12 +50,13 @@ function App() {
                 {/* Protected routes - require authentication */}
                 <Route path='/DataSet' element={<ProtectedRoute><Dataset /></ProtectedRoute>} />
                 <Route path='/Cleaning' element={<ProtectedRoute><Cleaning /></ProtectedRoute>} />
+                <Route path='/Models' element={<ProtectedRoute><MLDashboard /></ProtectedRoute>} />
                 <Route path='/FAQ' element={<ProtectedRoute><FAQDemo /></ProtectedRoute>} />
-                <Route path='/Lamp' element={<ProtectedRoute><LampDemo /></ProtectedRoute>} />
                 <Route path='/About' element={<ProtectedRoute><AboutPage /></ProtectedRoute>} />
 
                 {/* 404 - Not Found */}
                 <Route path='*' element={<NotFound />} />
+>>>>>>> Stashed changes
               </Route>
             </Routes>
           </Suspense>

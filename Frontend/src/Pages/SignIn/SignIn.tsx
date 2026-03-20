@@ -23,7 +23,7 @@ export default function SignIn() {
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
     const { show } = useToast();
-    const { login } = useAuth();
+    const { loginWithResponse } = useAuth();
     const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
     const navigate = useNavigate();
 
@@ -65,12 +65,7 @@ export default function SignIn() {
                 const data = await r.json().catch(() => ({}));
                 if (!r.ok) throw new Error(data?.error || "Login failed");
 
-                // Store JWT token
-                if (data.token) {
-                    localStorage.setItem('token', data.token);
-                }
-
-                // Store user data
+                // Build user data
                 const userData = {
                     id: data.user?.id || data.id || "USR-2024-001",
                     name: data.user?.name || data.name || "John Doe",
@@ -82,7 +77,15 @@ export default function SignIn() {
                     avatar: data.user?.avatar || data.avatar || null,
                 };
 
-                login(userData);
+                // Use new login method that handles both tokens
+                loginWithResponse({
+                    user: userData,
+                    token: data.token,
+                    access_token: data.access_token,
+                    refresh_token: data.refresh_token,
+                    expires_in: data.expires_in,
+                });
+
                 show({ type: "success", message: "You logged in successfully" });
                 navigate("/HomePage");
             })

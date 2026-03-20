@@ -1,10 +1,19 @@
 
 require("dotenv").config();
 
+const http = require("http");
 const express = require("express");
 const cors = require("cors");
 const datasetService = require("./services/dataset.service");
-const { apiLimiter, authLimiter, trainingLimiter, uploadLimiter, sanitizeInput } = require("./middlewares/rateLimiter.middleware");
+<<<<<<< Updated upstream
+=======
+const { apiLimiter, authLimiter, uploadLimiter, sanitizeInput } = require("./middlewares/rateLimiter.middleware");
+const { initWebSocket } = require('./websocket/ws.server');
+const logger = require('./utils/logger');
+
+// Initialize queue events monitoring
+const { trainingQueueEvents } = require('./queues/training.events');
+>>>>>>> Stashed changes
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -15,9 +24,9 @@ const PORT = process.env.PORT || 5000;
 (async () => {
   try {
     await datasetService.initializeSystem();
-    console.log("✅ Pipeline system initialized");
+    logger.info('[SERVER]', 'Pipeline system initialized');
   } catch (error) {
-    console.error("❌ Pipeline system initialization failed:", error.message);
+    logger.error('[SERVER]', 'Pipeline system initialization failed', { error: error.message });
   }
 })();
 
@@ -32,16 +41,9 @@ app.use(cors({
 // 🔑 MUST come before routes
 app.use(express.json());
 
-// ── Input sanitization ──
-app.use(sanitizeInput);
-
-// ── Global rate limiting ──
-app.use("/api/", apiLimiter);
-
 // =======================
 // PUBLIC AUTH ROUTES
 // =======================
-app.use("/api/auth", authLimiter);
 app.use("/api/auth", require("./routes/signupEntry"));   // POST /signup
 app.use("/api/auth", require("./routes/signinEntry"));   // POST /signin
 
@@ -61,12 +63,19 @@ app.use("/api/datasets", require("./routes/dataset.routes"));
 // =======================
 // TRAINING ROUTES
 // =======================
-app.use("/api/training", trainingLimiter);
+<<<<<<< Updated upstream
+=======
+// Note: Rate limiting is applied per-route in training.routes.js
+>>>>>>> Stashed changes
 app.use("/api/training", require("./routes/training.routes"));
+
+
 
 // =======================
 // HEALTH CHECK
 // =======================
+app.use("/api/health", require("./routes/health.routes"));
+
 app.get("/", (req, res) => {
   res.status(200).send("🚀 Backend Running");
 });
@@ -84,7 +93,7 @@ app.use((req, res) => {
 // GLOBAL ERROR HANDLER
 // =======================
 app.use((err, req, res, next) => {
-  console.error("❌ Unhandled Error:", err);
+  logger.error('[SERVER]', 'Unhandled error', { error: err.message, path: req.originalUrl });
   res.status(500).json({
     error: "Internal server error"
   });
@@ -93,6 +102,9 @@ app.use((err, req, res, next) => {
 // =======================
 // START SERVER
 // =======================
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+const httpServer = http.createServer(app);
+const io = initWebSocket(httpServer);
+
+httpServer.listen(PORT, () => {
+  logger.info('[SERVER]', `Running on port ${PORT}`);
 });

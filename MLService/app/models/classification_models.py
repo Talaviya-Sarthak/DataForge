@@ -65,32 +65,32 @@ def get_classification_models() -> list[dict]:
 
         {
             "name": "RandomForestClassifier",
-            "instance": RandomForestClassifier(n_estimators=100, random_state=42),
+            "instance": RandomForestClassifier(n_estimators=50, max_depth=10, random_state=42),
         },
 
         {
             "name": "ExtraTreesClassifier",
-            "instance": ExtraTreesClassifier(n_estimators=100, random_state=42),
+            "instance": ExtraTreesClassifier(n_estimators=50, max_depth=10, random_state=42),
         },
 
         {
             "name": "GradientBoostingClassifier",
-            "instance": GradientBoostingClassifier(n_estimators=100, random_state=42),
+            "instance": GradientBoostingClassifier(n_estimators=50, max_depth=5, random_state=42),
         },
 
         {
             "name": "AdaBoostClassifier",
-            "instance": AdaBoostClassifier(n_estimators=100, random_state=42),
+            "instance": AdaBoostClassifier(n_estimators=50, random_state=42),
         },
 
         {
             "name": "KNeighborsClassifier",
-            "instance": KNeighborsClassifier(),
+            "instance": KNeighborsClassifier(n_neighbors=5),
         },
 
         {
             "name": "SVC",
-            "instance": SVC(kernel="rbf", probability=True),
+            "instance": SVC(kernel="linear", probability=True, max_iter=1000),
         },
 
         {
@@ -105,7 +105,7 @@ def get_classification_models() -> list[dict]:
 
         {
             "name": "MLPClassifier",
-            "instance": MLPClassifier(max_iter=500, random_state=42),
+            "instance": MLPClassifier(hidden_layer_sizes=(50,), max_iter=300, random_state=42),
         },
 
     ]
