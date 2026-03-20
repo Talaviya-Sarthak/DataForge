@@ -3,7 +3,12 @@
 
 import Header from "@/components/layouts/Header"
 import { Footer } from "@/components/layouts/Footer"
+<<<<<<< Updated upstream
 import { useState, useEffect, useCallback, Suspense, lazy } from "react"
+=======
+import { useState, useEffect, useCallback, Suspense, lazy, useRef } from "react"
+import { useNavigate } from "react-router-dom"
+>>>>>>> Stashed changes
 import {
   BarChart3,
   Eye,
@@ -26,6 +31,7 @@ import {
   Loader2,
   Copy,
   RefreshCw,
+  ArrowRight,
 } from "lucide-react"
 import { useDataset } from "@/contexts/DatasetContext"
 import { applyCleaningAction, undoLastStep, finalizeDataset, downloadDataset, getPipelineSteps, type PipelineStep } from "@/services/cleaning.service"
@@ -61,8 +67,9 @@ const ACTION_TYPE_MAP: Record<string, string> = {
 }
 
 const Cleaning = () => {
-  const { dataset, setDataset, datasetId, totalSteps } = useDataset()
+  const { dataset, setDataset, datasetId, totalSteps, setIsFinalized } = useDataset()
   const { show } = useToast()
+  const navigate = useNavigate()
   const [selectedColumn, setSelectedColumn] = useState<string | null>(null)
   const [activeDialog, setActiveDialog] = useState<string | null>(null)
   const [showPreviewDialog, setShowPreviewDialog] = useState<boolean>(false)
@@ -200,7 +207,10 @@ const Cleaning = () => {
     try {
       const result = await finalizeDataset(datasetId)
       setDataset(result)
-      show({ type: "success", message: "Dataset finalized successfully!" })
+      setIsFinalized(true)
+      show({ type: "success", message: "Dataset finalized! Redirecting to training..." })
+      // Auto-redirect to Models page after finalization
+      setTimeout(() => navigate('/Models'), 1000)
     } catch (error: any) {
       show({ type: "error", message: error.message || "Finalize failed" })
     } finally {
@@ -1024,6 +1034,23 @@ const Cleaning = () => {
                       <CheckCircle className="h-3.5 w-3.5" />
                       Finalize Dataset
                     </button>
+
+                    {/* Proceed to Model Training */}
+                    <div className="pt-2 border-t border-neutral-700/50">
+                      <button
+                        onClick={() => navigate('/Models')}
+                        disabled={!dataset}
+                        className="w-full px-3 py-2.5 bg-gradient-to-r from-purple-600/30 to-blue-600/30 text-white rounded border border-purple-500/50 hover:from-purple-600/40 hover:to-blue-600/40 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium flex items-center justify-center gap-2 transition-all"
+                      >
+                        Proceed to Training
+                        <ArrowRight className="h-4 w-4" />
+                      </button>
+                      {!dataset && (
+                        <p className="text-[10px] text-neutral-500 mt-1 text-center">
+                          Upload a dataset first
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

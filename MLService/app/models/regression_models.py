@@ -51,12 +51,12 @@ def get_regression_models() -> list[dict]:
 
         {
             "name": "Lasso",
-            "instance": Lasso(alpha=0.1),
+            "instance": Lasso(alpha=0.1, max_iter=1000),
         },
 
         {
             "name": "ElasticNet",
-            "instance": ElasticNet(alpha=0.1, l1_ratio=0.5),
+            "instance": ElasticNet(alpha=0.1, l1_ratio=0.5, max_iter=1000),
         },
 
         {
@@ -66,7 +66,7 @@ def get_regression_models() -> list[dict]:
 
         {
             "name": "HuberRegressor",
-            "instance": HuberRegressor(),
+            "instance": HuberRegressor(max_iter=100),
         },
 
         {
@@ -76,37 +76,37 @@ def get_regression_models() -> list[dict]:
 
         {
             "name": "DecisionTreeRegressor",
-            "instance": DecisionTreeRegressor(random_state=42),
+            "instance": DecisionTreeRegressor(max_depth=10, random_state=42),
         },
 
         {
             "name": "RandomForestRegressor",
-            "instance": RandomForestRegressor(n_estimators=100, random_state=42),
+            "instance": RandomForestRegressor(n_estimators=50, max_depth=10, n_jobs=-1, random_state=42),
         },
 
         {
             "name": "ExtraTreesRegressor",
-            "instance": ExtraTreesRegressor(n_estimators=100, random_state=42),
+            "instance": ExtraTreesRegressor(n_estimators=50, max_depth=10, n_jobs=-1, random_state=42),
         },
 
         {
             "name": "GradientBoostingRegressor",
-            "instance": GradientBoostingRegressor(n_estimators=100, random_state=42),
+            "instance": GradientBoostingRegressor(n_estimators=50, max_depth=6, learning_rate=0.1, random_state=42),
         },
 
         {
             "name": "AdaBoostRegressor",
-            "instance": AdaBoostRegressor(n_estimators=100, random_state=42),
+            "instance": AdaBoostRegressor(n_estimators=50, learning_rate=1.0, random_state=42),
         },
 
         {
             "name": "KNeighborsRegressor",
-            "instance": KNeighborsRegressor(),
+            "instance": KNeighborsRegressor(n_neighbors=5, n_jobs=-1),
         },
 
         {
             "name": "SVR",
-            "instance": SVR(kernel="rbf", C=1.0, epsilon=0.1),
+            "instance": SVR(kernel="linear", C=1.0, max_iter=1000),
         },
 
     ]

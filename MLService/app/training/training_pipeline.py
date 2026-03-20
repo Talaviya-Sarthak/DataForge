@@ -9,6 +9,11 @@ Coordinates the full training workflow:
     6. Build and return a sorted leaderboard JSON.
 """
 
+<<<<<<< Updated upstream
+=======
+import logging
+
+>>>>>>> Stashed changes
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
@@ -39,7 +44,11 @@ def run_training_pipeline(
         target_column: Name of the target column in *df*.
 
     Returns:
+<<<<<<< Updated upstream
         dict: Leaderboard JSON with pipeline metadata and per-model metrics.
+=======
+        dict: JSON with base_models and best_model.
+>>>>>>> Stashed changes
 
     Raises:
         ValueError: If *target_column* is not present in *df*, or
@@ -76,21 +85,39 @@ def run_training_pipeline(
     models = get_models_for_task(task_type)
     results = train_models(models, X_train, y_train, X_test, y_test, task_type)
 
+<<<<<<< Updated upstream
     # ── 5. Export models and build leaderboard entries ────────
     leaderboard: list[dict] = []
+=======
+    logger.info("[INFO] Models evaluated — %d models trained", len(results))
+
+    # ── 5. Export models and build leaderboard ────────────────
+    base_models: list[dict] = []
+>>>>>>> Stashed changes
     for result in results:
         model_path = export_model(result["instance"], pipeline_id, result["name"])
 
         entry = {"model": result["name"], **result["metrics"], "model_path": model_path}
         leaderboard.append(entry)
 
+<<<<<<< Updated upstream
     # ── 6. Sort by primary metric (descending) ────────────────
     primary = _PRIMARY_METRIC[task_type]
     leaderboard.sort(key=lambda m: m.get(primary, 0), reverse=True)
+=======
+    # ── 6. Determine best model ───────────────────────────────
+    best_model = base_models[0] if base_models else None
+>>>>>>> Stashed changes
 
     return {
         "pipeline_id": pipeline_id,
         "task_type": task_type,
         "target_column": target_column,
+<<<<<<< Updated upstream
         "models": leaderboard,
+=======
+        "models": base_models,
+        "base_models": base_models,
+        "best_model": best_model,
+>>>>>>> Stashed changes
     }

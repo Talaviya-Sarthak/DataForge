@@ -13,6 +13,9 @@ interface DatasetContextType {
   setTotalSteps: (count: number) => void
   rawFile: File | null
   setRawFile: (file: File | null) => void
+  // ── Finalization state ──
+  isFinalized: boolean
+  setIsFinalized: (finalized: boolean) => void
 }
 
 const DatasetContext = createContext<DatasetContextType | undefined>(undefined)
@@ -23,6 +26,7 @@ export const DatasetProvider = ({ children }: { children: ReactNode }) => {
   const [pipelineId, setPipelineId] = useState<number | null>(null)
   const [totalSteps, setTotalSteps] = useState<number>(0)
   const [rawFile, setRawFile] = useState<File | null>(null)
+  const [isFinalized, setIsFinalized] = useState<boolean>(false)
 
   const setDataset = (data: any) => {
     setDatasetState(data)
@@ -36,6 +40,10 @@ export const DatasetProvider = ({ children }: { children: ReactNode }) => {
     if (data?.total_steps !== undefined) {
       setTotalSteps(data.total_steps)
     }
+    // Check if response indicates finalization
+    if (data?.is_finalized !== undefined) {
+      setIsFinalized(data.is_finalized)
+    }
   }
 
   const clearDataset = () => {
@@ -44,6 +52,7 @@ export const DatasetProvider = ({ children }: { children: ReactNode }) => {
     setPipelineId(null)
     setTotalSteps(0)
     setRawFile(null)
+    setIsFinalized(false)
   }
 
   return (
@@ -53,6 +62,7 @@ export const DatasetProvider = ({ children }: { children: ReactNode }) => {
       pipelineId, setPipelineId,
       totalSteps, setTotalSteps,
       rawFile, setRawFile,
+      isFinalized, setIsFinalized,
     }}>
       {children}
     </DatasetContext.Provider>
