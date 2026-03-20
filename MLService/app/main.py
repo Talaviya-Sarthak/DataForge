@@ -1,13 +1,17 @@
-<<<<<<< Updated upstream
-=======
 import logging
 import os
 import uvicorn
 
->>>>>>> Stashed changes
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import router
+
+# ── Configure logging for the dataforge namespace ─────────
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(name)s %(levelname)s %(message)s",
+)
+logging.getLogger("dataforge").setLevel(logging.INFO)
 
 def create_app() -> FastAPI:
     app = FastAPI(
@@ -16,31 +20,17 @@ def create_app() -> FastAPI:
         description="ML Microservice API"
     )
 
-<<<<<<< Updated upstream
-    # CORS: allow ONLY Node.js backend
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=[
-            "http://localhost:5000",  # Node.js backend
-=======
     # ✅ Restrict CORS to backend only
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[
             os.environ.get("BACKEND_URL", "http://localhost:5000"),
->>>>>>> Stashed changes
         ],
         allow_credentials=True,
         allow_methods=["POST", "GET"],
         allow_headers=["Content-Type", "Authorization"],
     )
 
-<<<<<<< Updated upstream
-    app.include_router(router, prefix="/api")
-    return app
-
-app = create_app()
-=======
     # ✅ Health + warmup check
     @app.get("/")
     def health():
@@ -62,4 +52,3 @@ app = create_app()
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port)
->>>>>>> Stashed changes

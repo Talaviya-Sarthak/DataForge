@@ -42,105 +42,11 @@ exports.trainModel = async (req, res) => {
     return res.status(404).json({ status: "error", message: "Pipeline not found" });
   }
 
-<<<<<<< Updated upstream
-  // ── 3. Create training job ────────────────
-  let jobId;
-  try {
-    jobId = await trainingService.createTrainingJob(
-      String(pipeline_id),
-      userId,
-      pipeline.ds_id,
-      task_type,
-      target_column
-    );
-  } catch (err) {
-    console.error("❌ Failed to create training job:", err.message);
-    return res.status(500).json({ status: "error", message: "Failed to create training job" });
-  }
-
-  try {
-    // ── 4. Get pipeline steps ─────────────────
-    const allSteps = await datasetService.getPipelineSteps(pipeline_id);
-
-    // ── 5. Finalize pipeline in MLService ─────
-    await mlService.finalizePipeline({
-      pipeline_id: String(pipeline_id),
-      user_id: userId,
-      dataset_id: pipeline.ds_id,
-      steps: allSteps.map((s) => ({
-        step_index: s.step_index,
-        type: s.step_type,
-        params: s.step_params,
-      })),
-    });
-
-    // ── 6. Call MLService /api/train ───────────
-    const mlResult = await mlService.trainPipeline({
-      pipeline_id: String(pipeline_id),
-      task_type,
-      target_column,
-    });
-
-    // ── 7. Store results in database ──────────
-    const models = mlResult.models || [];
-    await trainingService.storeModelResults(
-      String(pipeline_id),
-      task_type,
-      target_column,
-      models
-    );
-
-    // ── 8. Update training job status ─────────
-    await trainingService.updateTrainingJobStatus(jobId, "completed");
-
-    // ── 9. Format response for frontend ───────
-    const bestModel = models[0] || null;
-
-    return res.status(200).json({
-      status: "success",
-      pipeline_id: mlResult.pipeline_id,
-      task_type: mlResult.task_type,
-      target_column: mlResult.target_column,
-      best_model: bestModel,
-      leaderboard: models.map((m, index) => ({ ...m, rank: index })),
-      feature_engineering: mlResult.feature_engineering || {},
-    });
-  } catch (error) {
-    console.error("❌ Training Error:", error.message);
-
-    // Update job status to failed
-    if (jobId) {
-      await trainingService.updateTrainingJobStatus(jobId, "failed", error.message).catch(() => {});
-    }
-
-    // Handle specific MLService errors
-    if (error.message.includes("not reachable")) {
-      return res.status(503).json({
-        status: "error",
-        message: "ML Service is unavailable. Please try again later.",
-      });
-    }
-
-    if (error.message.includes("No dataset uploaded") || error.message.includes("No finalized dataset")) {
-      return res.status(400).json({
-        status: "error",
-        message: "Dataset not found in ML Service. Please re-upload and finalize your dataset.",
-      });
-    }
-
-    return res.status(500).json({
-      status: "error",
-      message: "Training failed",
-      detail: error.message,
-    });
-  }
-=======
   // ── 3. Delegate to queue-based path ──────
   req.body.pipeline_id  = String(pipeline_id);
   req.body.dataset_id   = pipeline.ds_id;
   req.body.selected_models = req.body.selected_models || [];
   return exports.experimentTrain(req, res);
->>>>>>> Stashed changes
 };
 
 // =========================================
@@ -174,21 +80,6 @@ exports.getAvailableModels = async (req, res) => {
       });
     }
 
-<<<<<<< Updated upstream
-    const bestModel = models[0];
-
-    return res.status(200).json({
-      status: "success",
-      pipeline_id: pipelineId,
-      task_type: bestModel.task_type,
-      target_column: bestModel.target_column,
-      best_model: formatModelForResponse(bestModel),
-      leaderboard: models.map((m) => formatModelForResponse(m)),
-    });
-  } catch (error) {
-    console.error("❌ Get Results Error:", error.message);
-    return res.status(500).json({ status: "error", message: "Failed to fetch training results" });
-=======
     const result = await mlService.getAvailableModels(task_type);
     return res.status(200).json({
       status: "success",
@@ -850,19 +741,8 @@ exports.compareModels = async (req, res) => {
 /**
  * Build comparison charts based on model type
  */
-<<<<<<< Updated upstream
-function formatModelForResponse(row) {
-  const base = {
-    model: row.model,
-    model_path: row.model_path,
-    rank: row.rank,
-  };
-
-  if (row.task_type === "classification") {
-=======
 function buildComparisonCharts(models, modelType) {
   if (modelType === 'classification') {
->>>>>>> Stashed changes
     return {
       metrics_comparison: models.map(m => ({
         model: m.model_name,

@@ -168,13 +168,6 @@ CREATE TABLE trained_models (
   mse DOUBLE DEFAULT NULL,
   rmse DOUBLE DEFAULT NULL,
   mae DOUBLE DEFAULT NULL,
-<<<<<<< Updated upstream
-  `rank` INT NOT NULL DEFAULT 0,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_trained_pipeline_id (pipeline_id),
-  INDEX idx_trained_rank (`rank`)
-);
-=======
   
   -- Training info
   training_time_ms INT DEFAULT NULL,
@@ -208,28 +201,11 @@ CREATE TABLE model_plots (
   
   -- Common plots
   feature_importance JSON DEFAULT NULL,
-  learning_curve JSON DEFAULT NULL,
-  class_distribution JSON DEFAULT NULL,
-  feature_vs_target JSON DEFAULT NULL,
   
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   
   FOREIGN KEY (model_id) REFERENCES trained_models(id) ON DELETE CASCADE,
   INDEX idx_model_id (model_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- =========================================
--- DATASET STATISTICS
--- =========================================
-CREATE TABLE dataset_stats (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  experiment_id VARCHAR(255) NOT NULL UNIQUE,
-  num_rows INT NOT NULL,
-  num_columns INT NOT NULL,
-  missing_values JSON DEFAULT NULL,
-  correlation_matrix JSON DEFAULT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_experiment_id (experiment_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =========================================
@@ -249,4 +225,3 @@ SELECT '=== MODEL_PLOTS STRUCTURE ===' AS info;
 DESCRIBE model_plots;
 
 SELECT 'Schema is ready to use!' AS status;
->>>>>>> Stashed changes
