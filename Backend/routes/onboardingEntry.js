@@ -3,7 +3,8 @@ const router = express.Router();
 
 const authMiddleware = require("../middlewares/authMiddleware");
 const {
-  upsertOnboarding
+  upsertOnboarding,
+  getOnboardingByUserId
 } = require("../Database/models/user/onboardingModel");
 
 // 🔐 Protect all onboarding routes
@@ -45,6 +46,26 @@ router.post("/onboarding", async (req, res) => {
     console.error("❌ Onboarding Error:", err);
     return res.status(500).json({
       error: "Server error during onboarding"
+    });
+  }
+});
+
+// =======================
+// ✅ GET USER PROFILE SNAPSHOT
+// =======================
+router.get("/onboarding/profile", async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const onboarding = await getOnboardingByUserId(userId);
+
+    return res.status(200).json({
+      company: onboarding?.company || null,
+      role: onboarding?.profession || null
+    });
+  } catch (err) {
+    console.error("❌ Fetch Onboarding Profile Error:", err);
+    return res.status(500).json({
+      error: "Server error while fetching onboarding profile"
     });
   }
 });

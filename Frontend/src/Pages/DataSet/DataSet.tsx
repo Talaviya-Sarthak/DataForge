@@ -20,19 +20,21 @@ const Dataset = () => {
   }, [uploadMutation.isError, uploadMutation.isSuccess])
 
   return (
-    <div className="relative flex flex-col min-h-screen overflow-hidden" style={{ backgroundImage: 'radial-gradient(circle farthest-corner at 50% 52.5%, rgba(14,53,92,0.3) 0%, rgba(0,0,0,1) 90%)' }}>
+    <div className="relative flex flex-col min-h-screen overflow-x-hidden" style={{ backgroundImage: 'radial-gradient(circle farthest-corner at 50% 52.5%, rgba(14,53,92,0.3) 0%, rgba(0,0,0,1) 90%)' }}>
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute -top-[320px] left-1/2 h-[520px] w-[720px] -translate-x-1/2 rounded-full bg-gradient-to-r from-[#33E6FF]/20 to-blue-500/5 blur-3xl z-10" />
       </div>
       <div className="relative z-10 flex flex-col min-h-screen">
         <Header />
 
-        <Dataset_tabledata
-          handleFileUpload={handleFileUpload}
-          uploadMutation={uploadMutation}
-          uploadKey={uploadKey}
-          resetUpload={resetUpload}
-        />
+        <main className="flex-1">
+          <Dataset_tabledata
+            handleFileUpload={handleFileUpload}
+            uploadMutation={uploadMutation}
+            uploadKey={uploadKey}
+            resetUpload={resetUpload}
+          />
+        </main>
 
         <Footer />
       </div>

@@ -31,6 +31,7 @@ function App() {
           <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/">
+                {/* Public routes - accessible without login */}
                 <Route index element={<HomePage />} />
                 <Route path='/HomePage' element={<HomePage />} />
                 <Route path='/SignIn' element={<SignIn />} />

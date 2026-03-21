@@ -1,6 +1,32 @@
 const API_BASE = 'http://localhost:5000/api/user';
 const AUTH_BASE = 'http://localhost:5000/api/auth';
 
+type OnboardingProfile = {
+  company: string | null;
+  role: string | null;
+};
+
+export const fetchOnboardingProfile = async (authToken: string): Promise<OnboardingProfile> => {
+  const response = await fetch(`${API_BASE}/onboarding/profile`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err?.error || 'Failed to fetch onboarding profile');
+  }
+
+  const data = await response.json();
+  return {
+    company: data?.company ?? null,
+    role: data?.role ?? null
+  };
+};
+
 export const submitOnboardingData = async (formData: any, authToken: string) => {
   try {
     const authHeaders = {
@@ -36,7 +62,7 @@ export const submitOnboardingData = async (formData: any, authToken: string) => 
           tools: formData.toolsUsed
         })
       });
-      
+
       if (!toolsResponse.ok) {
         console.error('Tools failed:', await toolsResponse.text());
       }
@@ -51,7 +77,7 @@ export const submitOnboardingData = async (formData: any, authToken: string) => 
           projectTypes: formData.projectTypes
         })
       });
-      
+
       if (!projectResponse.ok) {
         console.error('Project types failed:', await projectResponse.text());
       }
@@ -67,7 +93,7 @@ export const submitOnboardingData = async (formData: any, authToken: string) => 
           preferredFeatures: formData.preferredFeatures || []
         })
       });
-      
+
       if (!prefResponse.ok) {
         console.error('Preferences failed:', await prefResponse.text());
       }
