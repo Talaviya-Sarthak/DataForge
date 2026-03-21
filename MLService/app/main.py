@@ -56,19 +56,28 @@ def create_app() -> FastAPI:
         description="ML Microservice API"
     )
 
-    # ✅ FIXED CORS (important)
+    # ✅ Restrict CORS to backend only
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=[
+            os.environ.get("BACKEND_URL", "http://localhost:5000"),
+        ],
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["POST", "GET"],
+        allow_headers=["Content-Type", "Authorization"],
     )
 
-    # ✅ Health check
+    # ✅ Health + warmup check
     @app.get("/")
     def health():
         return {"status": "ML service running"}
+
+    @app.get("/warmup")
+    def warmup():
+        """Keep service warm — call on startup to pre-import heavy modules."""
+        import sklearn  # noqa: F401
+        import xgboost  # noqa: F401
+        return {"status": "warm"}
 
     app.include_router(router, prefix="/api")
     return app
@@ -77,5 +86,5 @@ app = create_app()
 
 # ✅ REQUIRED FOR RENDER
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
+    port = int(os.environ.get("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port)

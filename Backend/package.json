@@ -4,8 +4,15 @@
   "description": "DataForge is an AI-powered data workspace designed to streamline the process of preparing, enriching, and modeling structured data. The platform enables users to upload CSV files, perform assisted data cleaning, automatically generate meaningful derived features, train multiple machine-learning models, review performance results, and export the best-performing model — all within a single environment.",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "test": "node test-queue.js",
+    "start": "node server.js",
+    "worker": "node worker-start.js",
+    "dev": "nodemon server.js",
+    "dev:worker": "node worker-start.js",
+    "diagnostic": "node diagnostic.js",
+    "validate:queue": "node test-queue-validation.js",
+    "validate:api": "node test-api-validation.js",
+    "validate:all": "npm run diagnostic && npm run validate:queue && npm run validate:api"
   },
   "keywords": [],
   "author": "",
@@ -15,16 +22,19 @@
     "axios": "^1.13.2",
     "bcrypt": "^6.0.0",
     "body-parser": "^2.2.1",
+    "bullmq": "^5.71.0",
     "cors": "^2.8.5",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "express-rate-limit": "^8.3.1",
     "express-session": "^1.18.2",
     "form-data": "^4.0.5",
+    "ioredis": "^5.10.0",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.0.2",
     "mysql2": "^3.16.0",
     "nodemon": "^3.1.11",
+    "socket.io": "^4.8.3",
     "uuid": "^9.0.1"
   },
   "repository": {

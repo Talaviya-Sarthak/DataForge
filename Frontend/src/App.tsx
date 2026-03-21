@@ -14,7 +14,7 @@ const NotFound = lazy(() => import("./Pages/NotFound/not-found"));
 const AboutPage = lazy(() => import("./Pages/About/About"));
 const FAQDemo = lazy(() => import("./Pages/FAQ/demo"));
 const Cleaning = lazy(() => import("./Pages/Cleaning/Cleaning"));
-const LampDemo = lazy(() => import("./components/layouts/BgLamp").then(module => ({ default: module.LampDemo })));
+const MLDashboard = lazy(() => import("./Pages/Models/MLDashboard"));
 
 // Loading component for suspense fallback
 const PageLoader = () => (
@@ -40,8 +40,8 @@ function App() {
                 {/* Protected routes - require authentication */}
                 <Route path='/DataSet' element={<ProtectedRoute><Dataset /></ProtectedRoute>} />
                 <Route path='/Cleaning' element={<ProtectedRoute><Cleaning /></ProtectedRoute>} />
+                <Route path='/Models' element={<ProtectedRoute><MLDashboard /></ProtectedRoute>} />
                 <Route path='/FAQ' element={<ProtectedRoute><FAQDemo /></ProtectedRoute>} />
-                <Route path='/Lamp' element={<ProtectedRoute><LampDemo /></ProtectedRoute>} />
                 <Route path='/About' element={<ProtectedRoute><AboutPage /></ProtectedRoute>} />
 
                 {/* 404 - Not Found */}

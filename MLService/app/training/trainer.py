@@ -1,15 +1,13 @@
-"""Model trainer — fits models from the registry on a given dataset split.
+"""Model trainer — fits models from the registry on a given dataset split."""
 
-Iterates over the model descriptors supplied by the registry, fits each
-one on the training data, and returns the trained model alongside its
-evaluation metrics.
-"""
-
+import logging
 import time
 
 import pandas as pd
 
 from app.training.evaluator import evaluate_model
+
+logger = logging.getLogger("dataforge.trainer")
 
 
 def train_models(
@@ -20,31 +18,21 @@ def train_models(
     y_test: pd.Series,
     task_type: str,
 ) -> list[dict]:
-    """Train and evaluate every model in *models*.
-
-    Args:
-        models: List of ``{"name": str, "instance": estimator}`` dicts.
-        X_train: Training feature matrix.
-        y_train: Training target vector.
-        X_test: Test feature matrix.
-        y_test: Test target vector.
-        task_type: ``"classification"`` or ``"regression"``.
-
-    Returns:
-        list[dict]: Each dict has ``name``, ``instance`` (fitted),
-        ``metrics``, and ``training_time_ms``.
-    """
     results: list[dict] = []
+
+    logger.info("[ML] Training started | models=%d | dataset_size=%d", len(models), len(X_train))
 
     for descriptor in models:
         name = descriptor["name"]
         model = descriptor["instance"]
 
+        logger.info("[ML] Training model: %s", name)
         start = time.perf_counter()
         model.fit(X_train, y_train)
         training_time_ms = int((time.perf_counter() - start) * 1000)
 
         metrics = evaluate_model(model, X_test, y_test, task_type)
+        logger.info("[ML] Completed: %s | time=%dms", name, training_time_ms)
 
         results.append({
             "name": name,
