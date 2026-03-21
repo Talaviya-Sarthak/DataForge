@@ -32,17 +32,6 @@ function App() {
             <Routes>
               <Route path="/">
                 <Route index element={<HomePage />} />
-<<<<<<< Updated upstream
-                <Route index path='/HomePage' element={<HomePage />} />
-                <Route index path='/DataSet' element={<ProtectedRoute><Dataset /></ProtectedRoute>} />
-                <Route index path='/Cleaning' element={<ProtectedRoute><Cleaning /></ProtectedRoute>} />
-                <Route index path='/SignIn' element={<SignIn />} />
-                <Route index path='/SignUp' element={<Signup />} />
-                <Route index path='/FAQ' element={<FAQDemo />} />
-                <Route index path='/Lamp' element={<LampDemo />} />
-                <Route index path='/About' element={<AboutPage />} />
-                <Route index path='*' element={<NotFound />} />
-=======
                 <Route path='/HomePage' element={<HomePage />} />
                 <Route path='/SignIn' element={<SignIn />} />
                 <Route path='/SignUp' element={<Signup />} />
@@ -56,7 +45,6 @@ function App() {
 
                 {/* 404 - Not Found */}
                 <Route path='*' element={<NotFound />} />
->>>>>>> Stashed changes
               </Route>
             </Routes>
           </Suspense>

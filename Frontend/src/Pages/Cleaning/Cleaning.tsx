@@ -3,12 +3,8 @@
 
 import Header from "@/components/layouts/Header"
 import { Footer } from "@/components/layouts/Footer"
-<<<<<<< Updated upstream
-import { useState, useEffect, useCallback, Suspense, lazy } from "react"
-=======
 import { useState, useEffect, useCallback, Suspense, lazy, useRef } from "react"
 import { useNavigate } from "react-router-dom"
->>>>>>> Stashed changes
 import {
   BarChart3,
   Eye,
