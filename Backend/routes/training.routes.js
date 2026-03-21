@@ -31,7 +31,7 @@ router.get("/:pipelineId/results", auth, getTrainingResults);
 
 // ── NEW EXPERIMENT ENDPOINTS ────────────────────────────
 
-// GET /api/training/models/available — list available models
+// GET /api/training/models/available — list available models (MUST BE BEFORE :modelId routes)
 router.get("/models/available", auth, getAvailableModels);
 
 // POST /api/training/experiment/train — train without finalization (rate limited)

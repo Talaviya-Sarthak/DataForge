@@ -16,9 +16,6 @@ from app.data.persistence import (
 )
 from app.preprocessings.Preprocessing_pipeline import PreprocessingPipeline
 from app.training.training_pipeline import run_training_pipeline
-<<<<<<< Updated upstream
-from app.feature_engineering import FeatureEngineeringService
-=======
 from app.feature_engineering.Feature_engineering_pipeline import FeatureEngineeringService
 
 # New imports for ML experimentation dashboard
@@ -29,7 +26,6 @@ from app.training.experiment_store import (
     invalidate_experiments_for_pipeline,
 )
 from app.training.model_registry import get_available_models
->>>>>>> Stashed changes
 
 router = APIRouter()
 

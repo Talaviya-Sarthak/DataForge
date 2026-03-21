@@ -734,7 +734,6 @@ exports.compareModels = async (req, res) => {
       message: 'Failed to compare models',
       detail: error.message,
     });
->>>>>>> Stashed changes
   }
 };
 
