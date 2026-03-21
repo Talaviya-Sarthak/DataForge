@@ -3,7 +3,7 @@
 
 import Header from "@/components/layouts/Header"
 import { Footer } from "@/components/layouts/Footer"
-import { useState, useEffect, useCallback, Suspense, lazy, useRef } from "react"
+import { useState, useEffect, useCallback, Suspense, lazy, useRef, useMemo } from "react"
 import {
   BarChart3,
   Eye,
@@ -16,10 +16,9 @@ import {
   Hash,
   Type,
   Shuffle,
+  Sparkles,
   Filter,
   Scale,
-  LineChart,
-  PieChart,
   ChartArea,
   TriangleAlert,
   ChevronUp,
@@ -33,8 +32,13 @@ import { useDataset } from "@/contexts/DatasetContext"
 import { applyCleaningAction, undoLastStep, finalizeDataset, downloadDataset, getPipelineSteps, type PipelineStep } from "@/services/cleaning.service"
 import { Undo2, Download, CheckCircle } from "lucide-react"
 import { useToast } from "@/components/ui/toast/Toast"
-import { BarChart, Bar, LineChart as RechartsLine, Line, ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { StepsStepper } from "@/components/cleaning/StepsStepper"
+import { HistogramChart } from "@/components/cleaning/HistogramChart"
+import { BoxPlotChart } from "@/components/cleaning/BoxPlotChart"
+import { ChartSkeleton } from "@/components/cleaning/ChartSkeleton"
+import { LineTrendChart } from "@/components/cleaning/LineTrendChart"
+import { ScatterPlotChart } from "@/components/cleaning/ScatterPlotChart"
+import { HeatmapChart } from "@/components/cleaning/HeatmapChart"
 
 const DataTable = lazy(() => import("@/components/ui/DataTable"))
 
@@ -72,10 +76,11 @@ const Cleaning = () => {
   const [showColumnInfo, setShowColumnInfo] = useState<boolean>(false)
   const [showValueCounts, setShowValueCounts] = useState<boolean>(false)
   const [isProcessing, setIsProcessing] = useState<boolean>(false)
-  const [selectedXColumn, setSelectedXColumn] = useState<string | null>(null)
-  const [selectedYColumn, setSelectedYColumn] = useState<string | null>(null)
+  const [selectedFeature, setSelectedFeature] = useState<string | null>(null)
+  const [selectedCompareFeature, setSelectedCompareFeature] = useState<string | null>(null)
   const [showChart, setShowChart] = useState<boolean>(false)
-  const [chartType, setChartType] = useState<string | null>(null)
+  const [chartType, setChartType] = useState<"histogram" | "boxplot" | "line" | "scatter" | "heatmap">("histogram")
+  const [isChartLoading, setIsChartLoading] = useState<boolean>(false)
   const [pipelineSteps, setPipelineSteps] = useState<PipelineStep[]>([])
   const columnListRef = useRef<HTMLDivElement | null>(null)
 
@@ -281,6 +286,104 @@ const Cleaning = () => {
     }))
     : []
 
+  const numericColumns = useMemo(
+    () => columns.filter((col) => col.type === "numeric").map((col) => col.name),
+    [columns],
+  )
+
+  useEffect(() => {
+    if (!selectedFeature && numericColumns.length > 0) {
+      setSelectedFeature(numericColumns[0])
+    }
+    if (selectedFeature && !numericColumns.includes(selectedFeature)) {
+      setSelectedFeature(numericColumns[0] || null)
+    }
+  }, [numericColumns, selectedFeature])
+
+  useEffect(() => {
+    if (!selectedCompareFeature && numericColumns.length > 1) {
+      setSelectedCompareFeature(numericColumns[1])
+      return
+    }
+    if (selectedCompareFeature && !numericColumns.includes(selectedCompareFeature)) {
+      const fallback = numericColumns.find((column) => column !== selectedFeature) || null
+      setSelectedCompareFeature(fallback)
+    }
+    if (selectedCompareFeature && selectedFeature === selectedCompareFeature) {
+      const fallback = numericColumns.find((column) => column !== selectedFeature) || null
+      setSelectedCompareFeature(fallback)
+    }
+  }, [numericColumns, selectedCompareFeature, selectedFeature])
+
+  const selectedFeatureValues = useMemo(() => {
+    if (!selectedFeature || !dataset?.data?.length) return []
+    return dataset.data
+      .map((row: any) => {
+        const raw = row?.[selectedFeature]
+        if (raw === null || raw === undefined || raw === "") return null
+        const parsed = Number(String(raw).replaceAll(",", ""))
+        return Number.isFinite(parsed) ? parsed : null
+      })
+      .filter((value: number | null): value is number => value !== null)
+  }, [dataset?.data, selectedFeature])
+
+  const pairedChartData = useMemo(() => {
+    if (!selectedFeature || !selectedCompareFeature || !dataset?.data?.length) return []
+
+    return dataset.data
+      .map((row: any) => {
+        const xRaw = row?.[selectedFeature]
+        const yRaw = row?.[selectedCompareFeature]
+        if (xRaw === null || xRaw === undefined || yRaw === null || yRaw === undefined) return null
+
+        const x = Number(String(xRaw).replaceAll(",", ""))
+        const y = Number(String(yRaw).replaceAll(",", ""))
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return null
+
+        return { x, y }
+      })
+      .filter((point: { x: number; y: number } | null): point is { x: number; y: number } => point !== null)
+  }, [dataset?.data, selectedCompareFeature, selectedFeature])
+
+  const lineSeriesData = useMemo(() => {
+    if (!selectedFeature || !dataset?.data?.length) return []
+
+    const values = dataset.data
+      .map((row: any, index: number) => {
+        const primaryRaw = row?.[selectedFeature]
+        if (primaryRaw === null || primaryRaw === undefined || primaryRaw === "") return null
+        const primary = Number(String(primaryRaw).replaceAll(",", ""))
+        if (!Number.isFinite(primary)) return null
+
+        const point: { rowIndex: number; primary: number; secondary?: number } = {
+          rowIndex: index + 1,
+          primary,
+        }
+
+        if (selectedCompareFeature) {
+          const secondaryRaw = row?.[selectedCompareFeature]
+          if (secondaryRaw !== null && secondaryRaw !== undefined && secondaryRaw !== "") {
+            const secondary = Number(String(secondaryRaw).replaceAll(",", ""))
+            if (Number.isFinite(secondary)) {
+              point.secondary = secondary
+            }
+          }
+        }
+
+        return point
+      })
+      .filter((point: { rowIndex: number; primary: number; secondary?: number } | null): point is { rowIndex: number; primary: number; secondary?: number } => point !== null)
+
+    return values
+  }, [dataset?.data, selectedCompareFeature, selectedFeature])
+
+  useEffect(() => {
+    if (!showChart) return
+    setIsChartLoading(true)
+    const timer = window.setTimeout(() => setIsChartLoading(false), 420)
+    return () => window.clearTimeout(timer)
+  }, [showChart, chartType, selectedFeature, selectedCompareFeature])
+
   const totalMissing = columns.reduce((sum, col) => sum + col.missing, 0)
   const totalOutliers = columns.reduce((sum, col) => sum + col.outliers, 0)
 
@@ -435,91 +538,139 @@ const Cleaning = () => {
 
 
   const GraphDialog = ({ onClose }: { onClose: () => void }) => (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-neutral-900 rounded-xl p-6 w-[500px] max-w-[90vw] border border-neutral-800 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-
-        {/* Header */}
-        <div className="flex justify-between items-center mb-5">
-          <h3 className="text-xl font-semibold text-white tracking-tight">
-            Select Columns & Chart Type
-          </h3>
-          <button
-            onClick={onClose}
-            className="text-neutral-400 hover:text-white transition-colors"
-          >
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
+      <div className="w-[640px] max-w-[92vw] rounded-2xl border border-[#1F1F1F] bg-[#0A0A0A] p-8 shadow-[0_8px_24px_rgba(0,0,0,0.4)]" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-8 flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-xl font-semibold text-white tracking-tight">Data Preprocessing Visualizer</h3>
+            <p className="mt-2 text-sm text-gray-400">Explore numeric feature distribution and relationships.</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        {/* Column Selection */}
-        <div className="space-y-4 mb-6">
-          <div>
-            <label className="text-sm text-neutral-400 mb-2 block">X-Axis Column</label>
-            <select
-              value={selectedXColumn || ''}
-              onChange={(e) => setSelectedXColumn(e.target.value)}
-              className="w-full bg-neutral-800 text-white rounded-lg px-3 py-2 border border-neutral-700 focus:border-blue-500 focus:outline-none"
-            >
-              <option value="">Select column...</option>
-              {columns.map(col => (
-                <option key={col.name} value={col.name}>{col.name}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-sm text-neutral-400 mb-2 block">Y-Axis Column</label>
-            <select
-              value={selectedYColumn || ''}
-              onChange={(e) => setSelectedYColumn(e.target.value)}
-              className="w-full bg-neutral-800 text-white rounded-lg px-3 py-2 border border-neutral-700 focus:border-blue-500 focus:outline-none"
-            >
-              <option value="">Select column...</option>
-              {columns.map(col => (
-                <option key={col.name} value={col.name}>{col.name}</option>
-              ))}
-            </select>
-          </div>
+        <div className="mb-6 space-y-2">
+          <label className="text-sm font-medium text-gray-300">Feature (Numerical)</label>
+          <select
+            value={selectedFeature || ""}
+            onChange={(e) => setSelectedFeature(e.target.value || null)}
+            className="w-full rounded-lg border border-[#222222] bg-[#111111] px-3 py-2.5 text-sm text-white outline-none transition-colors focus:border-[#333333]"
+          >
+            {numericColumns.length === 0 ? (
+              <option value="">No numerical columns found</option>
+            ) : (
+              numericColumns.map((columnName) => (
+                <option key={columnName} value={columnName}>
+                  {columnName}
+                </option>
+              ))
+            )}
+          </select>
         </div>
 
-        {/* Chart Types */}
-        <div className="grid grid-cols-2 gap-4">
-          {[
-            { title: "Bar Chart", type: "bar", icon: BarChart3, color: "text-blue-400", bg: "bg-blue-500/10" },
-            { title: "Line Chart", type: "line", icon: LineChart, color: "text-orange-400", bg: "bg-orange-500/10" },
-            { title: "Scatter Plot", type: "scatter", icon: BarChart3, color: "text-green-400", bg: "bg-green-500/10" },
-          ].map(({ title, type, icon: Icon, color, bg }) => (
-            <button
-              key={type}
-              onClick={() => {
-                console.log('Chart button clicked:', { selectedXColumn, selectedYColumn, type });
-                if (!selectedXColumn || !selectedYColumn) {
-                  show({ type: "error", message: "Please select both X and Y columns" });
-                  return;
-                }
-                console.log('Setting chart type and showing chart');
-                setChartType(type);
-                setShowChart(true);
-                setShowGraphDialog(false);
-              }}
-              disabled={!selectedXColumn || !selectedYColumn}
-              className="
-                group relative rounded-xl p-4 text-left
-                bg-neutral-900
-                ring-1 ring-neutral-800
-                hover:ring-neutral-600
-                hover:bg-neutral-800/70
-                transition-all duration-200
-                hover:-translate-y-[1px]
-                disabled:opacity-50 disabled:cursor-not-allowed
-              "
+        {(chartType === "line" || chartType === "scatter") && (
+          <div className="mb-6 space-y-2">
+            <label className="text-sm font-medium text-gray-300">
+              {chartType === "line" ? "Comparison Feature (Optional)" : "Y-Axis Feature"}
+            </label>
+            <select
+              value={selectedCompareFeature || ""}
+              onChange={(e) => setSelectedCompareFeature(e.target.value || null)}
+              className="w-full rounded-lg border border-[#222222] bg-[#111111] px-3 py-2.5 text-sm text-white outline-none transition-colors focus:border-[#333333]"
             >
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${bg}`}>
-                <Icon className={`h-5 w-5 ${color}`} />
-              </div>
-              <div className="text-sm font-medium text-white">{title}</div>
-              <div className="text-xs text-neutral-400 mt-0.5">Visualize data</div>
-            </button>
-          ))}
+              {chartType === "line" && <option value="">None (single-series line)</option>}
+              {numericColumns
+                .filter((columnName) => columnName !== selectedFeature)
+                .map((columnName) => (
+                  <option key={columnName} value={columnName}>
+                    {columnName}
+                  </option>
+                ))}
+            </select>
+          </div>
+        )}
+
+        <div className="grid gap-3 sm:grid-cols-2 mb-8">
+          {[
+            {
+              label: "Histogram",
+              type: "histogram" as const,
+              icon: BarChart3,
+              helper: "Distribution across value bins",
+            },
+            {
+              label: "Box Plot",
+              type: "boxplot" as const,
+              icon: Sparkles,
+              helper: "Spread, quartiles, and outlier context",
+            },
+            {
+              label: "Line Chart",
+              type: "line" as const,
+              icon: ChartArea,
+              helper: "Trend by row index with optional comparison",
+            },
+            {
+              label: "Scatter Plot",
+              type: "scatter" as const,
+              icon: Shuffle,
+              helper: "Relationship between two numeric features",
+            },
+            {
+              label: "Heatmap",
+              type: "heatmap" as const,
+              icon: Columns,
+              helper: "Correlation matrix for all numeric features",
+            },
+          ].map(({ label, type, icon: Icon, helper }) => {
+            const active = chartType === type
+            return (
+              <button
+                key={type}
+                type="button"
+                onClick={() => setChartType(type)}
+                className={`rounded-xl border p-4 text-left transition-all duration-200 ${
+                  active
+                    ? "border-[#8884d8] bg-[#151515]"
+                    : "border-[#1F1F1F] bg-[#111111] hover:border-[#333333] hover:bg-[#151515]"
+                }`}
+              >
+                <div className="mb-2 flex items-center gap-2">
+                  <Icon className="h-4 w-4 text-gray-400" />
+                  <span className="text-sm font-medium text-white">{label}</span>
+                </div>
+                <p className="text-xs text-gray-400">{helper}</p>
+              </button>
+            )
+          })}
+        </div>
+
+        <div className="flex items-center justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="rounded-lg border border-[#2A2A2A] bg-transparent px-4 py-2 text-sm text-gray-300 hover:bg-[#151515] transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => {
+              if (!selectedFeature) {
+                show({ type: "error", message: "Select a numeric feature to continue" })
+                return
+              }
+              if ((chartType === "scatter") && !selectedCompareFeature) {
+                show({ type: "error", message: "Select a Y-axis feature for this chart" })
+                return
+              }
+              setShowChart(true)
+              setShowGraphDialog(false)
+            }}
+            disabled={!selectedFeature || numericColumns.length === 0}
+            className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-black transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Open Visualization
+          </button>
         </div>
       </div>
     </div>
@@ -1089,88 +1240,87 @@ const Cleaning = () => {
       )}
 
       {/* Chart Display Dialog */}
-      {showChart && chartType && selectedXColumn && selectedYColumn && (() => {
-        // AGGREGATE DATA FOR CHART
-        const rawData = dataset?.data?.slice(0, 100) || [];
-        console.log('🔍 Raw data:', rawData);
-        console.log('🔍 Selected columns:', { selectedXColumn, selectedYColumn });
-
-        // Group by X column and aggregate Y values
-        const aggregated = rawData.reduce((acc: any, row: any) => {
-          const xValue = String(row[selectedXColumn]);
-          const yValue = Number(row[selectedYColumn]);
-
-          if (!acc[xValue]) {
-            acc[xValue] = { count: 0, sum: 0 };
-          }
-          acc[xValue].count += 1;
-          acc[xValue].sum += isNaN(yValue) ? 0 : yValue;
-
-          return acc;
-        }, {});
-
-        // Transform to chart format
-        const chartData = Object.entries(aggregated).map(([key, value]: [string, any]) => ({
-          [selectedXColumn]: key,
-          count: value.count,
-          sum: value.sum,
-          average: value.sum / value.count
-        }));
-
-        console.log('📊 Chart data:', chartData);
-
-        return (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[70]" onClick={() => setShowChart(false)}>
-            <div className="bg-neutral-900 rounded-xl p-6 w-[800px] max-w-[90vw] border border-neutral-800 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-              <div className="flex justify-between items-center mb-5">
-                <div>
-                  <h3 className="text-xl font-semibold text-white tracking-tight">
-                    {chartType === 'bar' ? 'Bar Chart' : chartType === 'line' ? 'Line Chart' : 'Scatter Plot'}
-                  </h3>
-                  <p className="text-sm text-neutral-400 mt-1">
-                    {selectedXColumn} (Count)
-                  </p>
-                </div>
-                <button onClick={() => setShowChart(false)} className="text-neutral-400 hover:text-white transition-colors">
-                  <X className="h-5 w-5" />
-                </button>
+      {showChart && selectedFeature && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-md" onClick={() => setShowChart(false)}>
+          <div
+            className="w-[980px] max-w-[94vw] rounded-2xl border border-[#1F1F1F] bg-[#0A0A0A] p-8 shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-6 flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-xl font-semibold tracking-tight text-white">
+                  {chartType === "histogram"
+                    ? "Histogram"
+                    : chartType === "boxplot"
+                      ? "Box Plot"
+                      : chartType === "line"
+                        ? "Line Chart"
+                        : chartType === "scatter"
+                          ? "Scatter Plot"
+                          : "Heatmap"}
+                </h3>
+                <p className="mt-1 text-sm text-gray-400">Feature: {selectedFeature}</p>
               </div>
-              <div className="bg-neutral-950/50 rounded-lg border border-neutral-800 p-4">
-                <ResponsiveContainer width="100%" height={400}>
-                  {chartType === 'bar' ? (
-                    <BarChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                      <XAxis dataKey={selectedXColumn} stroke="#9CA3AF" />
-                      <YAxis stroke="#9CA3AF" />
-                      <Tooltip contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151', borderRadius: '8px' }} />
-                      <Legend />
-                      <Bar dataKey="count" fill="#3B82F6" name="Count" />
-                    </BarChart>
-                  ) : chartType === 'line' ? (
-                    <RechartsLine data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                      <XAxis dataKey={selectedXColumn} stroke="#9CA3AF" />
-                      <YAxis stroke="#9CA3AF" />
-                      <Tooltip contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151', borderRadius: '8px' }} />
-                      <Legend />
-                      <Line type="monotone" dataKey="count" stroke="#F97316" strokeWidth={2} name="Count" />
-                    </RechartsLine>
-                  ) : (
-                    <ScatterChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                      <XAxis dataKey={selectedXColumn} stroke="#9CA3AF" />
-                      <YAxis stroke="#9CA3AF" />
-                      <Tooltip contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151', borderRadius: '8px' }} />
-                      <Legend />
-                      <Scatter name="Count" dataKey="count" fill="#10B981" />
-                    </ScatterChart>
-                  )}
-                </ResponsiveContainer>
-              </div>
+              <button onClick={() => setShowChart(false)} className="text-gray-400 transition-colors hover:text-white">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-[#1F1F1F] bg-[#111111] px-3 py-1 text-xs font-medium text-white">
+                {selectedFeatureValues.length.toLocaleString()} numeric rows
+              </span>
+              {(chartType === "line" || chartType === "scatter") && selectedCompareFeature && (
+                <span className="rounded-full border border-[#1F1F1F] bg-[#111111] px-3 py-1 text-xs font-medium text-white">
+                  Compare: {selectedCompareFeature}
+                </span>
+              )}
+              <span className="rounded-full border border-[#1F1F1F] bg-[#111111] px-3 py-1 text-xs font-medium text-gray-400">
+                Recharts + ResponsiveContainer
+              </span>
+            </div>
+
+            <div className="rounded-xl border border-[#1F1F1F] bg-[#111111] p-4">
+              {isChartLoading ? (
+                <ChartSkeleton
+                  title={
+                    chartType === "histogram"
+                      ? "Building histogram..."
+                      : chartType === "boxplot"
+                        ? "Calculating quartiles..."
+                        : chartType === "line"
+                          ? "Drawing trend lines..."
+                          : chartType === "scatter"
+                            ? "Projecting points..."
+                            : "Computing density bins..."
+                  }
+                />
+              ) : chartType === "histogram" ? (
+                <HistogramChart values={selectedFeatureValues} featureName={selectedFeature} />
+              ) : chartType === "boxplot" ? (
+                <BoxPlotChart values={selectedFeatureValues} featureName={selectedFeature} />
+              ) : chartType === "line" ? (
+                <LineTrendChart
+                  data={lineSeriesData}
+                  primaryFeature={selectedFeature}
+                  secondaryFeature={selectedCompareFeature}
+                />
+              ) : chartType === "scatter" ? (
+                <ScatterPlotChart
+                  data={pairedChartData}
+                  xFeature={selectedFeature}
+                  yFeature={selectedCompareFeature || "Y"}
+                />
+              ) : (
+                <HeatmapChart
+                  data={dataset?.data || []}
+                  numericColumns={numericColumns}
+                />
+              )}
             </div>
           </div>
-        );
-      })()}
+        </div>
+      )}
 
       <Footer />
     </div>
