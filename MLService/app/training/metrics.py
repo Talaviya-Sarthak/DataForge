@@ -1,8 +1,4 @@
-"""Reusable metric calculation functions.
 
-Provides separate helpers for classification and regression metrics so
-that callers never need to import sklearn.metrics directly.
-"""
 
 import numpy as np
 from sklearn.metrics import (

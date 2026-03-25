@@ -4,8 +4,7 @@ const logger = require("../utils/logger");
 /**
  * Store model results - ONLY uses trained_models and model_plots
  */
-const storeModelResults = async (experimentId, taskType, targetColumn, baseModels, userId) => {
-  const connection = await pool.getConnection();
+const storeModelResults = async (experimentId, taskType, targetColumn, baseModels, userId) => {  const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
 
@@ -65,15 +64,13 @@ const storeModelResults = async (experimentId, taskType, targetColumn, baseModel
           plots.error_distribution ? JSON.stringify(plots.error_distribution) : null,
           plots.residual_vs_predicted ? JSON.stringify(plots.residual_vs_predicted) : null,
           plots.regression_line ? JSON.stringify(plots.regression_line) : null,
-          featureImportance ? JSON.stringify(featureImportance) : null,
-        ]
+          featureImportance ? JSON.stringify(featureImportance) : null,        ]
       );
     }
 
     await connection.commit();
     logger.info('[DB]', `Stored ${baseModels.length} models for experiment ${experimentId}`);
-    return baseModels.length;
-  } catch (error) {
+    return baseModels.length;  } catch (error) {
     await connection.rollback();
     logger.error('[DB]', 'Failed to store model results', { error: error.message });
     throw error;

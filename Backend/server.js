@@ -38,16 +38,9 @@ app.use(cors({
 // 🔑 MUST come before routes
 app.use(express.json());
 
-// ── Input sanitization ──
-app.use(sanitizeInput);
-
-// ── Global rate limiting ──
-app.use("/api/", apiLimiter);
-
 // =======================
 // PUBLIC AUTH ROUTES
 // =======================
-app.use("/api/auth", authLimiter);
 app.use("/api/auth", require("./routes/signupEntry"));   // POST /signup
 app.use("/api/auth", require("./routes/signinEntry"));   // POST /signin
 

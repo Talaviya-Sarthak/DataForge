@@ -1,4 +1,5 @@
 const rateLimit = require("express-rate-limit");
+const { ipKeyGenerator } = require("express-rate-limit");
 
 // ── General API rate limiter ───────────────────────
 const apiLimiter = rateLimit({
@@ -24,15 +25,39 @@ const authLimiter = rateLimit({
   },
 });
 
-// ── Strict limiter for training (heavy operation) ──
+// ── Relaxed limiter for training (async operations) ──
 const trainingLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 20,                  // 20 training runs per hour per IP
+  windowMs: 1 * 60 * 1000,  // 1 minute
+  max: 5,                   // 5 training requests per minute per user
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => {
+    if (req.user && req.user.id) {
+      return `user_${req.user.id}`;
+    }
+    return ipKeyGenerator(req);
+  },
   message: {
     status: "error",
-    message: "Training rate limit exceeded. Please try again later.",
+    message: "Training rate limit exceeded. Please wait before starting another training session.",
+  },
+});
+
+// ── High-limit for polling endpoints (status checks) ──
+const pollingLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,  // 1 minute
+  max: 100,                 // 100 requests per minute
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    if (req.user && req.user.id) {
+      return `user_${req.user.id}`;
+    }
+    return ipKeyGenerator(req);
+  },
+  message: {
+    status: "error",
+    message: "Too many status check requests. Please slow down polling.",
   },
 });
 
@@ -45,18 +70,6 @@ const uploadLimiter = rateLimit({
   message: {
     status: "error",
     message: "Upload rate limit exceeded. Please try again later.",
-  },
-});
-
-// ── Polling limiter (for status checks) ────────────────────────────────
-const pollingLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000,  // 1 minute
-  max: 60,                  // 60 requests per minute per IP
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    status: "error",
-    message: "Polling rate limit exceeded. Please slow down.",
   },
 });
 
@@ -101,11 +114,15 @@ function sanitizeObject(obj) {
   }
 }
 
+// ── No rate limit (for specific endpoints) ──
+const noRateLimit = (req, res, next) => next();
+
 module.exports = {
   apiLimiter,
   authLimiter,
   trainingLimiter,
-  uploadLimiter,
   pollingLimiter,
+  uploadLimiter,
   sanitizeInput,
+  noRateLimit,
 };

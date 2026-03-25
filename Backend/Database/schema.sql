@@ -201,11 +201,28 @@ CREATE TABLE model_plots (
   
   -- Common plots
   feature_importance JSON DEFAULT NULL,
+  learning_curve JSON DEFAULT NULL,
+  class_distribution JSON DEFAULT NULL,
+  feature_vs_target JSON DEFAULT NULL,
   
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   
   FOREIGN KEY (model_id) REFERENCES trained_models(id) ON DELETE CASCADE,
   INDEX idx_model_id (model_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- =========================================
+-- DATASET STATISTICS
+-- =========================================
+CREATE TABLE dataset_stats (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  experiment_id VARCHAR(255) NOT NULL UNIQUE,
+  num_rows INT NOT NULL,
+  num_columns INT NOT NULL,
+  missing_values JSON DEFAULT NULL,
+  correlation_matrix JSON DEFAULT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_experiment_id (experiment_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =========================================

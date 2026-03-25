@@ -3,7 +3,7 @@
 
 import Header from "@/components/layouts/Header"
 import { Footer } from "@/components/layouts/Footer"
-import { useState, useEffect, useCallback, Suspense, lazy, useRef } from "react"
+import { useState, useEffect, useCallback, Suspense, lazy, useRef, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
 import {
   BarChart3,

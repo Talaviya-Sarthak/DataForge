@@ -6,6 +6,9 @@ import time
 import pandas as pd
 
 from app.training.evaluator import evaluate_model
+from app.training.exporter import export_model as save_model
+
+logger = logging.getLogger("dataforge.trainer")
 
 logger = logging.getLogger("dataforge.trainer")
 

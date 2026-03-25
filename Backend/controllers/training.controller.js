@@ -4,7 +4,6 @@ const datasetService = require("../services/dataset.service");
 const { trainingQueue } = require("../queues/training.queue");
 const jobService = require("../services/job.service");
 const logger = require("../utils/logger");
-const { activeTrainingByUser } = require("../utils/trainingLock");
 // =========================================
 // POST /api/training/train
 // =========================================
@@ -43,11 +42,10 @@ exports.trainModel = async (req, res) => {
   }
 
   // ── 3. Delegate to queue-based path ──────
-  req.body.pipeline_id  = String(pipeline_id);
-  req.body.dataset_id   = pipeline.ds_id;
+  req.body.pipeline_id = String(pipeline_id);
+  req.body.dataset_id = pipeline.ds_id;
   req.body.selected_models = req.body.selected_models || [];
-  return exports.experimentTrain(req, res);
-};
+  return exports.experimentTrain(req, res);};
 
 // =========================================
 // GET /api/training/:pipelineId/results
@@ -131,16 +129,14 @@ exports.experimentTrain = async (req, res) => {
   }
 
   try {
-    // ── Duplicate-job guard ────────────────────────────────
-    if (activeTrainingByUser.has(userId)) {
-      const existingId = activeTrainingByUser.get(userId);
-      logger.warn('[QUEUE]', 'Duplicate train request blocked', { userId, existingId });
-      return res.status(409).json({
-        status: "error",
-        message: "Training already in progress. Please wait for the current job to complete.",
-        experiment_id: existingId,
-      });
-    }
+    // ═══════════════════════════════════════════════════════════════════════════
+    // REMOVED: Per-user global lock (activeTrainingByUser)
+    // ═══════════════════════════════════════════════════════════════════════════
+    // REASON: This was causing the "training in progress" error that blocked users.
+    // BullMQ handles job queueing and concurrency automatically.
+    // Users can now submit multiple training jobs - they'll be processed
+    // sequentially based on worker concurrency settings.
+    // ═══════════════════════════════════════════════════════════════════════════
 
     // Get dataset_id from pipeline if not provided
     let dsId = dataset_id;
@@ -161,13 +157,13 @@ exports.experimentTrain = async (req, res) => {
 
     logger.info('[API]', '📥 Train request received', {
       experiment_id,
-      user_id:       userId,
+      user_id: userId,
       task_type,
       target_column,
-      models:        selected_models,
-      total_models:  selected_models.length,
-      pipeline_id:   pipeId || '(none)',
-      dataset_id:    dsId   || 0,
+      models: selected_models,
+      total_models: selected_models.length,
+      pipeline_id: pipeId || '(none)',
+      dataset_id: dsId || 0,
     });
 
     // Create training job in database
@@ -206,15 +202,17 @@ exports.experimentTrain = async (req, res) => {
     );
 
     logger.info('[QUEUE]', '📬 Job added to Redis queue', {
-      job_id:       job.id,
+      job_id: job.id,
       experiment_id,
-      queue:        'training-queue',
-      models:       selected_models,
+      queue: 'training-queue',
+      models: selected_models,
     });
 
-    // Register lock — released when worker completes or fails
-    activeTrainingByUser.set(userId, experiment_id);
-    logger.info('[API]', '🔒 Per-user lock set', { user_id: userId, experiment_id });
+    // ═══════════════════════════════════════════════════════════════════════════
+    // NOTE: Per-user lock REMOVED - was causing the "training in progress" issue
+    // Multiple users can now train simultaneously without blocking
+    // BullMQ handles job queueing and concurrency automatically
+    // ═══════════════════════════════════════════════════════════════════════════
 
     // Return immediately with queued status
     return res.status(202).json({
@@ -383,7 +381,7 @@ exports.getJobStatus = async (req, res) => {
     const { jobId } = req.params;
 
     const jobStatus = await jobService.getJobStatus(jobId);
-    
+
     if (!jobStatus) {
       return res.status(404).json({
         status: "error",
@@ -455,7 +453,7 @@ exports.getQueueMetrics = async (req, res) => {
 exports.getQueueStatus = async (req, res) => {
   try {
     const metrics = await jobService.getQueueMetrics();
-    
+
     // Get recent jobs
     const { trainingQueue } = require('../queues/training.queue');
     const [waitingJobs, activeJobs, completedJobs, failedJobs] = await Promise.all([
@@ -500,14 +498,14 @@ exports.getResults = async (req, res) => {
   try {
     const { experimentId } = req.params;
     const result = await trainingService.getExperimentResults(experimentId, req.user.id);
-    
+
     if (!result) {
       return res.status(404).json({
         status: 'error',
         message: 'No training results found for this experiment',
       });
     }
-    
+
     return res.status(200).json(result);
   } catch (error) {
     logger.error('[TRAIN]', 'Get results error', { error: error.message });
@@ -526,14 +524,14 @@ exports.getModelDetails = async (req, res) => {
   try {
     const { modelId } = req.params;
     const model = await trainingService.getModelById(modelId, req.user.id);
-    
+
     if (!model) {
       return res.status(404).json({
         status: 'error',
         message: 'Model not found',
       });
     }
-    
+
     return res.status(200).json({
       status: 'success',
       model,
@@ -590,14 +588,14 @@ exports.downloadModel = async (req, res) => {
   try {
     const { modelId } = req.params;
     const model = await trainingService.getModelById(modelId, req.user.id);
-    
+
     if (!model) {
       return res.status(404).json({
         status: 'error',
         message: 'Model not found',
       });
     }
-    
+
     const modelPath = model.absolute_model_path;
     if (!modelPath) {
       return res.status(404).json({
@@ -605,7 +603,7 @@ exports.downloadModel = async (req, res) => {
         message: 'Model file path not found',
       });
     }
-    
+
     // Check if file exists
     try {
       const fs = require('fs').promises;
@@ -616,10 +614,10 @@ exports.downloadModel = async (req, res) => {
         message: 'Model file not found on disk',
       });
     }
-    
+
     const path = require('path');
     const fileName = path.basename(modelPath);
-    
+
     // Send file for download
     res.download(modelPath, fileName, async (err) => {
       if (err) {
@@ -632,7 +630,7 @@ exports.downloadModel = async (req, res) => {
         }
         return;
       }
-      
+
       try {
         logger.info('[TRAIN]', 'Download successful, deleting model data', { modelId });
 
@@ -683,23 +681,23 @@ exports.deleteModel = async (req, res) => {
 exports.compareModels = async (req, res) => {
   try {
     const { model_ids } = req.body;
-    
+
     if (!model_ids || !Array.isArray(model_ids) || model_ids.length < 2) {
       return res.status(400).json({
         status: 'error',
         message: 'At least 2 model IDs required for comparison',
       });
     }
-    
+
     const models = await trainingService.getModelsByIds(model_ids, req.user.id);
-    
+
     if (models.length === 0) {
       return res.status(404).json({
         status: 'error',
         message: 'No models found',
       });
     }
-    
+
     // Verify all models are same type
     const types = [...new Set(models.map(m => m.model_type))];
     if (types.length > 1) {
@@ -709,9 +707,9 @@ exports.compareModels = async (req, res) => {
         found_types: types,
       });
     }
-    
+
     const modelType = types[0];
-    
+
     // Build comparison data
     const comparison = {
       model_type: modelType,
@@ -722,7 +720,7 @@ exports.compareModels = async (req, res) => {
       })),
       charts: buildComparisonCharts(models, modelType),
     };
-    
+
     return res.status(200).json({
       status: 'success',
       comparison,
@@ -740,56 +738,3 @@ exports.compareModels = async (req, res) => {
 /**
  * Build comparison charts based on model type
  */
-function buildComparisonCharts(models, modelType) {
-  if (modelType === 'classification') {
-    return {
-      metrics_comparison: models.map(m => ({
-        model: m.model_name,
-        accuracy: m.metrics.accuracy,
-        precision: m.metrics.precision,
-        recall: m.metrics.recall,
-        f1_score: m.metrics.f1_score,
-        roc_auc: m.metrics.roc_auc,
-      })),
-      roc_curves: models
-        .filter(m => m.plots?.roc_curve)
-        .map(m => ({
-          model: m.model_name,
-          data: m.plots.roc_curve,
-        })),
-      pr_curves: models
-        .filter(m => m.plots?.precision_recall_curve)
-        .map(m => ({
-          model: m.model_name,
-          data: m.plots.precision_recall_curve,
-        })),
-      learning_curves: models
-        .filter(m => m.plots?.learning_curve)
-        .map(m => ({
-          model: m.model_name,
-          data: m.plots.learning_curve,
-        })),
-    };
-  } else {
-    return {
-      metrics_comparison: models.map(m => ({
-        model: m.model_name,
-        r2_score: m.metrics.r2_score,
-        rmse: m.metrics.rmse,
-        mae: m.metrics.mae,
-      })),
-      residual_comparison: models
-        .filter(m => m.plots?.residual_vs_predicted)
-        .map(m => ({
-          model: m.model_name,
-          data: m.plots.residual_vs_predicted,
-        })),
-      learning_curves: models
-        .filter(m => m.plots?.learning_curve)
-        .map(m => ({
-          model: m.model_name,
-          data: m.plots.learning_curve,
-        })),
-    };
-  }
-}
