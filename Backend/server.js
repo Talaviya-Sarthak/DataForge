@@ -5,15 +5,12 @@ const http = require("http");
 const express = require("express");
 const cors = require("cors");
 const datasetService = require("./services/dataset.service");
-<<<<<<< Updated upstream
-=======
 const { apiLimiter, authLimiter, uploadLimiter, sanitizeInput } = require("./middlewares/rateLimiter.middleware");
 const { initWebSocket } = require('./websocket/ws.server');
 const logger = require('./utils/logger');
 
 // Initialize queue events monitoring
 const { trainingQueueEvents } = require('./queues/training.events');
->>>>>>> Stashed changes
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -63,10 +60,7 @@ app.use("/api/datasets", require("./routes/dataset.routes"));
 // =======================
 // TRAINING ROUTES
 // =======================
-<<<<<<< Updated upstream
-=======
 // Note: Rate limiting is applied per-route in training.routes.js
->>>>>>> Stashed changes
 app.use("/api/training", require("./routes/training.routes"));
 
 

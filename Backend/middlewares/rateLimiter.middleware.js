@@ -73,18 +73,6 @@ const uploadLimiter = rateLimit({
   },
 });
 
-// ── Polling limiter (for status checks) ────────────────────────────────
-const pollingLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000,  // 1 minute
-  max: 60,                  // 60 requests per minute per IP
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    status: "error",
-    message: "Polling rate limit exceeded. Please slow down.",
-  },
-});
-
 /**
  * Sanitize string inputs to prevent XSS / injection.
  * Strips HTML tags and trims whitespace.
@@ -135,7 +123,6 @@ module.exports = {
   trainingLimiter,
   pollingLimiter,
   uploadLimiter,
-  pollingLimiter,
   sanitizeInput,
   noRateLimit,
 };

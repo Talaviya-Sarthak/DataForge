@@ -1,29 +1,10 @@
 const pool = require("../Database/db");
-<<<<<<< Updated upstream
-
-// =========================================
-// 1. STORE MODEL RESULTS
-// =========================================
-
-/**
- * Insert all trained model results for a pipeline into the `trained_models` table.
- * Clears any previous results for this pipeline before inserting.
- *
- * @param {string} pipelineId
- * @param {string} taskType - "classification" or "regression"
- * @param {string} targetColumn
- * @param {Array} models - models array from MLService response
- */
-const storeModelResults = async (pipelineId, taskType, targetColumn, models) => {
-=======
 const logger = require("../utils/logger");
 
 /**
  * Store model results - ONLY uses trained_models and model_plots
  */
-const storeModelResults = async (experimentId, taskType, targetColumn, baseModels, userId) => {
->>>>>>> Stashed changes
-  const connection = await pool.getConnection();
+const storeModelResults = async (experimentId, taskType, targetColumn, baseModels, userId) => {  const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
 
@@ -33,33 +14,6 @@ const storeModelResults = async (experimentId, taskType, targetColumn, baseModel
       [experimentId]
     );
 
-<<<<<<< Updated upstream
-    // Insert each model with its rank
-    for (let i = 0; i < models.length; i++) {
-      const m = models[i];
-      await connection.execute(
-        `INSERT INTO trained_models
-         (pipeline_id, model, model_path, task_type, target_column,
-          accuracy, \`precision\`, recall, f1_score, roc_auc,
-          r2_score, mse, rmse, mae, \`rank\`)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          pipelineId,
-          m.model,
-          m.model_path,
-          taskType,
-          targetColumn,
-          m.accuracy ?? null,
-          m.precision ?? null,
-          m.recall ?? null,
-          m.f1_score ?? null,
-          m.roc_auc ?? null,
-          m.r2_score ?? null,
-          m.mse ?? null,
-          m.rmse ?? null,
-          m.mae ?? null,
-          i, // rank = index in sorted array
-=======
     for (const m of baseModels) {
       // Insert into trained_models
       const [result] = await connection.execute(
@@ -110,20 +64,13 @@ const storeModelResults = async (experimentId, taskType, targetColumn, baseModel
           plots.error_distribution ? JSON.stringify(plots.error_distribution) : null,
           plots.residual_vs_predicted ? JSON.stringify(plots.residual_vs_predicted) : null,
           plots.regression_line ? JSON.stringify(plots.regression_line) : null,
-          featureImportance ? JSON.stringify(featureImportance) : null,
->>>>>>> Stashed changes
-        ]
+          featureImportance ? JSON.stringify(featureImportance) : null,        ]
       );
     }
 
     await connection.commit();
-<<<<<<< Updated upstream
-    return models.length;
-=======
     logger.info('[DB]', `Stored ${baseModels.length} models for experiment ${experimentId}`);
-    return baseModels.length;
->>>>>>> Stashed changes
-  } catch (error) {
+    return baseModels.length;  } catch (error) {
     await connection.rollback();
     logger.error('[DB]', 'Failed to store model results', { error: error.message });
     throw error;

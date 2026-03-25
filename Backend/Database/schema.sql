@@ -168,15 +168,6 @@ CREATE TABLE trained_models (
   mse DOUBLE DEFAULT NULL,
   rmse DOUBLE DEFAULT NULL,
   mae DOUBLE DEFAULT NULL,
-<<<<<<< Updated upstream
-  `rank` INT NOT NULL DEFAULT 0,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_trained_pipeline_id (pipeline_id),
-  INDEX idx_trained_rank (`rank`)
-);
-=======
-  
-  -- Training info
   training_time_ms INT DEFAULT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   
@@ -193,20 +184,15 @@ CREATE TABLE model_plots (
   id INT AUTO_INCREMENT PRIMARY KEY,
   model_id INT NOT NULL,
   
-  -- Classification plots
   confusion_matrix JSON DEFAULT NULL,
   roc_curve JSON DEFAULT NULL,
   precision_recall_curve JSON DEFAULT NULL,
   class_labels JSON DEFAULT NULL,
-  
-  -- Regression plots
   residuals JSON DEFAULT NULL,
   predicted_vs_actual JSON DEFAULT NULL,
   error_distribution JSON DEFAULT NULL,
   residual_vs_predicted JSON DEFAULT NULL,
   regression_line JSON DEFAULT NULL,
-  
-  -- Common plots
   feature_importance JSON DEFAULT NULL,
   learning_curve JSON DEFAULT NULL,
   class_distribution JSON DEFAULT NULL,
@@ -231,22 +217,3 @@ CREATE TABLE dataset_stats (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_experiment_id (experiment_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- =========================================
--- VERIFICATION
--- =========================================
-SELECT 'Database created successfully!' AS status;
-
--- Show all tables
-SHOW TABLES;
-
--- Show trained_models structure
-SELECT '=== TRAINED_MODELS STRUCTURE ===' AS info;
-DESCRIBE trained_models;
-
--- Show model_plots structure
-SELECT '=== MODEL_PLOTS STRUCTURE ===' AS info;
-DESCRIBE model_plots;
-
-SELECT 'Schema is ready to use!' AS status;
->>>>>>> Stashed changes
