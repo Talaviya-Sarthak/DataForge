@@ -4,7 +4,7 @@ import { useMLExperiment } from '../../contexts/MLExperimentContext';
 type TabType = 'results' | 'comparison' | 'management';
 
 const ModelAnalysis = lazy(() => import('./ModelAnalysis').then((module) => ({ default: module.ModelAnalysis })));
-const ModelComparison = lazy(() => import('./ModelComparison').then((module) => ({ default: module.ModelComparison })));
+const ModelComparison = lazy(() => import('./ModelAnalysis').then((module) => ({ default: module.ModelAnalysis })));
 const ModelManagement = lazy(() => import('./ModelManagement').then((module) => ({ default: module.ModelManagement })));
 
 const TabSkeleton = () => (

@@ -6,5 +6,4 @@
 export { MLDashboard } from './MLDashboard';
 export { ResultsTable } from './ResultsTable';
 export { ModelAnalysis } from './ModelAnalysis';
-export { ModelComparison } from './ModelComparison';
 export { ModelManagement } from './ModelManagement';
