@@ -1,21 +1,36 @@
+const path = require('path');
 const pool = require("../Database/db");
 const logger = require("../utils/logger");
+
+// Absolute path to the ML service root — used to resolve legacy relative model paths.
+// ML_SERVICE_PATH can be set in .env; falls back to sibling MLService directory.
+const ML_SERVICE_ROOT = process.env.ML_SERVICE_PATH
+  ? path.resolve(process.env.ML_SERVICE_PATH)
+  : path.resolve(__dirname, '..', '..', 'MLService', 'app');
 
 /**
  * Store model results - ONLY uses trained_models and model_plots
  */
-const storeModelResults = async (experimentId, taskType, targetColumn, baseModels, userId) => {  const connection = await pool.getConnection();
+const storeModelResults = async (experimentId, taskType, targetColumn, baseModels, userId) => {
+  if (!Array.isArray(baseModels) || baseModels.length === 0) {
+    throw new Error('storeModelResults: baseModels must be a non-empty array');
+  }
+
+  const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
 
-    // Delete existing results for this experiment
     await connection.execute(
-      "DELETE FROM trained_models WHERE experiment_id = ?",
+      'DELETE FROM trained_models WHERE experiment_id = ?',
       [experimentId]
     );
 
     for (const m of baseModels) {
-      // Insert into trained_models
+      if (!m.model_path) {
+        logger.warn('[DB]', `Skipping model ${m.model || m.name} — missing model_path`);
+        continue;
+      }
+
       const [result] = await connection.execute(
         `INSERT INTO trained_models
          (experiment_id, user_id, target_column, model_name, model_type, model_path,
@@ -23,54 +38,42 @@ const storeModelResults = async (experimentId, taskType, targetColumn, baseModel
           r2_score, mse, rmse, mae, training_time_ms)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          experimentId,
-          userId,
-          targetColumn,
-          m.model || m.name,
-          taskType,
-          m.model_path || "",
-          m.accuracy ?? null,
-          m.precision ?? null,
-          m.recall ?? null,
-          m.f1_score ?? null,
-          m.roc_auc ?? null,
-          m.r2_score ?? null,
-          m.mse ?? null,
-          m.rmse ?? null,
-          m.mae ?? null,
+          experimentId, userId, targetColumn,
+          m.model || m.name, taskType, m.model_path,
+          m.accuracy ?? null, m.precision ?? null, m.recall ?? null,
+          m.f1_score ?? null, m.roc_auc ?? null,
+          m.r2_score ?? null, m.mse ?? null, m.rmse ?? null, m.mae ?? null,
           m.training_time_ms ?? null,
         ]
       );
 
       const modelId = result.insertId;
       const plots = m.plots || {};
-      const featureImportance = m.feature_importance || null;
+      // feature_importance lives inside plots from the clean ML response
+      const fi = plots.feature_importance || m.feature_importance || null;
 
-      // Insert into model_plots
       await connection.execute(
         `INSERT INTO model_plots
-         (model_id, confusion_matrix, roc_curve, precision_recall_curve, class_labels,
-          residuals, predicted_vs_actual, error_distribution, residual_vs_predicted, 
-          regression_line, feature_importance)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (model_id, confusion_matrix, roc_curve, precision_recall_curve,
+          predicted_vs_actual, residuals, error_distribution, feature_importance)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           modelId,
-          plots.confusion_matrix ? JSON.stringify(plots.confusion_matrix) : null,
-          plots.roc_curve ? JSON.stringify(plots.roc_curve) : null,
+          plots.confusion_matrix       ? JSON.stringify(plots.confusion_matrix)       : null,
+          plots.roc_curve              ? JSON.stringify(plots.roc_curve)              : null,
           plots.precision_recall_curve ? JSON.stringify(plots.precision_recall_curve) : null,
-          plots.class_labels ? JSON.stringify(plots.class_labels) : null,
-          plots.residuals ? JSON.stringify(plots.residuals) : null,
-          plots.predicted_vs_actual ? JSON.stringify(plots.predicted_vs_actual) : null,
-          plots.error_distribution ? JSON.stringify(plots.error_distribution) : null,
-          plots.residual_vs_predicted ? JSON.stringify(plots.residual_vs_predicted) : null,
-          plots.regression_line ? JSON.stringify(plots.regression_line) : null,
-          featureImportance ? JSON.stringify(featureImportance) : null,        ]
+          plots.predicted_vs_actual    ? JSON.stringify(plots.predicted_vs_actual)    : null,
+          plots.residuals              ? JSON.stringify(plots.residuals)              : null,
+          plots.error_distribution     ? JSON.stringify(plots.error_distribution)     : null,
+          fi                           ? JSON.stringify(fi)                           : null,
+        ]
       );
     }
 
     await connection.commit();
     logger.info('[DB]', `Stored ${baseModels.length} models for experiment ${experimentId}`);
-    return baseModels.length;  } catch (error) {
+    return baseModels.length;
+  } catch (error) {
     await connection.rollback();
     logger.error('[DB]', 'Failed to store model results', { error: error.message });
     throw error;
@@ -82,32 +85,16 @@ const storeModelResults = async (experimentId, taskType, targetColumn, baseModel
 /**
  * Get models by experiment
  */
+const _PLOT_COLS = 'mp.confusion_matrix, mp.roc_curve, mp.precision_recall_curve, mp.predicted_vs_actual, mp.residuals, mp.error_distribution, mp.feature_importance';
+
 const getModelsByExperiment = async (experimentId, userId = null) => {
-  let query = `SELECT 
-      tm.*,
-      mp.confusion_matrix,
-      mp.roc_curve,
-      mp.precision_recall_curve,
-      mp.class_labels,
-      mp.residuals,
-      mp.predicted_vs_actual,
-      mp.error_distribution,
-      mp.residual_vs_predicted,
-      mp.regression_line,
-      mp.feature_importance
+  let query = `SELECT tm.*, ${_PLOT_COLS}
      FROM trained_models tm
      LEFT JOIN model_plots mp ON tm.id = mp.model_id
      WHERE tm.experiment_id = ?`;
   const params = [experimentId];
-  
-  if (userId) {
-    query += ` AND tm.user_id = ?`;
-    params.push(userId);
-  }
-  
-  query += ` ORDER BY 
-       CASE WHEN tm.model_type = 'classification' THEN tm.accuracy ELSE tm.r2_score END DESC`;
-  
+  if (userId) { query += ' AND tm.user_id = ?'; params.push(userId); }
+  query += ` ORDER BY CASE WHEN tm.model_type = 'classification' THEN tm.accuracy ELSE tm.r2_score END DESC`;
   const [rows] = await pool.execute(query, params);
   return rows;
 };
@@ -130,19 +117,19 @@ const safeJsonParse = (value) => {
  */
 function formatModelForResponse(row) {
   const metrics = row.model_type === 'classification'
-    ? {
-        accuracy: row.accuracy,
-        precision: row.precision,
-        recall: row.recall,
-        f1_score: row.f1_score,
-        roc_auc: row.roc_auc,
-      }
-    : {
-        r2_score: row.r2_score,
-        mse: row.mse,
-        rmse: row.rmse,
-        mae: row.mae,
-      };
+    ? { accuracy: row.accuracy, precision: row.precision, recall: row.recall, f1_score: row.f1_score, roc_auc: row.roc_auc }
+    : { r2_score: row.r2_score, mse: row.mse, rmse: row.rmse, mae: row.mae };
+
+  const fi = safeJsonParse(row.feature_importance);
+
+  // Resolve to absolute path so the download controller can locate the file.
+  // New rows store an absolute path already; legacy relative paths are resolved
+  // against the ML service root.
+  const absoluteModelPath = row.model_path
+    ? (path.isAbsolute(row.model_path)
+        ? row.model_path
+        : path.resolve(ML_SERVICE_ROOT, row.model_path))
+    : null;
 
   return {
     model_id: row.id,
@@ -151,20 +138,19 @@ function formatModelForResponse(row) {
     name: row.model_name,
     model_type: row.model_type,
     model_path: row.model_path,
+    absolute_model_path: absoluteModelPath,
     training_time_ms: row.training_time_ms,
     metrics,
     plots: {
-      confusion_matrix: safeJsonParse(row.confusion_matrix),
-      roc_curve: safeJsonParse(row.roc_curve),
+      confusion_matrix:       safeJsonParse(row.confusion_matrix),
+      roc_curve:              safeJsonParse(row.roc_curve),
       precision_recall_curve: safeJsonParse(row.precision_recall_curve),
-      class_labels: safeJsonParse(row.class_labels),
-      residuals: safeJsonParse(row.residuals),
-      predicted_vs_actual: safeJsonParse(row.predicted_vs_actual),
-      error_distribution: safeJsonParse(row.error_distribution),
-      residual_vs_predicted: safeJsonParse(row.residual_vs_predicted),
-      regression_line: safeJsonParse(row.regression_line),
+      predicted_vs_actual:    safeJsonParse(row.predicted_vs_actual),
+      residuals:              safeJsonParse(row.residuals),
+      error_distribution:     safeJsonParse(row.error_distribution),
+      feature_importance:     fi,
     },
-    feature_importance: safeJsonParse(row.feature_importance),
+    feature_importance: fi,
     status: 'success',
   };
 }
@@ -195,28 +181,12 @@ const getExperimentResults = async (experimentId, userId = null, retries = 3) =>
  * Get single model by ID
  */
 const getModelById = async (modelId, userId = null) => {
-  let query = `SELECT 
-      tm.*,
-      mp.confusion_matrix,
-      mp.roc_curve,
-      mp.precision_recall_curve,
-      mp.class_labels,
-      mp.residuals,
-      mp.predicted_vs_actual,
-      mp.error_distribution,
-      mp.residual_vs_predicted,
-      mp.regression_line,
-      mp.feature_importance
+  let query = `SELECT tm.*, ${_PLOT_COLS}
      FROM trained_models tm
      LEFT JOIN model_plots mp ON tm.id = mp.model_id
      WHERE tm.id = ?`;
   const params = [modelId];
-  
-  if (userId) {
-    query += ` AND tm.user_id = ?`;
-    params.push(userId);
-  }
-  
+  if (userId) { query += ' AND tm.user_id = ?'; params.push(userId); }
   const [rows] = await pool.execute(query, params);
   return rows[0] ? formatModelForResponse(rows[0]) : null;
 };
@@ -228,28 +198,12 @@ const getModelsByIds = async (modelIds, userId = null) => {
   if (!modelIds || modelIds.length === 0) return [];
   
   const placeholders = modelIds.map(() => '?').join(',');
-  let query = `SELECT 
-      tm.*,
-      mp.confusion_matrix,
-      mp.roc_curve,
-      mp.precision_recall_curve,
-      mp.class_labels,
-      mp.residuals,
-      mp.predicted_vs_actual,
-      mp.error_distribution,
-      mp.residual_vs_predicted,
-      mp.regression_line,
-      mp.feature_importance
+  let query = `SELECT tm.*, ${_PLOT_COLS}
      FROM trained_models tm
      LEFT JOIN model_plots mp ON tm.id = mp.model_id
      WHERE tm.id IN (${placeholders})`;
   const params = [...modelIds];
-  
-  if (userId) {
-    query += ` AND tm.user_id = ?`;
-    params.push(userId);
-  }
-  
+  if (userId) { query += ' AND tm.user_id = ?'; params.push(userId); }
   const [rows] = await pool.execute(query, params);
   return rows.map(formatModelForResponse);
 };
@@ -338,22 +292,13 @@ const listModels = async (userId, options = {}) => {
   const { page = 1, limit = 10, modelType = null } = options;
   const offset = (page - 1) * limit;
   
-  let query = `
-    SELECT tm.*, mp.confusion_matrix, mp.roc_curve, mp.precision_recall_curve,
-           mp.class_labels, mp.residuals, mp.predicted_vs_actual, mp.error_distribution,
-           mp.residual_vs_predicted, mp.regression_line, mp.feature_importance
+  let query = `SELECT tm.*, ${_PLOT_COLS}
     FROM trained_models tm
     LEFT JOIN model_plots mp ON tm.id = mp.model_id
-    WHERE tm.user_id = ?
-  `;
+    WHERE tm.user_id = ?`;
   const params = [userId];
-  
-  if (modelType) {
-    query += ` AND tm.model_type = ?`;
-    params.push(modelType);
-  }
-  
-  query += ` ORDER BY tm.created_at DESC LIMIT ? OFFSET ?`;
+  if (modelType) { query += ' AND tm.model_type = ?'; params.push(modelType); }
+  query += ' ORDER BY tm.created_at DESC LIMIT ? OFFSET ?';
   params.push(limit, offset);
   
   const [rows] = await pool.execute(query, params);
@@ -394,9 +339,12 @@ const deleteModelAndArtifacts = async (modelId, userId) => {
     if (modelInfo.model_path) {
       const fs = require('fs').promises;
       const path = require('path');
-      const fullPath = path.isAbsolute(modelInfo.model_path) 
-        ? modelInfo.model_path 
-        : path.join(process.cwd(), modelInfo.model_path);
+      const ML_SERVICE_ROOT = process.env.ML_SERVICE_PATH
+        ? path.resolve(process.env.ML_SERVICE_PATH)
+        : path.resolve(__dirname, '..', '..', 'MLService', 'app');
+      const fullPath = path.isAbsolute(modelInfo.model_path)
+        ? modelInfo.model_path
+        : path.resolve(ML_SERVICE_ROOT, modelInfo.model_path);
       
       try {
         await fs.unlink(fullPath);

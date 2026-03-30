@@ -1,12 +1,11 @@
 import { useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { useMLExperiment } from '../../contexts/MLExperimentContext';
-import type { FeatureImportance, LearningCurveData, ModelPlots, ModelResult } from '../../services/training.service';
+import type { FeatureImportance, ModelPlots, ModelResult, ResidualPoint } from '../../services/training.service';
 import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   Line,
   LineChart,
   ReferenceLine,
@@ -17,8 +16,6 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-
-const COLORS = ['#8b5cf6', '#22c55e', '#f59e0b', '#ef4444', '#06b6d4', '#f97316'];
 
 const ChartCard = ({
   title,
@@ -125,12 +122,15 @@ export const ModelAnalysis = () => {
           <>
             <ConfusionMatrixChart plots={modelData.plots} />
             <RocCurveChart plots={modelData.plots} />
-            <PrecisionRecallChart plots={modelData.plots} />
             <FeatureImportanceChart featureImportance={modelData.feature_importance} />
+            <PrecisionRecallChart plots={modelData.plots} />
+            <ResidualPlotChart plots={modelData.plots} />
           </>
         ) : (
           <>
             <ActualVsPredictedChart plots={modelData.plots} />
+            <ResidualPlotChart plots={modelData.plots} />
+            <ErrorDistributionChart plots={modelData.plots} />
             <FeatureImportanceChart featureImportance={modelData.feature_importance} />
           </>
         )}
@@ -141,7 +141,7 @@ export const ModelAnalysis = () => {
 
 const ConfusionMatrixChart = ({ plots }: { plots: ModelPlots }) => {
   const matrix = plots.confusion_matrix;
-  const labels = plots.class_labels || matrix?.map((_, index) => `Class ${index}`) || [];
+  const labels = matrix?.map((_, index) => `Class ${index}`) || [];
   const maxValue = matrix ? Math.max(...matrix.flat()) : 0;
 
   return (
@@ -186,38 +186,28 @@ const RocCurveChart = ({ plots }: { plots: ModelPlots }) => {
   const binaryCurve = rocCurve && !Array.isArray(rocCurve) && 'fpr' in rocCurve ? rocCurve : null;
   const multiClassCurves = rocCurve && !binaryCurve ? Object.entries(rocCurve) : [];
   const chartData = binaryCurve
-    ? binaryCurve.fpr.map((fpr, index) => ({ x: fpr, y: binaryCurve.tpr[index] }))
+    ? binaryCurve.fpr.map((fpr: number, index: number) => ({ x: fpr, y: binaryCurve.tpr[index] }))
     : [];
 
   return (
     <ChartCard title="ROC Curve" subtitle="Receiver operating characteristic across thresholds." isEmpty={!binaryCurve && multiClassCurves.length === 0} emptyMessage="ROC data is unavailable for this model.">
       {binaryCurve ? (
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={chartData}>
+          <ScatterChart>
             <CartesianGrid stroke="#374151" strokeDasharray="3 3" />
             <XAxis dataKey="x" type="number" domain={[0, 1]} stroke="#9ca3af" />
             <YAxis dataKey="y" type="number" domain={[0, 1]} stroke="#9ca3af" />
-            <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => value.toFixed(4)} />
-            <Line data={[{ x: 0, y: 0 }, { x: 1, y: 1 }]} dataKey="y" stroke="#6b7280" dot={false} strokeDasharray="5 5" />
-            <Line dataKey="y" stroke="#8b5cf6" dot={false} strokeWidth={2} name={`ROC (${formatMetric(binaryCurve.auc)})`} />
-          </LineChart>
+            <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => v.toFixed(4)} />
+            <ReferenceLine segment={[{ x: 0, y: 0 }, { x: 1, y: 1 }]} stroke="#6b7280" strokeDasharray="4 4" />
+            <Scatter data={chartData} fill="#8b5cf6" line={{ stroke: '#8b5cf6', strokeWidth: 2 }} name={`ROC (AUC ${formatMetric(binaryCurve.auc)})`} />
+          </ScatterChart>
         </ResponsiveContainer>
       ) : (
         <div className="grid h-full gap-3 overflow-auto md:grid-cols-2">
-          {multiClassCurves.map(([label, curve], index) => (
+          {multiClassCurves.map(([label, curve]: [string, any]) => (
             <div key={label} className="rounded-lg border border-gray-700 p-3">
-              <div className="mb-2 text-sm text-white">{label}</div>
+              <div className="mb-1 text-sm text-white">{label}</div>
               <div className="text-xs text-gray-400">AUC: {formatMetric(curve.auc)}</div>
-              <div className="mt-3 h-40">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={curve.fpr.map((fpr, pointIndex) => ({ x: fpr, y: curve.tpr[pointIndex] }))}>
-                    <CartesianGrid stroke="#374151" strokeDasharray="3 3" />
-                    <XAxis dataKey="x" type="number" domain={[0, 1]} stroke="#9ca3af" hide />
-                    <YAxis dataKey="y" type="number" domain={[0, 1]} stroke="#9ca3af" hide />
-                    <Line dataKey="y" stroke={COLORS[index % COLORS.length]} dot={false} strokeWidth={2} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
             </div>
           ))}
         </div>
@@ -226,95 +216,8 @@ const RocCurveChart = ({ plots }: { plots: ModelPlots }) => {
   );
 };
 
-const PrecisionRecallChart = ({ plots }: { plots: ModelPlots }) => {
-  const curve = plots.precision_recall_curve;
-  const chartData = curve?.recall.map((recall, index) => ({ x: recall, y: curve.precision[index] })) || [];
-
-  return (
-    <ChartCard title="Precision-Recall Curve" subtitle="Higher curves indicate stronger positive-class ranking." isEmpty={!chartData.length} emptyMessage="Precision-recall data is unavailable for this model.">
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={chartData}>
-          <CartesianGrid stroke="#374151" strokeDasharray="3 3" />
-          <XAxis dataKey="x" type="number" domain={[0, 1]} stroke="#9ca3af" />
-          <YAxis dataKey="y" type="number" domain={[0, 1]} stroke="#9ca3af" />
-          <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => value.toFixed(4)} />
-          <Line dataKey="y" stroke="#22c55e" dot={false} strokeWidth={2} />
-        </LineChart>
-      </ResponsiveContainer>
-    </ChartCard>
-  );
-};
-
-const ClassDistributionChart = ({ plots }: { plots: ModelPlots }) => {
-  const distribution = plots.class_distribution;
-  const data = distribution?.labels.map((label, index) => ({
-    label,
-    count: distribution.counts[index],
-  })) || [];
-
-  return (
-    <ChartCard title="Class Distribution" subtitle="Observed class counts for the trained dataset slice." isEmpty={!data.length} emptyMessage="Class distribution data is missing.">
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data}>
-          <CartesianGrid stroke="#374151" strokeDasharray="3 3" />
-          <XAxis dataKey="label" stroke="#9ca3af" />
-          <YAxis stroke="#9ca3af" />
-          <Tooltip contentStyle={tooltipStyle} />
-          <Bar dataKey="count" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
-        </BarChart>
-      </ResponsiveContainer>
-    </ChartCard>
-  );
-};
-
-const LearningCurveChart = ({
-  learningCurve,
-  modelType,
-}: {
-  learningCurve?: LearningCurveData;
-  modelType: ModelResult['model_type'];
-}) => {
-  const trainScore = learningCurve?.train_score || learningCurve?.train_scores || [];
-  const validationScore = learningCurve?.validation_score || learningCurve?.validation_scores || [];
-  const trainLoss = learningCurve?.train_loss || [];
-  const validationLoss = learningCurve?.validation_loss || [];
-  const data = learningCurve?.train_sizes.map((size, index) => ({
-    size,
-    trainScore: trainScore[index],
-    validationScore: validationScore[index],
-    trainLoss: trainLoss[index],
-    validationLoss: validationLoss[index],
-  })) || [];
-
-  return (
-    <ChartCard
-      title="Learning Curve"
-      subtitle={modelType === 'classification' ? 'Accuracy and derived loss across increasing train sizes.' : 'Train vs validation fit across increasing train sizes.'}
-      isEmpty={!data.length}
-      emptyMessage="Learning curve data is unavailable for this model."
-    >
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data}>
-          <CartesianGrid stroke="#374151" strokeDasharray="3 3" />
-          <XAxis dataKey="size" stroke="#9ca3af" />
-          <YAxis stroke="#9ca3af" />
-          <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => value?.toFixed?.(4) ?? value} />
-          <Line dataKey="trainScore" stroke="#8b5cf6" dot={false} strokeWidth={2} name="Train Score" />
-          <Line dataKey="validationScore" stroke="#22c55e" dot={false} strokeWidth={2} name="Validation Score" />
-          {modelType === 'classification' ? (
-            <>
-              <Line dataKey="trainLoss" stroke="#f59e0b" dot={false} strokeDasharray="4 4" name="Train Loss" />
-              <Line dataKey="validationLoss" stroke="#ef4444" dot={false} strokeDasharray="4 4" name="Validation Loss" />
-            </>
-          ) : null}
-        </LineChart>
-      </ResponsiveContainer>
-    </ChartCard>
-  );
-};
-
 const FeatureImportanceChart = ({ featureImportance }: { featureImportance?: FeatureImportance | null }) => {
-  const data = featureImportance?.features.map((feature, index) => ({
+  const data = featureImportance?.features?.map((feature, index) => ({
     feature,
     importance: featureImportance.importances[index],
   })) || [];
@@ -359,86 +262,79 @@ const ActualVsPredictedChart = ({ plots }: { plots: ModelPlots }) => {
 };
 
 const ResidualPlotChart = ({ plots }: { plots: ModelPlots }) => {
-  const data = plots.residuals?.map((residual, index) => ({ index, residual })) || [];
+  const residuals = plots.residuals;
+  // Support both [{actual, predicted, residual}] (new) and legacy number[] format
+  const data: { predicted: number; residual: number }[] = Array.isArray(residuals)
+    ? (residuals as ResidualPoint[]).map((r) =>
+        typeof r === 'object' && r !== null
+          ? { predicted: r.predicted, residual: r.residual }
+          : { predicted: 0, residual: r as unknown as number }
+      )
+    : [];
 
   return (
-    <ChartCard title="Residual Plot" subtitle="Residuals should be centered around zero." isEmpty={!data.length} emptyMessage="Residual values are unavailable for this model.">
+    <ChartCard
+      title="Residual Plot"
+      subtitle="Predicted value vs residual — should scatter around zero."
+      isEmpty={!data.length}
+      emptyMessage="Residual data is unavailable for this model."
+    >
       <ResponsiveContainer width="100%" height="100%">
         <ScatterChart>
           <CartesianGrid stroke="#374151" strokeDasharray="3 3" />
-          <XAxis dataKey="index" stroke="#9ca3af" />
-          <YAxis dataKey="residual" stroke="#9ca3af" />
-          <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => value.toFixed(4)} />
+          <XAxis dataKey="predicted" type="number" stroke="#9ca3af" name="Predicted" />
+          <YAxis dataKey="residual" type="number" stroke="#9ca3af" name="Residual" />
+          <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => v.toFixed(4)} />
           <ReferenceLine y={0} stroke="#ef4444" strokeDasharray="4 4" />
-          <Scatter data={data} fill="#22c55e" />
+          <Scatter data={data} fill="#8b5cf6" opacity={0.7} />
         </ScatterChart>
+      </ResponsiveContainer>
+    </ChartCard>
+  );
+};
+
+const PrecisionRecallChart = ({ plots }: { plots: ModelPlots }) => {
+  const curve = plots.precision_recall_curve;
+  const data = curve?.recall.map((r, i) => ({ x: r, y: curve.precision[i] })) ?? [];
+
+  return (
+    <ChartCard
+      title="Precision-Recall Curve"
+      subtitle="Higher area under curve indicates stronger positive-class ranking."
+      isEmpty={!data.length}
+      emptyMessage="Precision-recall data unavailable (multiclass or no probabilities)."
+    >
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data}>
+          <CartesianGrid stroke="#374151" strokeDasharray="3 3" />
+          <XAxis dataKey="x" type="number" domain={[0, 1]} stroke="#9ca3af" label={{ value: 'Recall', position: 'insideBottom', offset: -2, fill: '#9ca3af', fontSize: 11 }} />
+          <YAxis dataKey="y" type="number" domain={[0, 1]} stroke="#9ca3af" label={{ value: 'Precision', angle: -90, position: 'insideLeft', fill: '#9ca3af', fontSize: 11 }} />
+          <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => v.toFixed(4)} />
+          <Line dataKey="y" stroke="#22c55e" dot={false} strokeWidth={2} />
+        </LineChart>
       </ResponsiveContainer>
     </ChartCard>
   );
 };
 
 const ErrorDistributionChart = ({ plots }: { plots: ModelPlots }) => {
-  const errors = plots.error_distribution || [];
-  const data = buildHistogram(errors, 18);
-
-  return (
-    <ChartCard title="Error Distribution" subtitle="Histogram of absolute errors." isEmpty={!data.length} emptyMessage="Error distribution data is unavailable for this model.">
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data}>
-          <CartesianGrid stroke="#374151" strokeDasharray="3 3" />
-          <XAxis dataKey="label" stroke="#9ca3af" />
-          <YAxis stroke="#9ca3af" />
-          <Tooltip contentStyle={tooltipStyle} />
-          <Bar dataKey="count" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-        </BarChart>
-      </ResponsiveContainer>
-    </ChartCard>
-  );
-};
-
-const FeatureVsTargetChart = ({ plots }: { plots: ModelPlots }) => {
-  const data = plots.feature_vs_target?.feature_values.map((featureValue, index) => ({
-    featureValue,
-    targetValue: plots.feature_vs_target?.target_values[index],
-  })) || [];
+  const data = plots.error_distribution ?? [];
 
   return (
     <ChartCard
-      title="Feature vs Target"
-      subtitle={plots.feature_vs_target?.feature_name ? `Using ${plots.feature_vs_target.feature_name}.` : 'Strongest numeric feature against the target.'}
+      title="Error Distribution"
+      subtitle="Histogram of absolute prediction errors."
       isEmpty={!data.length}
-      emptyMessage="Feature-vs-target data is unavailable for this model."
+      emptyMessage="Error distribution data is unavailable for this model."
     >
       <ResponsiveContainer width="100%" height="100%">
-        <ScatterChart>
+        <BarChart data={data} margin={{ left: 0, right: 8 }}>
           <CartesianGrid stroke="#374151" strokeDasharray="3 3" />
-          <XAxis dataKey="featureValue" type="number" stroke="#9ca3af" />
-          <YAxis dataKey="targetValue" type="number" stroke="#9ca3af" />
-          <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => value.toFixed(4)} />
-          <Scatter data={data} fill="#06b6d4" />
-        </ScatterChart>
-      </ResponsiveContainer>
-    </ChartCard>
-  );
-};
-
-const ResidualVsPredictedChart = ({ plots }: { plots: ModelPlots }) => {
-  const data = plots.residual_vs_predicted?.predicted.map((predicted, index) => ({
-    predicted,
-    residual: plots.residual_vs_predicted?.residuals[index],
-  })) || [];
-
-  return (
-    <ChartCard title="Residual vs Predicted" subtitle="Useful for spotting heteroscedasticity and bias." isEmpty={!data.length} emptyMessage="Residual-vs-predicted data is unavailable for this model.">
-      <ResponsiveContainer width="100%" height="100%">
-        <ScatterChart>
-          <CartesianGrid stroke="#374151" strokeDasharray="3 3" />
-          <XAxis dataKey="predicted" type="number" stroke="#9ca3af" />
-          <YAxis dataKey="residual" type="number" stroke="#9ca3af" />
-          <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => value.toFixed(4)} />
-          <ReferenceLine y={0} stroke="#ef4444" strokeDasharray="4 4" />
-          <Scatter data={data} fill="#8b5cf6" />
-        </ScatterChart>
+          <XAxis dataKey="label" stroke="#9ca3af" tick={{ fontSize: 10 }} tickFormatter={(v: number) => v.toFixed(2)} />
+          <YAxis stroke="#9ca3af" />
+          <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => v} labelFormatter={(l: number) => `Error ≥ ${Number(l).toFixed(3)}`} />
+          <Bar dataKey="count" fill="#f59e0b" radius={[3, 3, 0, 0]} />
+        </BarChart>
       </ResponsiveContainer>
     </ChartCard>
   );
@@ -448,28 +344,6 @@ const tooltipStyle = {
   backgroundColor: '#111827',
   border: '1px solid #374151',
   borderRadius: '8px',
-};
-
-const buildHistogram = (values: number[], bins: number) => {
-  if (!values.length) return [];
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  if (min === max) {
-    return [{ label: min.toFixed(2), count: values.length }];
-  }
-
-  const width = (max - min) / bins;
-  const counts = Array.from({ length: bins }, () => 0);
-
-  values.forEach((value) => {
-    const index = Math.min(Math.floor((value - min) / width), bins - 1);
-    counts[index] += 1;
-  });
-
-  return counts.map((count, index) => ({
-    label: `${(min + width * index).toFixed(2)}`,
-    count,
-  }));
 };
 
 const formatMetric = (value: number | null | undefined) => (

@@ -96,33 +96,74 @@ export const getExperiment = async (experimentId: string) => {
   return response.json();
 };
 
-// Type definitions
 export interface FeatureImportance {
-  feature: string;
-  importance: number;
+  features: string[];
+  importances: number[];
 }
 
-export interface LearningCurveData {
-  train: number[];
-  validation: number[];
+export interface ResidualPoint {
+  actual: number;
+  predicted: number;
+  residual: number;
 }
 
 export interface ModelPlots {
-  confusion_matrix?: any;
-  roc_curve?: any;
-  precision_recall_curve?: any;
-  learning_curve?: LearningCurveData;
-  residual_vs_predicted?: any;
+  confusion_matrix?: number[][] | null;
+  roc_curve?: any | null;
+  precision_recall_curve?: { precision: number[]; recall: number[] } | null;
+  predicted_vs_actual?: { actual: number[]; predicted: number[] } | null;
+  residuals?: ResidualPoint[] | null;
+  error_distribution?: { label: number; count: number }[] | null;
+  feature_importance?: FeatureImportance | null;
 }
 
 export interface ModelResult {
   model_id: string;
   model_name: string;
+  model: string;
+  name: string;
+  model_type: 'classification' | 'regression';
+  model_path?: string;
+  training_time_ms?: number;
   accuracy?: number;
   r2_score?: number;
-  metrics: any;
+  metrics: {
+    accuracy?: number;
+    precision?: number;
+    recall?: number;
+    f1_score?: number;
+    roc_auc?: number;
+    r2_score?: number;
+    mse?: number;
+    rmse?: number;
+    mae?: number;
+  };
   plots: ModelPlots;
-  feature_importance: FeatureImportance[];
+  feature_importance?: FeatureImportance | null;
+  status?: string;
+}
+
+export interface PreprocessingConfig {
+  missing_values: string;
+  encoding: string;
+  scaling: string | null;
+}
+
+export interface TrainResponse {
+  status: string;
+  experiment_id: string;
+  task_type: 'classification' | 'regression';
+  models: ModelResult[];
+  base_models: ModelResult[];
+  best_model: ModelResult | null;
+  chart_data?: any;
+  results_table?: any[];
+}
+
+export interface TuneResponse {
+  status: string;
+  experiment_id: string;
+  model: ModelResult;
 }
 
 export const trainingService = {
@@ -131,4 +172,36 @@ export const trainingService = {
   getAvailableModels,
   experimentTrain,
   getExperiment,
+  downloadModel: async (modelId: number): Promise<void> => {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_BASE}/training/models/${modelId}/download`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.message || 'Download failed');
+    }
+    // Stream blob → anchor click
+    const blob = await response.blob();
+    const disposition = response.headers.get('Content-Disposition') ?? '';
+    const match = disposition.match(/filename="?([^"]+)"?/);
+    const filename = match?.[1] ?? `model_${modelId}.pkl`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
+  deleteModel: async (modelId: number): Promise<void> => {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_BASE}/training/models/${modelId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.message || 'Delete failed');
+    }
+  },
 };

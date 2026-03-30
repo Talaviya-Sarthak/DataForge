@@ -8,6 +8,7 @@ import { ResultsCharts } from '../../components/ml/ResultsCharts';
 import { ModelAnalysis } from '../../components/ml/ModelAnalysis';
 import { ResultsTable } from '../../components/ml/ResultsTable';
 import { TrainingStatusPanel } from '../../components/ml/TrainingStatusPanel';
+import { ModelManagement } from '../../components/ml/ModelManagement';
 import { experimentTrain, getExperiment } from '../../services/training.service';
 import { subscribeToJob } from '../../services/socket.service';
 
@@ -309,6 +310,9 @@ const MLDashboardContent = () => {
 
                         {/* Results Table */}
                         <ResultsTable />
+
+                        {/* Model Management — download & terminate */}
+                        <ModelManagement />
 
                         {/* Retrain Button */}
                         <div className="flex justify-center pt-4">

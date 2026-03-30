@@ -1,12 +1,4 @@
-"""Experiment-based training pipeline.
-
-Extends the base training pipeline to support:
-    1. Training WITHOUT dataset finalization
-    2. Runtime preprocessing with model-aware scaling
-    3. Experiment tracking with experiment_id
-    4. Plot data generation for visualizations
-    5. Selective model training
-"""
+"""Experiment-based training pipeline."""
 
 import logging
 import time
@@ -14,8 +6,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pandas as pd
 import numpy as np
-from sklearn.base import clone
-from sklearn.model_selection import learning_curve
 from sklearn.model_selection import train_test_split
 
 from app.training.model_registry import get_selected_models, get_available_models
@@ -38,88 +28,10 @@ from app.training.job_manager import update_job
 
 logger = logging.getLogger("dataforge.experiment")
 
-# Primary metric for leaderboard sorting
 _PRIMARY_METRIC: dict[str, str] = {
     "classification": "accuracy",
     "regression": "r2_score",
 }
-
-
-def _safe_float_list(values) -> list[float]:
-    return [round(float(v), 4) for v in values]
-
-
-def _build_learning_curve(model, X: pd.DataFrame, y: pd.Series, task_type: str):
-    scoring = "accuracy" if task_type == "classification" else "r2"
-    try:
-        train_sizes, train_scores, validation_scores = learning_curve(
-            estimator=clone(model),
-            X=X,
-            y=y,
-            cv=3,
-            n_jobs=1,
-            train_sizes=np.linspace(0.2, 1.0, 5),
-            scoring=scoring,
-            shuffle=True,
-            random_state=42,
-        )
-        train_mean = np.mean(train_scores, axis=1)
-        validation_mean = np.mean(validation_scores, axis=1)
-        payload = {
-            "metric": "accuracy" if task_type == "classification" else "r2_score",
-            "train_sizes": [int(v) for v in train_sizes.tolist()],
-            "train_scores": _safe_float_list(train_mean),
-            "validation_scores": _safe_float_list(validation_mean),
-        }
-        if task_type == "classification":
-            payload["train_loss"] = _safe_float_list(1 - train_mean)
-            payload["validation_loss"] = _safe_float_list(1 - validation_mean)
-        return payload
-    except Exception:
-        return None
-
-
-def _build_class_distribution(y: pd.Series) -> dict:
-    counts = y.astype(str).value_counts().sort_index()
-    total = int(counts.sum()) or 1
-    return {
-        "labels": counts.index.tolist(),
-        "counts": counts.astype(int).tolist(),
-        "percentages": [round((int(count) / total) * 100, 2) for count in counts.tolist()],
-    }
-
-
-def _build_feature_vs_target_plot(
-    X: pd.DataFrame,
-    y: pd.Series,
-    feature_importance: dict | None,
-):
-    if X.empty:
-        return None
-
-    candidate = None
-    if feature_importance and feature_importance.get("features"):
-        top_feature = feature_importance["features"][0]
-        if top_feature in X.columns:
-            candidate = top_feature
-
-    if candidate is None:
-        correlations = X.apply(lambda col: col.corr(y) if pd.api.types.is_numeric_dtype(col) else np.nan)
-        correlations = correlations.dropna()
-        if correlations.empty:
-            return None
-        candidate = correlations.abs().sort_values(ascending=False).index[0]
-
-    sample = pd.DataFrame({"feature": X[candidate], "target": y}).dropna()
-    if sample.empty:
-        return None
-    if len(sample) > 500:
-        sample = sample.sample(500, random_state=42)
-    return {
-        "feature_name": candidate,
-        "feature_values": sample["feature"].astype(float).tolist(),
-        "target_values": sample["target"].astype(float).tolist(),
-    }
 
 
 def run_experiment_training(
@@ -168,6 +80,23 @@ def run_experiment_training(
         raise ValueError(
             f"Unsupported task type '{task_type}'. Use 'classification' or 'regression'."
         )
+
+    # Validate class sample counts for classification before any training
+    if task_type == "classification":
+        class_counts = df[target_column].value_counts()
+        invalid_classes = class_counts[class_counts < 2]
+        if not invalid_classes.empty:
+            logger.warning(
+                "[EXPERIMENT %s] DATA_VALIDATION_ERROR — classes with < 2 samples: %s",
+                experiment_id, invalid_classes.to_dict()
+            )
+            return {
+                "status": "failed",
+                "error_type": "DATA_VALIDATION_ERROR",
+                "message": "Each class must have at least 2 samples for stratified splitting.",
+                "details": invalid_classes.to_dict(),
+                "experiment_id": experiment_id,
+            }
 
     primary_metric = _PRIMARY_METRIC[task_type]
 
@@ -317,25 +246,9 @@ def _train_single_model(
         training_time_ms = int((time.perf_counter() - start_time) * 1000)
 
         eval_result = evaluate_model_with_plots(model, X_train, y_train, X_test, y_test, task_type)
-        learning_curve_data = _build_learning_curve(model, X_train, y_train, task_type)
-        class_distribution = _build_class_distribution(y) if task_type == "classification" else None
-        feature_vs_target = (
-            _build_feature_vs_target_plot(X, y, eval_result["feature_importance"])
-            if task_type == "regression"
-            else None
-        )
-        plots = {
-            **eval_result["plots"],
-            "learning_curve": learning_curve_data,
-            "class_distribution": class_distribution,
-            "feature_vs_target": feature_vs_target,
-        }
         model_path = export_model(model, pipeline_id, model_name)
 
-        logger.info(
-            "[MODEL] %s trained in %dms",
-            model_name, training_time_ms
-        )
+        logger.info("[MODEL] %s trained in %dms", model_name, training_time_ms)
 
         return {
             "model": model_name,
@@ -343,9 +256,8 @@ def _train_single_model(
             "model_type": task_type,
             **eval_result["metrics"],
             "training_time_ms": training_time_ms,
-            "plots": plots,
-            "feature_importance": eval_result["feature_importance"],
-            "artifacts": eval_result["artifacts"],
+            "plots": eval_result["plots"],
+            "feature_importance": eval_result["plots"].get("feature_importance"),
             "model_path": model_path,
             "scaling_applied": needs_scaling,
             "status": "success",

@@ -127,6 +127,11 @@ const trainingWorker = new Worker(
           }
 
           if (polled.status === 'failed') {
+            // Preserve structured validation errors so the post-poll handler can inspect them
+            if (polled.error_type === 'DATA_VALIDATION_ERROR') {
+              result = polled;
+              break;
+            }
             throw new Error(`ML training failed: ${polled.error ?? 'unknown'}`);
           }
 
@@ -152,6 +157,21 @@ const trainingWorker = new Worker(
         failed_models_count: (result?.failed_models ?? []).length,
       });
       await job.updateProgress(90);
+
+      // ── Data-validation failure returned by ML service ───
+      if (result?.status === 'failed' && result?.error_type === 'DATA_VALIDATION_ERROR') {
+        const errMsg = `DATA_VALIDATION_ERROR: ${result.message}`;
+        logger.warn('[WORKER]', '⚠️  Dataset validation failed — stopping without retry', {
+          experiment_id,
+          message: result.message,
+          details: result.details,
+        });
+        if (job_db_id) {
+          await trainingService.updateTrainingJobStatus(job_db_id, 'failed', errMsg);
+        }
+        // Return (not throw) so BullMQ marks the job completed, not failed/retried
+        return { status: 'failed', error_type: 'DATA_VALIDATION_ERROR', message: result.message, details: result.details };
+      }
 
       // ── Step 4: Store results + log per-model ────────────
       const successful = result?.base_models ?? result?.models ?? [];

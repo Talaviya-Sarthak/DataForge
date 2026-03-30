@@ -249,8 +249,10 @@ exports.getExperiment = async (req, res) => {
   try {
     const { experimentId } = req.params;
 
-    // 1. Job still in queue — only handle waiting/active/failed states
+    // 1. Check queue state first (fast, O(1) Redis lookup)
     const queueStatus = await jobService.getExperimentStatus(experimentId);
+
+    // 1a. Still in-flight — tell the frontend to keep polling
     if (queueStatus && (queueStatus.status === 'queued' || queueStatus.status === 'running')) {
       return res.status(200).json({
         status: queueStatus.status,
@@ -263,26 +265,26 @@ exports.getExperiment = async (req, res) => {
           : 'Training is in progress',
       });
     }
-    if (queueStatus && queueStatus.status === 'failed' && !queueStatus.result) {
+
+    // 1b. Queue reports failed with no DB result yet
+    if (queueStatus && queueStatus.status === 'failed') {
+      // Still try DB first — worker may have stored partial results
+      const dbResult = await trainingService.getExperimentResults(experimentId, req.user.id);
+      if (dbResult) return res.status(200).json(dbResult);
+
       return res.status(200).json({
         status: 'failed',
         experiment_id: experimentId,
-        error: queueStatus.error,
+        error: queueStatus.error || 'Training failed',
         job_id: queueStatus.job_id,
       });
     }
 
-    // 2. Job completed — read results from MySQL (authoritative source)
-    try {
-      const dbResult = await trainingService.getExperimentResults(experimentId, req.user.id);
-      if (dbResult) {
-        return res.status(200).json(dbResult);
-      }
-    } catch (dbError) {
-      logger.warn('[TRAIN]', 'DB query failed, falling back to ML service', { error: dbError.message });
-    }
+    // 2. Job is completed (or not in queue at all) — DB is the authoritative source
+    const dbResult = await trainingService.getExperimentResults(experimentId, req.user.id);
+    if (dbResult) return res.status(200).json(dbResult);
 
-    // 3. Check training_jobs to distinguish failed vs truly not found
+    // 3. DB has no rows yet — check training_jobs for status clues
     const jobRecord = await trainingService.getTrainingJobByExperiment(experimentId, req.user.id);
     if (jobRecord) {
       if (jobRecord.status === 'failed') {
@@ -292,25 +294,22 @@ exports.getExperiment = async (req, res) => {
           error: jobRecord.error_message || 'Training failed',
         });
       }
-      if (jobRecord.status === 'running') {
+      // running or completed but trained_models not written yet — ask frontend to retry
+      if (jobRecord.status === 'running' || jobRecord.status === 'completed') {
         return res.status(200).json({
           status: 'running',
           experiment_id: experimentId,
-          progress: 0,
-          message: 'Training is in progress',
+          progress: 90,
+          message: 'Finalising results, please wait…',
         });
       }
     }
 
-    // 4. Not in DB at all — fall back to ML service
-    const mlResult = await mlService.getExperiment(experimentId).catch(() => null);
-    if (!mlResult) {
-      return res.status(404).json({
-        status: 'error',
-        message: `Experiment '${experimentId}' not found`,
-      });
-    }
-    return res.status(200).json(mlResult);
+    // 4. Nothing found anywhere
+    return res.status(404).json({
+      status: 'error',
+      message: `Experiment '${experimentId}' not found`,
+    });
 
   } catch (error) {
     logger.error('[TRAIN]', 'Get experiment error', { error: error.message, stack: error.stack });

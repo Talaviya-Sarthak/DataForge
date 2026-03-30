@@ -35,8 +35,8 @@ def export_model(model, pipeline_id: str, model_name: str) -> str:
 
     joblib.dump(model, filepath)
 
-    # Return a relative path for the JSON response
-    return f"artifacts/models/{filename}"
+    # Return the absolute path so Node can locate the file directly
+    return str(filepath.resolve())
 
 
 def _to_snake_case(name: str) -> str:
