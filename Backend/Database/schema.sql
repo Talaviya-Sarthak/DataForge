@@ -1,12 +1,17 @@
 -- =========================================
--- DATAFORGE - FRESH DATABASE SCHEMA
+-- DATAFORGE - CLEAN DATABASE SCHEMA
 -- =========================================
+-- Run this on a FRESH database only.
+-- For existing databases, use the migration
+-- section at the bottom of this file.
+-- =========================================
+
 DROP DATABASE IF EXISTS dataforge;
 CREATE DATABASE dataforge;
 USE dataforge;
 
 -- =========================================
--- USERS TABLE
+-- USERS
 -- =========================================
 CREATE TABLE users (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -155,24 +160,23 @@ CREATE TABLE trained_models (
   model_name VARCHAR(255) NOT NULL,
   model_type ENUM('classification', 'regression') NOT NULL,
   model_path VARCHAR(512) NOT NULL,
-  
+
   -- Classification metrics
   accuracy DOUBLE DEFAULT NULL,
   `precision` DOUBLE DEFAULT NULL,
   recall DOUBLE DEFAULT NULL,
   f1_score DOUBLE DEFAULT NULL,
   roc_auc DOUBLE DEFAULT NULL,
-  
+
   -- Regression metrics
   r2_score DOUBLE DEFAULT NULL,
   mse DOUBLE DEFAULT NULL,
   rmse DOUBLE DEFAULT NULL,
   mae DOUBLE DEFAULT NULL,
-  
-  -- Training info
+
   training_time_ms INT DEFAULT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  
+
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   INDEX idx_experiment_id (experiment_id),
   INDEX idx_user_id (user_id),
@@ -180,33 +184,27 @@ CREATE TABLE trained_models (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =========================================
--- MODEL PLOTS
+-- MODEL PLOTS  (final — all required plots)
 -- =========================================
 CREATE TABLE model_plots (
   id INT AUTO_INCREMENT PRIMARY KEY,
   model_id INT NOT NULL,
-  
-  -- Classification plots
-  confusion_matrix JSON DEFAULT NULL,
-  roc_curve JSON DEFAULT NULL,
-  precision_recall_curve JSON DEFAULT NULL,
-  class_labels JSON DEFAULT NULL,
-  
-  -- Regression plots
-  residuals JSON DEFAULT NULL,
-  predicted_vs_actual JSON DEFAULT NULL,
-  error_distribution JSON DEFAULT NULL,
-  residual_vs_predicted JSON DEFAULT NULL,
-  regression_line JSON DEFAULT NULL,
-  
-  -- Common plots
-  feature_importance JSON DEFAULT NULL,
-  learning_curve JSON DEFAULT NULL,
-  class_distribution JSON DEFAULT NULL,
-  feature_vs_target JSON DEFAULT NULL,
-  
+
+  -- Classification
+  confusion_matrix       JSON DEFAULT NULL,
+  roc_curve              JSON DEFAULT NULL,
+  precision_recall_curve JSON DEFAULT NULL,  -- optional, binary classification only
+
+  -- Regression
+  predicted_vs_actual    JSON DEFAULT NULL,
+  error_distribution     JSON DEFAULT NULL,  -- histogram [{label, count}]
+
+  -- Both task types
+  residuals              JSON DEFAULT NULL,  -- [{actual, predicted, residual}]
+  feature_importance     JSON DEFAULT NULL,
+
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  
+
   FOREIGN KEY (model_id) REFERENCES trained_models(id) ON DELETE CASCADE,
   INDEX idx_model_id (model_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -228,17 +226,6 @@ CREATE TABLE dataset_stats (
 -- =========================================
 -- VERIFICATION
 -- =========================================
-SELECT 'Database created successfully!' AS status;
-
--- Show all tables
+SELECT 'Clean schema created successfully!' AS status;
 SHOW TABLES;
 
--- Show trained_models structure
-SELECT '=== TRAINED_MODELS STRUCTURE ===' AS info;
-DESCRIBE trained_models;
-
--- Show model_plots structure
-SELECT '=== MODEL_PLOTS STRUCTURE ===' AS info;
-DESCRIBE model_plots;
-
-SELECT 'Schema is ready to use!' AS status;
