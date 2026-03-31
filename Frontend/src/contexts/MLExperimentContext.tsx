@@ -131,7 +131,7 @@ export const MLExperimentProvider = ({ children }: { children: ReactNode }) => {
             if (!prev) return prev;
             return {
                 ...prev,
-                base_models: prev.base_models.filter((m) => m.model_id !== modelId),
+                base_models: prev.base_models.filter((m) => (m.model_id as any) !== modelId),
             };
         });
     }, []);

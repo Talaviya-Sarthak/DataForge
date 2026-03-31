@@ -23,7 +23,7 @@ export const ResultsTable = () => {
     // Use results_table if available, otherwise format from base_models
     const tableData = results_table || successfulModels.map((m) => {
         // Access metrics from nested structure or directly
-        const metrics = m.metrics || m;
+        const metrics = (m.metrics || m) as any;
         
         if (task_type === 'classification') {
             return {
@@ -218,7 +218,7 @@ export const ResultsTable = () => {
                 {/* Summary */}
                 <div className="mt-4 pt-4 border-t border-white/5 flex justify-between text-sm text-neutral-400">
                     <span>
-                        {trainingResults.summary?.successful ?? base_models.length} successful / {trainingResults.summary?.failed ?? 0} failed
+                        {(trainingResults as any).summary?.successful ?? base_models.length} successful / {(trainingResults as any).summary?.failed ?? 0} failed
                     </span>
                     
                 </div>

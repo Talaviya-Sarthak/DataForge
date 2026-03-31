@@ -226,7 +226,6 @@ export const BoxPlotChart = ({ values, featureName }: BoxPlotChartProps) => {
                             data={outlierData}
                             fill="#ef4444"
                             shape="circle"
-                            size={80}
                         />
                     </ComposedChart>
                 </ResponsiveContainer>
