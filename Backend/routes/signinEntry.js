@@ -7,9 +7,9 @@ const {
   comparePassword
 } = require("../Database/models/user/signinModel");
 
-// Token expiration times
-const ACCESS_TOKEN_EXPIRY = "30m";  // 30 minutes
-const REFRESH_TOKEN_EXPIRY = "7d";  // 7 days
+// Token expiration times from environment variables
+const ACCESS_TOKEN_EXPIRY = process.env.ACCESS_TOKEN_EXPIRY || "30m";
+const REFRESH_TOKEN_EXPIRY = process.env.REFRESH_TOKEN_EXPIRY || "7d";
 
 // =======================
 // ✅ SIGNIN ROUTE

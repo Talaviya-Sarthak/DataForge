@@ -737,3 +737,18 @@ exports.compareModels = async (req, res) => {
 /**
  * Build comparison charts based on model type
  */
+function buildComparisonCharts(models, modelType) {
+  if (!models || models.length === 0) return null;
+
+  if (modelType === 'classification') {
+    return {
+      accuracy: models.map(m => ({ model: m.model_name, value: m.metrics.accuracy })),
+      f1_score: models.map(m => ({ model: m.model_name, value: m.metrics.f1_score })),
+    };
+  } else {
+    return {
+      r2_score: models.map(m => ({ model: m.model_name, value: m.metrics.r2_score })),
+      rmse: models.map(m => ({ model: m.model_name, value: m.metrics.rmse })),
+    };
+  }
+}

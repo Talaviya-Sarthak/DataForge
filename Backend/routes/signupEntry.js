@@ -5,6 +5,9 @@ const bcrypt = require("bcrypt");
 const { insertUser } = require("../Database/models/user/signupModel");
 const { findUserByEmail } = require("../Database/models/user/signinModel");
 
+// Bcrypt salt rounds from environment variable
+const BCRYPT_SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS || "10", 10);
+
 // =======================
 // ✅ SIGNUP ROUTE
 // =======================
@@ -28,7 +31,7 @@ router.post("/signup", async (req, res) => {
     }
 
     // 3️⃣ Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
 
     // 4️⃣ Insert user (NO username)
     const result = await insertUser(name, email, hashedPassword);
