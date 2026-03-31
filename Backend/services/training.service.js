@@ -26,20 +26,15 @@ const storeModelResults = async (experimentId, taskType, targetColumn, baseModel
     );
 
     for (const m of baseModels) {
-      if (!m.model_path) {
-        logger.warn('[DB]', `Skipping model ${m.model || m.name} — missing model_path`);
-        continue;
-      }
-
       const [result] = await connection.execute(
         `INSERT INTO trained_models
          (experiment_id, user_id, target_column, model_name, model_type, model_path,
           accuracy, \`precision\`, recall, f1_score, roc_auc,
-          r2_score, mse, rmse, mae, training_time_ms)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          r2_score, mse, rmse, mae, training_time_ms, expires_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 5 DAY))`,
         [
           experimentId, userId, targetColumn,
-          m.model || m.name, taskType, m.model_path,
+          m.model || m.name, taskType, m.model_path || null,
           m.accuracy ?? null, m.precision ?? null, m.recall ?? null,
           m.f1_score ?? null, m.roc_auc ?? null,
           m.r2_score ?? null, m.mse ?? null, m.rmse ?? null, m.mae ?? null,
@@ -140,6 +135,8 @@ function formatModelForResponse(row) {
     model_path: row.model_path,
     absolute_model_path: absoluteModelPath,
     training_time_ms: row.training_time_ms,
+    created_at: row.created_at,
+    expires_at: row.expires_at,
     metrics,
     plots: {
       confusion_matrix:       safeJsonParse(row.confusion_matrix),

@@ -30,13 +30,13 @@ const ChartCard = ({
   emptyMessage?: string;
   children?: ReactNode;
 }) => (
-  <div className="rounded-lg border border-gray-800 bg-gray-800/50 p-4">
+  <div className="rounded-xl border border-neutral-800/70 bg-gradient-to-b from-neutral-900/60 to-neutral-950/60 p-4 shadow-[0_4px_20px_rgba(0,0,0,0.3)]">
     <div className="mb-4">
       <h3 className="text-lg font-medium text-white">{title}</h3>
-      {subtitle ? <p className="text-xs text-gray-400">{subtitle}</p> : null}
+      {subtitle ? <p className="text-xs text-neutral-400">{subtitle}</p> : null}
     </div>
     {isEmpty ? (
-      <div className="flex h-[280px] items-center justify-center rounded-lg border border-dashed border-gray-700 text-sm text-gray-400">
+      <div className="flex h-[280px] items-center justify-center rounded-lg border border-dashed border-neutral-700/50 text-sm text-neutral-400">
         {emptyMessage || 'No data available for this chart.'}
       </div>
     ) : (
@@ -64,8 +64,8 @@ const MetricsStrip = ({ model }: { model: ModelResult }) => {
   return (
     <div className={`grid gap-3 ${model.model_type === 'classification' ? 'md:grid-cols-5' : 'md:grid-cols-3'}`}>
       {cards.map(([label, value]) => (
-        <div key={label} className="rounded-lg border border-gray-800 bg-gray-900 p-4">
-          <div className="text-xs uppercase tracking-wide text-gray-400">{label}</div>
+        <div key={label} className="rounded-lg border border-neutral-800/70 bg-gradient-to-b from-neutral-900/60 to-neutral-950/60 p-4 shadow-[0_4px_20px_rgba(0,0,0,0.3)]">
+          <div className="text-xs uppercase tracking-wide text-neutral-400">{label}</div>
           <div className="mt-2 font-mono text-xl text-white">{formatMetric(value as number | null | undefined)}</div>
         </div>
       ))}
@@ -93,19 +93,19 @@ export const ModelAnalysis = () => {
   const modelType = modelData.model_type;
 
   return (
-    <div className="space-y-6 rounded-xl border border-gray-800 bg-gray-900 p-6">
+    <div className="space-y-6 rounded-xl border border-neutral-800/70 bg-gradient-to-b from-neutral-900/80 to-neutral-950/80 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.4)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.5)] transition-shadow duration-300">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-white">Model Results</h2>
-          <p className="text-sm text-gray-400">
-            Rendering {modelType} charts only for <span className="text-white">{modelData.model_name}</span>.
+          <h2 className="text-xl font-semibold text-white">Model Analysis</h2>
+          <p className="text-sm text-neutral-400">
+            Detailed charts for <span className="text-white">{modelData.model_name}</span> ({modelType}).
           </p>
         </div>
 
         <select
           value={modelData.model_name}
           onChange={(event) => setSelectedModel(event.target.value)}
-          className="rounded-lg border border-gray-700 bg-gray-800 px-4 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+          className="rounded-lg border border-neutral-700 bg-neutral-800/60 px-4 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 transition-all"
         >
           {successfulModels.map((model) => (
             <option key={model.model_id} value={model.model_name}>
@@ -341,8 +341,8 @@ const ErrorDistributionChart = ({ plots }: { plots: ModelPlots }) => {
 };
 
 const tooltipStyle = {
-  backgroundColor: '#111827',
-  border: '1px solid #374151',
+  backgroundColor: '#171717',
+  border: '1px solid rgba(255,255,255,0.1)',
   borderRadius: '8px',
 };
 

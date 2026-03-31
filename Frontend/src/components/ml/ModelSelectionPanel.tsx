@@ -7,7 +7,7 @@ interface ModelSelectionPanelProps {
 }
 
 export const ModelSelectionPanel = ({ onTrain }: ModelSelectionPanelProps) => {
-    const { config, setConfig, isTraining } = useMLExperiment();
+    const { config, setConfig, isTraining, isResultsLoading } = useMLExperiment();
     const [availableModels, setAvailableModels] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
 
@@ -83,104 +83,162 @@ export const ModelSelectionPanel = ({ onTrain }: ModelSelectionPanelProps) => {
     };
 
     return (
-        <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
-            <div className="flex justify-between items-center mb-6">
-                <h2 className="text-lg font-semibold flex items-center gap-2">
-                    <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-                    </svg>
-                    Model Selection
-                </h2>
+        <div className="bg-neutral-900/80 backdrop-blur-sm rounded-xl border border-white/5 shadow-[0_8px_30px_rgba(0,0,0,0.4)] overflow-hidden flex flex-col" style={{ height: '65vh' }}>
+            {/* Header */}
+            <div className="flex justify-between items-center p-6 border-b border-white/5">
+                <div className="flex items-center gap-3">
+                    <h2 className="text-lg font-semibold text-white">
+                        Select Models
+                    </h2>
+                    <span className="text-sm text-neutral-400">
+                        {config.selectedModels.length} of {availableModels.length} selected
+                    </span>
+                </div>
                 <div className="flex gap-2">
                     <button
                         onClick={selectAll}
-                        className="text-xs px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded-lg transition"
+                        className="text-xs px-3 py-1.5 bg-neutral-800/60 hover:bg-neutral-700/80 border border-white/10 rounded-lg transition-all text-neutral-300 hover:text-white"
                     >
                         Select All
                     </button>
                     <button
                         onClick={deselectAll}
-                        className="text-xs px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded-lg transition"
+                        className="text-xs px-3 py-1.5 bg-neutral-800/60 hover:bg-neutral-700/80 border border-white/10 rounded-lg transition-all text-neutral-300 hover:text-white"
                     >
                         Clear
                     </button>
                 </div>
             </div>
 
-            {/* Models Grid */}
-            <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
+            {/* Scrollable Table */}
+            <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-700 scrollbar-track-transparent">
                 {loading ? (
-                    <div className="text-center py-8 text-gray-400">Loading models...</div>
-                ) : (
-                    availableModels.map((model) => (
-                        <label
-                            key={model}
-                            className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition ${
-                                config.selectedModels.includes(model)
-                                    ? 'bg-purple-900/30 border-purple-500'
-                                    : 'bg-gray-800/50 border-gray-700 hover:border-gray-600'
-                            }`}
-                        >
-                            <input
-                                type="checkbox"
-                                checked={config.selectedModels.includes(model)}
-                                onChange={() => toggleModel(model)}
-                                className="w-4 h-4 rounded border-gray-600 text-purple-600 focus:ring-purple-500 focus:ring-offset-gray-900"
-                            />
-                            <div className="flex-1">
-                                <div className="font-medium text-sm">{model}</div>
-                                {modelDescriptions[model] && (
-                                    <div className="text-xs text-gray-500">{modelDescriptions[model]}</div>
-                                )}
-                            </div>
-                            {/* Scaling indicator */}
-                            {['LogisticRegression', 'SVC', 'SVR', 'KNeighborsClassifier', 'KNeighborsRegressor', 'LinearRegression', 'Ridge', 'Lasso'].includes(model) && (
-                                <span className="text-xs px-2 py-0.5 bg-blue-900/50 text-blue-400 rounded">
-                                    Scaled
-                                </span>
-                            )}
-                        </label>
-                    ))
-                )}
-            </div>
-
-            {/* Selected Count */}
-            <div className="mt-4 pt-4 border-t border-gray-800">
-                <div className="flex justify-between items-center mb-4">
-                    <span className="text-sm text-gray-400">
-                        {config.selectedModels.length} of {availableModels.length} models selected
-                    </span>
-                </div>
-
-                {/* Train Button */}
-                <button
-                    onClick={onTrain}
-                    disabled={isTraining || config.selectedModels.length === 0 || !config.targetColumn}
-                    className="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
-                >
-                    {isTraining ? (
-                        <>
-                            <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                    <div className="flex items-center justify-center h-full text-neutral-400">
+                        <div className="text-center">
+                            <svg className="animate-spin h-8 w-8 mx-auto mb-2" fill="none" viewBox="0 0 24 24">
                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
-                            Training...
-                        </>
-                    ) : (
-                        <>
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                            </svg>
-                            Train Models
-                        </>
-                    )}
-                </button>
-
-                {!config.targetColumn && (
-                    <p className="text-xs text-yellow-500 mt-2 text-center">
-                        Please select a target column first
-                    </p>
+                            Loading models...
+                        </div>
+                    </div>
+                ) : (
+                    <table className="w-full">
+                        <thead className="sticky top-0 bg-neutral-900/95 backdrop-blur-sm z-10">
+                            <tr className="border-b border-white/5">
+                                <th className="text-left py-4 px-6 font-medium text-neutral-300 w-12"></th>
+                                <th className="text-left py-4 px-6 font-medium text-neutral-300">Model Name</th>
+                                <th className="text-left py-4 px-6 font-medium text-neutral-300">Description</th>
+                                <th className="text-center py-4 px-6 font-medium text-neutral-300 w-24">Info</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {availableModels.map((model) => {
+                                const isSelected = config.selectedModels.includes(model);
+                                const needsScaling = ['LogisticRegression', 'SVC', 'SVR', 'KNeighborsClassifier', 'KNeighborsRegressor', 'LinearRegression', 'Ridge', 'Lasso'].includes(model);
+                                
+                                return (
+                                    <tr
+                                        key={model}
+                                        onClick={() => toggleModel(model)}
+                                        className={`border-b border-white/5 cursor-pointer transition-all duration-200 ${
+                                            isSelected
+                                                ? 'bg-cyan-500/10 hover:bg-cyan-500/15'
+                                                : 'hover:bg-neutral-800/40'
+                                        }`}
+                                    >
+                                        <td className="py-4 px-6">
+                                            <div className="flex items-center justify-center">
+                                                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
+                                                    isSelected
+                                                        ? 'bg-cyan-500 border-cyan-500'
+                                                        : 'bg-transparent border-neutral-600'
+                                                }`}>
+                                                    {isSelected && (
+                                                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                                        </svg>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="py-4 px-6">
+                                            <div className={`font-medium text-sm ${
+                                                isSelected ? 'text-white' : 'text-neutral-200'
+                                            }`}>
+                                                {model}
+                                            </div>
+                                        </td>
+                                        <td className="py-4 px-6">
+                                            <div className="text-xs text-neutral-500">
+                                                {modelDescriptions[model] || 'Machine learning model'}
+                                            </div>
+                                        </td>
+                                        <td className="py-4 px-6 text-center">
+                                            {needsScaling && (
+                                                <span className="inline-block text-xs px-2 py-0.5 bg-neutral-700/50 text-neutral-400 rounded border border-white/10">
+                                                    Scaled
+                                                </span>
+                                            )}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
                 )}
+            </div>
+
+            {/* Footer with Train Button */}
+            <div className="p-6 border-t border-white/5 bg-neutral-900/50">
+                <div className="flex items-center justify-between gap-4">
+                    <div className="flex-1">
+                        {!config.targetColumn ? (
+                            <p className="text-xs text-amber-400 flex items-center gap-1">
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                                Select a target column first
+                            </p>
+                        ) : config.selectedModels.length === 0 ? (
+                            <p className="text-xs text-amber-400 flex items-center gap-1">
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                                Select at least one model
+                            </p>
+                        ) : (
+                            <p className="text-xs text-cyan-400 flex items-center gap-1">
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                                Ready to train {config.selectedModels.length} model{config.selectedModels.length > 1 ? 's' : ''}
+                            </p>
+                        )}
+                    </div>
+                    <button
+                        onClick={onTrain}
+                        disabled={isTraining || isResultsLoading || config.selectedModels.length === 0 || !config.targetColumn}
+                        className="px-6 py-3 bg-cyan-600 hover:bg-cyan-700 disabled:bg-neutral-800 disabled:text-neutral-500 text-white font-medium rounded-lg border border-cyan-500/50 hover:border-cyan-400 disabled:border-white/5 transition-all disabled:cursor-not-allowed flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-100"
+                    >
+                        {(isTraining || isResultsLoading) ? (
+                            <>
+                                <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                Training...
+                            </>
+                        ) : (
+                            <>
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                </svg>
+                                Train Models
+                            </>
+                        )}
+                    </button>
+                </div>
             </div>
         </div>
     );

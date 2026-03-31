@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import {
     TrainResponse,
-    TuneResponse,
     PreprocessingConfig,
     ModelResult,
+    trainingService,
 } from '../services/training.service';
 
 // ── Types ───────────────────────────────────────────────
@@ -29,10 +29,6 @@ interface MLExperimentContextType {
     trainingResults: TrainResponse | null;
     setTrainingResults: (results: TrainResponse | null) => void;
 
-    // Tuning results
-    tuningResults: TuneResponse | null;
-    setTuningResults: (results: TuneResponse | null) => void;
-
     // Selected model for analysis
     selectedModel: string | null;
     setSelectedModel: (model: string | null) => void;
@@ -40,8 +36,8 @@ interface MLExperimentContextType {
     // UI state
     isTraining: boolean;
     setIsTraining: (loading: boolean) => void;
-    isTuning: boolean;
-    setIsTuning: (loading: boolean) => void;
+    isResultsLoading: boolean;
+    setIsResultsLoading: (loading: boolean) => void;
     error: string | null;
     setError: (error: string | null) => void;
 
@@ -54,6 +50,7 @@ interface MLExperimentContextType {
     // Actions
     clearExperiment: () => void;
     getModelByName: (name: string) => ModelResult | undefined;
+    deleteModel: (modelId: number) => Promise<void>;
 }
 
 // ── Default Values ──────────────────────────────────────
@@ -82,12 +79,11 @@ export const MLExperimentProvider = ({ children }: { children: ReactNode }) => {
     // Experiment state
     const [experimentId, setExperimentId] = useState<string | null>(null);
     const [trainingResults, setTrainingResults] = useState<TrainResponse | null>(null);
-    const [tuningResults, setTuningResults] = useState<TuneResponse | null>(null);
     const [selectedModel, setSelectedModel] = useState<string | null>(null);
 
     // UI state
     const [isTraining, setIsTraining] = useState(false);
-    const [isTuning, setIsTuning] = useState(false);
+    const [isResultsLoading, setIsResultsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     // Training progress state
@@ -108,11 +104,10 @@ export const MLExperimentProvider = ({ children }: { children: ReactNode }) => {
     const clearExperiment = useCallback(() => {
         setExperimentId(null);
         setTrainingResults(null);
-        setTuningResults(null);
         setSelectedModel(null);
         setError(null);
         setIsTraining(false);
-        setIsTuning(false);
+        setIsResultsLoading(false);
         setTrainingProgress(0);
         setModelsCompleted(0);
     }, []);
@@ -128,6 +123,19 @@ export const MLExperimentProvider = ({ children }: { children: ReactNode }) => {
         [trainingResults]
     );
 
+    // Delete a single model and update results
+    const deleteModel = useCallback(async (modelId: number) => {
+        await trainingService.deleteModel(modelId);
+        // Update training results by removing the deleted model
+        setTrainingResults((prev) => {
+            if (!prev) return prev;
+            return {
+                ...prev,
+                base_models: prev.base_models.filter((m) => m.model_id !== modelId),
+            };
+        });
+    }, []);
+
     return (
         <MLExperimentContext.Provider
             value={{
@@ -138,14 +146,12 @@ export const MLExperimentProvider = ({ children }: { children: ReactNode }) => {
                 setExperimentId,
                 trainingResults,
                 setTrainingResults,
-                tuningResults,
-                setTuningResults,
                 selectedModel,
                 setSelectedModel,
                 isTraining,
                 setIsTraining,
-                isTuning,
-                setIsTuning,
+                isResultsLoading,
+                setIsResultsLoading,
                 error,
                 setError,
                 trainingProgress,
@@ -154,6 +160,7 @@ export const MLExperimentProvider = ({ children }: { children: ReactNode }) => {
                 setModelsCompleted,
                 clearExperiment,
                 getModelByName,
+                deleteModel,
             }}
         >
             {children}

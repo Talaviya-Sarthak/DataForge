@@ -194,12 +194,14 @@ CREATE TABLE IF NOT EXISTS trained_models (
 
   training_time_ms INT DEFAULT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  expires_at TIMESTAMP NULL DEFAULT NULL,
 
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   INDEX idx_experiment_id (experiment_id),
   INDEX idx_user_id (user_id),
   INDEX idx_model_type (model_type),
-  INDEX idx_created_at (created_at)
+  INDEX idx_created_at (created_at),
+  INDEX idx_expires_at (expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =========================================

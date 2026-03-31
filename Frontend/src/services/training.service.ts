@@ -63,21 +63,35 @@ export const getAvailableModels = async (taskType: string) => {
 
 export const experimentTrain = async (config: any) => {
   const token = localStorage.getItem("token");
-  const response = await fetch(`${API_BASE}/training/experiment/train`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(config),
-  });
+  console.log('🔵 Sending training request:', config);
+  
+  try {
+    const response = await fetch(`${API_BASE}/training/experiment/train`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(config),
+    });
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || "Training failed");
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: `HTTP ${response.status}: ${response.statusText}` }));
+      console.error('❌ Training API error:', JSON.stringify(error, null, 2));
+      const errorMessage = error.error || error.message || error.detail || "Training failed";
+      throw new Error(errorMessage);
+    }
+
+    const result = await response.json();
+    console.log('✅ Training response:', result);
+    return result;
+  } catch (error: any) {
+    console.error('❌ Training request failed:', error);
+    if (error.message === 'Failed to fetch') {
+      throw new Error('Cannot connect to backend server. Please ensure the server is running on http://localhost:5000');
+    }
+    throw error;
   }
-
-  return response.json();
 };
 
 export const getExperiment = async (experimentId: string) => {
@@ -160,12 +174,6 @@ export interface TrainResponse {
   results_table?: any[];
 }
 
-export interface TuneResponse {
-  status: string;
-  experiment_id: string;
-  model: ModelResult;
-}
-
 export const trainingService = {
   trainModel,
   getTrainingResults,
@@ -202,6 +210,17 @@ export const trainingService = {
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
       throw new Error(err.message || 'Delete failed');
+    }
+  },
+  deleteAllModels: async (pipelineId: string): Promise<void> => {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_BASE}/training/${pipelineId}/models`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.message || 'Delete all failed');
     }
   },
 };

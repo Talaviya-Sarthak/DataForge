@@ -42,6 +42,7 @@ const Header: React.FC = () => {
     if (location.pathname === "/") return "home";
     if (location.pathname === "/DataSet") return "dataset";
     if (location.pathname === "/Cleaning") return "cleaning";
+    if (location.pathname === "/Models") return "models";
     return "home"; // default
   };
 
@@ -63,19 +64,9 @@ const Header: React.FC = () => {
       icon: <HiOutlineAdjustments className="w-5 h-5" />,
     },
     {
-      id: "enhance",
-      label: "Enhance",
-      icon: <HiOutlineSparkles className="w-5 h-5" />,
-    },
-    {
       id: "models",
       label: "Models",
       icon: <HiChip className="w-5 h-5" />,
-    },
-    {
-      id: "analysis",
-      label: "Analysis",
-      icon: <RiBarChartBoxAiLine className="w-5 h-5" />,
     },
     {
       id: "about us",
@@ -109,6 +100,7 @@ const Header: React.FC = () => {
                 else if (tabId === "dataset") navigate("/DataSet");
                 else if (tabId === "about us") navigate("/About");
                 else if (tabId === "cleaning") navigate("/Cleaning");
+                else if (tabId === "models") navigate("/Models");
                 // Add more routes as needed
               }}
             />
