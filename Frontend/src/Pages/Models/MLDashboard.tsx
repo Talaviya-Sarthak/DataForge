@@ -66,7 +66,7 @@ const MLDashboardContent = () => {
             // Loop through all models and reuse existing delete function
             for (const model of models) {
                 if (model.model_id) {
-                    await deleteModel(model.model_id);
+                    await deleteModel(model.model_id as unknown as number);
                 }
             }
             show({ type: "success", message: "All models deleted successfully" });
