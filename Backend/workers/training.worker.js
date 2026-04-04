@@ -52,10 +52,16 @@ const trainingWorker = new Worker(
     logger.info('[WORKER]', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     try {
-      // ── Step 1: Mark running in DB ───────────────────────
+      // ── Step 1: Mark active in DB (status='active') ───────────────────────
       if (job_db_id) {
-        await trainingService.updateTrainingJobStatus(job_db_id, 'running');
-        logger.info('[WORKER]', '📋 Step 1/5 — DB job status → running', { job_db_id });
+        await trainingService.updateTrainingJobStatus(job_db_id, 'active');
+        // Also update started_at timestamp
+        const db = require('../Database/db');
+        await db.execute(
+          "UPDATE training_jobs SET started_at = NOW() WHERE id = ?",
+          [job_db_id]
+        );
+        logger.info('[WORKER]', '📋 Step 1/5 — DB job status → active, started_at set', { job_db_id });
       }
       await job.updateProgress(10);
 
@@ -117,6 +123,15 @@ const trainingWorker = new Worker(
             89
           );
           await job.updateProgress(pollProgress);
+
+          // Also update progress in database
+          if (job_db_id) {
+            const db = require('../Database/db');
+            await db.execute(
+              "UPDATE training_jobs SET progress = ? WHERE id = ?",
+              [pollProgress, job_db_id]
+            );
+          }
 
           const polled = await mlService.getExperiment(mlExperimentId);
           if (!polled) break;
@@ -218,7 +233,11 @@ const trainingWorker = new Worker(
 
       // ── Step 5: Mark completed in DB ─────────────────────
       if (job_db_id) {
-        await trainingService.updateTrainingJobStatus(job_db_id, 'completed');
+        const db = require('../Database/db');
+        await db.execute(
+          "UPDATE training_jobs SET status = 'completed', progress = 100, completed_at = NOW(), result = ? WHERE id = ?",
+          [JSON.stringify(result), job_db_id]
+        );
       }
       await job.updateProgress(100);
 
@@ -251,7 +270,12 @@ const trainingWorker = new Worker(
       logger.error('[WORKER]', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
       if (job_db_id) {
-        await trainingService.updateTrainingJobStatus(job_db_id, 'failed', error.message);
+        const db = require('../Database/db');
+        // Update status to 'failed', increment retry_count, set completed_at
+        await db.execute(
+          "UPDATE training_jobs SET status = 'failed', error_message = ?, completed_at = NOW(), retry_count = retry_count + 1 WHERE id = ?",
+          [error.message, job_db_id]
+        );
       }
 
       // Re-throw to trigger retry logic (if set in queue options)

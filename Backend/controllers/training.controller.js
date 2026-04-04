@@ -201,10 +201,15 @@ exports.experimentTrain = async (req, res) => {
       }
     );
 
+    // Store BullMQ job ID in database for tracking
+    await trainingService.updateQueueJobId(jobDbId, job.id);
+
     logger.info('[QUEUE]', '📬 Job added to Redis queue', {
       job_id: job.id,
+      db_id: jobDbId,
       experiment_id,
       queue: 'training-queue',
+      queue_job_id: job.id,
       models: selected_models,
     });
 
@@ -214,13 +219,16 @@ exports.experimentTrain = async (req, res) => {
     // BullMQ handles job queueing and concurrency automatically
     // ═══════════════════════════════════════════════════════════════════════════
 
-    // Return immediately with queued status
+    // Return immediately with queued status (< 100ms, NON-BLOCKING)
     return res.status(202).json({
       status: "success",
       message: "Training job queued successfully",
       experiment_id,
       job_id: job.id,
-      queue_status: "queued",
+      db_id: jobDbId,
+      queue_job_id: job.id,
+      queue_status: "waiting",
+      retry_after: 2000,
     });
   } catch (error) {
     logger.error('[TRAIN]', 'Experiment train error', { error: error.message });

@@ -246,8 +246,8 @@ const deleteModel = async (modelId) => {
 const createTrainingJob = async (pipelineId, userId, datasetId, taskType, targetColumn) => {
   const [result] = await pool.execute(
     `INSERT INTO training_jobs
-     (pipeline_id, user_id, dataset_id, task_type, target_column, status)
-     VALUES (?, ?, ?, ?, ?, 'running')`,
+     (pipeline_id, user_id, dataset_id, task_type, target_column, status, progress, retry_count, max_retries)
+     VALUES (?, ?, ?, ?, ?, 'waiting', 0, 0, 3)`,
     [pipelineId, userId, datasetId ?? null, taskType, targetColumn]
   );
   return result.insertId;
@@ -367,6 +367,32 @@ const deleteModelAndArtifacts = async (modelId, userId) => {
   }
 };
 
+/**
+ * Get training job by database ID
+ */
+const getTrainingJobById = async (jobDbId, userId = null) => {
+  let query = "SELECT * FROM training_jobs WHERE id = ?";
+  const params = [jobDbId];
+
+  if (userId) {
+    query += " AND user_id = ?";
+    params.push(userId);
+  }
+
+  const [rows] = await pool.execute(query, params);
+  return rows[0] ?? null;
+};
+
+/**
+ * Update queue_job_id mapping (store BullMQ job ID in DB)
+ */
+const updateQueueJobId = async (jobDbId, queueJobId) => {
+  await pool.execute(
+    "UPDATE training_jobs SET queue_job_id = ? WHERE id = ?",
+    [queueJobId, jobDbId]
+  );
+};
+
 module.exports = {
   storeModelResults,
   getModelsByExperiment,
@@ -379,4 +405,6 @@ module.exports = {
   createTrainingJob,
   updateTrainingJobStatus,
   getTrainingJobByExperiment,
+  getTrainingJobById,
+  updateQueueJobId,
 };
