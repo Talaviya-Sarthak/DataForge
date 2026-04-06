@@ -45,5 +45,3 @@ uploads/
 
 # Optional: session files (if file-based sessions are used)
 sessions/
-Backend/Database/migrations/
-
