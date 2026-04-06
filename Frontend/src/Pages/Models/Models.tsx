@@ -10,6 +10,7 @@ import { Footer } from "@/components/layouts/Footer";
 import { useDataset } from "@/contexts/DatasetContext";
 import { useToast } from "@/components/ui/toast/Toast";
 import { trainingService } from "@/services/training.service";
+import { apiRequest } from "@/services/api.client";
 
 interface TrainedModel {
   id: number;
@@ -74,11 +75,9 @@ export default function Models() {
 
     // If startTraining flag is set, open dialog instead of auto-training
     if (startTraining && !trainingLock) {
-      console.log('🎯 Initial training trigger from URL parameter');
       setIsConfigDialogOpen(true);
     } else if (!startTraining) {
       // Only fetch existing results if NOT training
-      console.log('📊 Fetching existing results');
       setLoading(true);
       fetchModels();
     }
@@ -92,18 +91,11 @@ export default function Models() {
     if (!pipelineId) return;
 
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`http://localhost:5000/api/training/${pipelineId}/info`, {
-        headers: { Authorization: `Bearer ${token}` }
+      const data = await apiRequest<any>(`http://localhost:5000/api/training/${pipelineId}/info`, {
+        retryOnUnauthorized: true,
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        setColumns(data.columns || []);
-        console.log('✅ Pipeline columns loaded:', data.columns);
-      }
+      setColumns(data.columns || []);
     } catch (error) {
-      console.error("❌ Failed to fetch pipeline info:", error);
     }
   };
 
@@ -141,19 +133,14 @@ export default function Models() {
     // HARD LOCK - Prevent ANY duplicate calls
     const now = Date.now();
     if (trainingLock) {
-      console.log('❌ BLOCKED: Training already in progress (hard lock active)');
       return;
     }
 
     // Debounce - prevent rapid clicks
     if (now - lastTrainingCall < 3000) {
-      console.log('❌ BLOCKED: Too soon since last call (debounce)');
       return;
     }
 
-    console.log('\n🚀 ========== TRAIN API CALLED ==========');
-    console.log('🕒 Timestamp:', new Date().toISOString());
-    console.log('📊 Pipeline ID:', pipelineId);
 
     // Activate locks
     trainingLock = true;
@@ -177,8 +164,6 @@ export default function Models() {
     addLog("");
 
     try {
-      const token = localStorage.getItem("token");
-
       // Simulate training multiple models
       const modelNames = [
         "Logistic Regression",
@@ -199,7 +184,6 @@ export default function Models() {
       addLog("");
       addLog("📊 Evaluating model performance...");
 
-      console.log('📡 Making API request to /api/training/train');
 
       // Make actual API call with configuration
       const requestBody = config ? {
@@ -210,37 +194,18 @@ export default function Models() {
         pipeline_id: pipelineId
       };
 
-      console.log('📦 Request payload:', requestBody);
 
-      const response = await fetch(`http://localhost:5000/api/training/train`, {
+      const data = await apiRequest<any>(`http://localhost:5000/api/training/train`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
           "Cache-Control": "no-cache",
           "Pragma": "no-cache"
         },
         body: JSON.stringify(requestBody),
-        cache: "no-store"
+        cache: "no-store",
+        retryOnUnauthorized: true,
       });
-
-      console.log('📡 Training API Response Status:', response.status);
-
-      // Handle 429 Too Many Requests
-      if (response.status === 429) {
-        console.error('❌ 429 Too Many Requests');
-        addLog("❌ Too many requests. Please wait 30 seconds and try again.");
-        throw new Error("Too many requests. Please wait before trying again.");
-      }
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Training request failed' }));
-        console.error('❌ Training API Error:', errorData);
-        throw new Error(errorData.detail || errorData.message || errorData.error || `Training failed with status ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log('✅ Training API Response:', data);
 
       if (data.status === "success") {
         addLog("✅ All models trained successfully!");
@@ -250,7 +215,6 @@ export default function Models() {
 
         // Use leaderboard if available, otherwise use base_models
         const modelsToSet = data.leaderboard || data.base_models || [];
-        console.log('✅ Setting', modelsToSet.length, 'models');
 
         setModels(modelsToSet);
         setTaskType(data.task_type);
@@ -261,12 +225,10 @@ export default function Models() {
         // Show success toast
         show({ type: "success", message: "Training completed successfully" });
 
-        console.log('✅ ========== TRAINING COMPLETE ==========\n');
       } else {
         throw new Error(data.message || "Training failed");
       }
     } catch (error: any) {
-      console.error('❌ Training error:', error);
       addLog(`❌ Error: ${error.message}`);
       
       // Show error toast
@@ -299,7 +261,6 @@ export default function Models() {
       // Release lock after cooldown period
       setTimeout(() => {
         trainingLock = false;
-        console.log('🔓 Training lock released');
       }, 5000);
     }
   };
@@ -307,36 +268,26 @@ export default function Models() {
   const fetchModels = async () => {
     if (!pipelineId) return;
 
-    console.log('🔍 Fetching models for pipelineId:', pipelineId);
 
     try {
-      const token = localStorage.getItem("token");
       const timestamp = new Date().getTime();
-      const response = await fetch(`http://localhost:5000/api/training/${pipelineId}/results?t=${timestamp}`, {
+      const data = await apiRequest<any>(`http://localhost:5000/api/training/${pipelineId}/results?t=${timestamp}`, {
         headers: {
-          Authorization: `Bearer ${token}`,
           "Cache-Control": "no-cache",
           "Pragma": "no-cache"
         },
-        cache: "no-store"
+        cache: "no-store",
+        retryOnUnauthorized: true,
       });
 
-      console.log('📡 Fetch results status:', response.status);
-      const data = await response.json();
-
-      console.log('📦 Raw response data:', data);
 
       if (data.status === "success") {
-        console.log('✅ Loaded', data.leaderboard?.length || 0, 'models');
-        console.log('📊 Models data:', data.leaderboard);
         setModels(data.leaderboard || []);
         setTaskType(data.task_type);
       } else {
-        console.log('⚠️ No models found');
         setModels([]);
       }
     } catch (error) {
-      console.error("❌ Failed to fetch models:", error);
     } finally {
       setLoading(false);
     }
@@ -387,8 +338,6 @@ export default function Models() {
   };
 
   const sortedModels = useMemo(() => {
-    console.log('🔄 Sorting models. Total models:', models.length);
-    console.log('📋 Models data:', models);
     return [...models].sort((a, b) => {
       const metricA = taskType === "classification" ? (a.accuracy ?? 0) : (a.r2_score ?? 0);
       const metricB = taskType === "classification" ? (b.accuracy ?? 0) : (b.r2_score ?? 0);

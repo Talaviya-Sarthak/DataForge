@@ -1,5 +1,6 @@
 const mlService = require("../services/ml.service");
 const datasetService = require("../services/dataset.service");
+const datasetCache = require("../services/dataset.cache");
 
 // =========================================
 // 1. UPLOAD  –  POST /api/datasets/upload
@@ -26,6 +27,9 @@ exports.uploadDataset = async (req, res) => {
     // 2. Forward file to ML service with the real dataset_id
     const mlResponse = await mlService.uploadDataset(req.file, user_id, datasetId);
 
+    // 2b. Cache raw dataset buffer for worker-side rehydration
+    await datasetCache.set(user_id, datasetId, req.file);
+
     // 3. Update dataset metadata with actual values from ML
     const numericalColumns = Array.isArray(mlResponse.numerical_columns)
       ? mlResponse.numerical_columns : [];
@@ -50,7 +54,6 @@ exports.uploadDataset = async (req, res) => {
       pipeline_id: pipelineId,
     });
   } catch (error) {
-    console.error("Upload Error:", error);
     return res.status(500).json({
       message: "Dataset upload failed",
       error: error.message,
@@ -162,7 +165,6 @@ exports.preprocessDataset = async (req, res) => {
       dataset_id: datasetId,
     });
   } catch (error) {
-    console.error("❌ Preprocess Error:", error.message);
     return res.status(500).json({
       message: "Cleaning failed",
       error: error.message,
@@ -212,7 +214,6 @@ exports.undoLastStep = async (req, res) => {
       dataset_id: datasetId,
     });
   } catch (error) {
-    console.error("❌ Undo Error:", error.message);
     return res.status(500).json({ message: "Undo failed", error: error.message });
   }
 };
@@ -258,7 +259,6 @@ exports.finalizeDataset = async (req, res) => {
       dataset_id: datasetId,
     });
   } catch (error) {
-    console.error("❌ Finalize Error:", error.message);
     return res.status(500).json({ message: "Finalize failed", error: error.message });
   }
 };
@@ -297,7 +297,6 @@ exports.downloadDataset = async (req, res) => {
     );
 
     csvStream.on('error', (err) => {
-      console.error("❌ Download stream error:", err.message);
       if (!res.headersSent) {
         res.status(500).json({ message: "Download failed", error: err.message });
       } else {
@@ -307,7 +306,6 @@ exports.downloadDataset = async (req, res) => {
 
     csvStream.pipe(res);
   } catch (error) {
-    console.error("❌ Download Error:", error.message);
 
     // If the ML service returned an error response, try to extract the detail
     if (error.response) {
@@ -368,8 +366,11 @@ exports.resumeDataset = async (req, res) => {
       return res.status(404).json({ message: "Dataset not found." });
     }
 
-    // Upload raw to ML service
+    // Upload raw to ML service for this dataset
     await mlService.uploadDataset(req.file, userId, datasetId);
+
+    // Refresh cache with the newly uploaded raw file
+    await datasetCache.set(userId, datasetId, req.file);
 
     // Get pipeline and steps
     const pipeline = await datasetService.getActivePipelineForDataset(datasetId);
@@ -405,16 +406,30 @@ exports.resumeDataset = async (req, res) => {
       total_steps: allSteps.length,
     });
   } catch (error) {
-    console.error("❌ Resume Error:", error.message);
+        // Provide specific error messages for common failure points
+        let errorMessage = "Resume failed";
+        let statusCode = 500;
 
-    if (error.response?.data?.detail) {
-      return res.status(400).json({
-        message: "Resume failed: " + error.response.data.detail,
-        error: error.response.data.detail,
-      });
-    }
+        // Check if it's an ML Service error with details
+        if (error.response?.data?.detail) {
+          errorMessage = error.response.data.detail;
+          statusCode = error.response.status || 400;
+        }
+        // Check if it's our custom error from mlService
+        else if (error.message?.includes('ML Service not reachable')) {
+          errorMessage = error.message;
+          statusCode = 503;
+        }
+        // For other errors, provide at least a meaningful message
+        else if (error.message) {
+          errorMessage = error.message;
+        }
 
-    return res.status(500).json({ message: "Resume failed", error: error.message });
+        return res.status(statusCode).json({
+          message: errorMessage,
+          error: errorMessage,
+          details: `Failed to resume dataset. Step failed at: ${error.message || 'unknown'}`,
+        });
   }
 };
 
@@ -455,7 +470,6 @@ exports.getPipelineSteps = async (req, res) => {
 
     return res.status(200).json({ steps: formattedSteps });
   } catch (error) {
-    console.error("❌ Get Steps Error:", error.message);
     return res.status(500).json({ message: "Failed to get steps", error: error.message });
   }
 };

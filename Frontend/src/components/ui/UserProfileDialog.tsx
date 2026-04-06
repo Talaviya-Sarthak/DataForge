@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/contexts/AuthContext"
 import { fetchOnboardingProfile } from "@/services/onboarding.service"
+import { getAccessToken } from "@/services/api.client"
 
 interface UserProfileDialogProps {
   open: boolean
@@ -20,7 +21,7 @@ const UserProfileDialog: React.FC<UserProfileDialogProps> = ({ open, onOpenChang
   React.useEffect(() => {
     if (!open) return
 
-    const token = localStorage.getItem("token")
+    const token = getAccessToken()
     if (!token) return
 
     fetchOnboardingProfile(token)

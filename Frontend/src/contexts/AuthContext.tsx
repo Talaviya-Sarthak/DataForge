@@ -58,7 +58,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Listen for auth:logout events (from API interceptor)
   useEffect(() => {
     const handleLogout = (event: CustomEvent) => {
-      console.log('Auth logout event:', event.detail?.reason)
       logout(event.detail?.reason)
     }
 
@@ -86,9 +85,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (accessToken && refreshToken) {
       setTokens(accessToken, refreshToken, response.expires_in)
-    } else if (accessToken) {
-      // Fallback for old API response (only access token)
-      localStorage.setItem('token', accessToken)
+    } else {
+      throw new Error('Invalid authentication response. Please sign in again.')
     }
 
     setUser(response.user)
@@ -105,7 +103,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // If reason provided, could show a toast or redirect with message
     if (reason) {
-      console.log('Logged out:', reason)
     }
   }, [])
 

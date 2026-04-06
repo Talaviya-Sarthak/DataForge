@@ -7,7 +7,6 @@ const cors = require("cors");
 const datasetService = require("./services/dataset.service");
 const { apiLimiter, authLimiter, uploadLimiter, sanitizeInput } = require("./middlewares/rateLimiter.middleware");
 const { initWebSocket } = require('./websocket/ws.server');
-const logger = require('./utils/logger');
 
 // Initialize queue events monitoring
 const { trainingQueueEvents } = require('./queues/training.events');
@@ -21,9 +20,7 @@ const PORT = process.env.PORT || 5000;
 (async () => {
   try {
     await datasetService.initializeSystem();
-    logger.info('[SERVER]', 'Pipeline system initialized');
   } catch (error) {
-    logger.error('[SERVER]', 'Pipeline system initialization failed', { error: error.message });
   }
 })();
 
@@ -87,7 +84,6 @@ app.use((req, res) => {
 // GLOBAL ERROR HANDLER
 // =======================
 app.use((err, req, res, next) => {
-  logger.error('[SERVER]', 'Unhandled error', { error: err.message, path: req.originalUrl });
   res.status(500).json({
     error: "Internal server error"
   });
@@ -100,5 +96,4 @@ const httpServer = http.createServer(app);
 const io = initWebSocket(httpServer);
 
 httpServer.listen(PORT, "0.0.0.0", () => {
-  logger.info('[SERVER]', `Running on port ${PORT}`);
 });

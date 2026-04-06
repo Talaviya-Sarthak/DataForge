@@ -36,7 +36,6 @@ router.post("/tools", async (req, res) => {
     });
 
   } catch (err) {
-    console.error("❌ Tools Error:", err);
     return res.status(500).json({
       error: "Server error while saving tools"
     });

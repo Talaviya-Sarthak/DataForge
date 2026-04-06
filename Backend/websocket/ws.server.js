@@ -2,7 +2,6 @@ const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
 const { trainingQueueEvents } = require('../queues/training.events');
 const { trainingQueue } = require('../queues/training.queue');
-const logger = require('../utils/logger');
 
 /**
  * Initialize Socket.io server and bridge BullMQ events to subscribed clients.
@@ -32,11 +31,9 @@ function initWebSocket(httpServer) {
 
     // ── Connection handler ───────────────────────────────────
     io.on('connection', (socket) => {
-        logger.info('[WS]', 'Client connected', { socketId: socket.id, userId: socket.userId });
 
         socket.on('subscribe:job', ({ experimentId }) => {
             socket.join(`job:${experimentId}`);
-            logger.debug('[WS]', 'Subscribed to job', { experimentId, socketId: socket.id });
         });
 
         socket.on('unsubscribe:job', ({ experimentId }) => {
@@ -44,7 +41,6 @@ function initWebSocket(httpServer) {
         });
 
         socket.on('disconnect', () => {
-            logger.info('[WS]', 'Client disconnected', { socketId: socket.id });
         });
     });
 
@@ -55,7 +51,6 @@ function initWebSocket(httpServer) {
         const experimentId = jobExperimentMap.get(jobId);
         if (!experimentId) return;
 
-        logger.info('[WORKER]', 'Progress update', { experimentId, progress: data });
         io.to(`job:${experimentId}`).emit(`job:${experimentId}:progress`, {
             progress: typeof data === 'object' ? data.progress ?? data : data,
             models_completed: typeof data === 'object' ? data.models_completed : undefined,
@@ -68,7 +63,6 @@ function initWebSocket(httpServer) {
     const jobExperimentMap = new Map(); // jobId → experimentId
 
     trainingQueueEvents.on('active', async ({ jobId }) => {
-        logger.info('[WORKER]', 'Job started', { jobId });
         try {
             const job = await trainingQueue.getJob(jobId);
             if (job?.data?.experiment_id) {
@@ -81,7 +75,6 @@ function initWebSocket(httpServer) {
         const experimentId = jobExperimentMap.get(jobId);
         if (!experimentId) return;
         jobExperimentMap.delete(jobId);
-        logger.info('[WORKER]', 'Completed', { experimentId, jobId });
         io.to(`job:${experimentId}`).emit(`job:${experimentId}:completed`, returnvalue);
     });
 
@@ -89,19 +82,15 @@ function initWebSocket(httpServer) {
         const experimentId = jobExperimentMap.get(jobId);
         if (!experimentId) return;
         jobExperimentMap.delete(jobId);
-        logger.error('[WORKER]', 'Job failed', { experimentId, jobId, reason: failedReason });
         io.to(`job:${experimentId}`).emit(`job:${experimentId}:failed`, failedReason);
     });
 
     trainingQueueEvents.on('added', ({ jobId }) => {
-        logger.info('[QUEUE]', 'Job added', { jobId });
     });
 
     trainingQueueEvents.on('retries-exhausted', ({ jobId }) => {
-        logger.error('[QUEUE]', 'Retries exhausted', { jobId });
     });
 
-    logger.info('[WS]', 'WebSocket server initialized');
     return io;
 }
 

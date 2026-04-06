@@ -1,6 +1,5 @@
 const { Queue } = require('bullmq');
 const { connection } = require('../config/redis.config');
-const logger = require('../utils/logger');
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CLEANUP QUEUE
@@ -52,9 +51,7 @@ const setupCleanupJob = async () => {
       }
     );
 
-    logger.info('[CLEANUP-QUEUE]', '✅ Cleanup job scheduled (runs every hour)');
   } catch (error) {
-    logger.error('[CLEANUP-QUEUE]', 'Failed to setup cleanup job', { error: error.message });
     throw error;
   }
 };
@@ -64,24 +61,13 @@ const setupCleanupJob = async () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 cleanupQueue.on('error', (err) => {
-  logger.error('[CLEANUP-QUEUE]', 'Queue error', { error: err.message });
 });
 
 cleanupQueue.on('completed', (job, result) => {
-  logger.info('[CLEANUP-QUEUE]', 'Cleanup job completed', {
-    job_id: job.id,
-    deleted: result?.deleted || 0,
-    failed: result?.failed || 0,
-  });
 });
 
 cleanupQueue.on('failed', (job, err) => {
-  logger.error('[CLEANUP-QUEUE]', 'Cleanup job failed', {
-    job_id: job?.id,
-    error: err.message,
-  });
 });
 
-logger.info('[CLEANUP-QUEUE]', '✅ Cleanup queue initialized');
 
 module.exports = { cleanupQueue, setupCleanupJob };

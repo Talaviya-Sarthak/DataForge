@@ -50,7 +50,6 @@ export const submitOnboardingData = async (formData: any, authToken: string) => 
     });
 
     if (!onboardingResponse.ok) {
-      console.error('Onboarding failed:', await onboardingResponse.text());
     }
 
     // 2. Submit tools if any
@@ -64,7 +63,6 @@ export const submitOnboardingData = async (formData: any, authToken: string) => 
       });
 
       if (!toolsResponse.ok) {
-        console.error('Tools failed:', await toolsResponse.text());
       }
     }
 
@@ -79,7 +77,6 @@ export const submitOnboardingData = async (formData: any, authToken: string) => 
       });
 
       if (!projectResponse.ok) {
-        console.error('Project types failed:', await projectResponse.text());
       }
     }
 
@@ -95,13 +92,11 @@ export const submitOnboardingData = async (formData: any, authToken: string) => 
       });
 
       if (!prefResponse.ok) {
-        console.error('Preferences failed:', await prefResponse.text());
       }
     }
 
     return { success: true };
   } catch (error) {
-    console.error('Onboarding submission error:', error);
     throw error;
   }
 };

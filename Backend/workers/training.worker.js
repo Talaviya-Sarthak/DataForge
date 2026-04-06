@@ -5,7 +5,6 @@ const { connection } = require('../config/redis.config');
 const mlService = require('../services/ml.service');
 const trainingService = require('../services/training.service');
 const datasetService = require('../services/dataset.service');
-const logger = require('../utils/logger');
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ML TRAINING WORKER
@@ -37,70 +36,74 @@ const trainingWorker = new Worker(
     const totalModels = selected_models?.length ?? '?';
     const jobStart = Date.now();
 
-    logger.info('[WORKER]', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    logger.info('[WORKER]', '🚀 TRAINING SESSION STARTED', {
-      job_id: job.id,
-      experiment_id,
-      user_id,
-      task_type,
-      target_column,
-      models: selected_models,
-      total_models: totalModels,
-      pipeline_id: pipeline_id || '(none)',
-      dataset_id: dataset_id || 0,
-    });
-    logger.info('[WORKER]', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     try {
       // ── Step 1: Mark running in DB ───────────────────────
       if (job_db_id) {
         await trainingService.updateTrainingJobStatus(job_db_id, 'running');
-        logger.info('[WORKER]', '📋 Step 1/5 — DB job status → running', { job_db_id });
       }
       await job.updateProgress(10);
 
       // ── Step 2: Resolve preprocessing steps ─────────────
       let steps = preprocessing_steps || [];
       if (pipeline_id && !preprocessing_steps?.length) {
-        logger.info('[WORKER]', '📋 Step 2/5 — Fetching pipeline steps from DB', { pipeline_id });
         const dbSteps = await datasetService.getPipelineSteps(pipeline_id);
         steps = dbSteps.map((s) => ({
           step_index: s.step_index,
           type: s.step_type,
           params: s.step_params,
         }));
-        logger.info('[WORKER]', `📋 Step 2/5 — Resolved ${steps.length} preprocessing step(s)`);
-      } else {
-        logger.info('[WORKER]', `📋 Step 2/5 — Using ${steps.length} preprocessing step(s) from request`);
       }
       await job.updateProgress(20);
 
       // ── Step 3: Send to ML Service ───────────────────────
-      logger.info('[WORKER]', '📋 Step 3/5 — Dispatching to ML Service', {
-        url: `${process.env.ML_SERVICE_URL}/api/experiment/train`,
-        models: selected_models,
-        task: task_type,
-        target: target_column,
-      });
-
       const mlStart = Date.now();
-      const accepted = await mlService.experimentTrain({
-        user_id,
-        dataset_id: dataset_id || 0,
-        pipeline_id: pipeline_id || experiment_id,
-        task_type,
-        target_column,
-        preprocessing_config,
-        selected_models,
-        preprocessing_steps: steps,
-      });
+      let accepted;
+      try {
+        accepted = await mlService.experimentTrain({
+          user_id,
+          dataset_id: dataset_id || 0,
+          pipeline_id: pipeline_id || experiment_id,
+          task_type,
+          target_column,
+          preprocessing_config,
+          selected_models,
+          preprocessing_steps: steps,
+        });
+      } catch (mlError) {
+        if (mlError.message?.includes('No dataset uploaded')) {
+          
+          try {
+            // Try to re-upload the dataset from backend cache
+            await mlService.rehydrateIfNeeded(user_id, dataset_id);
+            
+            // Retry the training request once
+            try {
+              accepted = await mlService.experimentTrain({
+                user_id,
+                dataset_id: dataset_id || 0,
+                pipeline_id: pipeline_id || experiment_id,
+                task_type,
+                target_column,
+                preprocessing_config,
+                selected_models,
+                preprocessing_steps: steps,
+              });
+            } catch (retryError) {
+              throw retryError;
+            }
+          } catch (rehydrateError) {
+            const errMsg = `Cannot resume training: ${rehydrateError.message}. Please re-upload your dataset and start training again.`;
+            if (job_db_id) await trainingService.updateTrainingJobStatus(job_db_id, 'failed', errMsg);
+            return { status: 'failed', error_type: 'SESSION_EXPIRED', message: errMsg };
+          }
+        } else {
+          throw mlError;
+        }
+      }
 
       // ML service is async — poll until completed
       const mlExperimentId = accepted?.experiment_id;
-      logger.info('[WORKER]', `📋 Step 3/5 — ML accepted, polling for results`, {
-        ml_experiment_id: mlExperimentId,
-        status: accepted?.status,
-      });
 
       let result = accepted;
       if (mlExperimentId && accepted?.status === 'running') {
@@ -136,11 +139,6 @@ const trainingWorker = new Worker(
           }
 
           const elapsed = Math.round((Date.now() - pollStart) / 1000);
-          logger.info('[WORKER]', `  ⏳ Polling ML... ${elapsed}s elapsed`, {
-            status: polled.status,
-            progress: polled.progress,
-            models_completed: polled.models_completed,
-          });
         }
 
         if (Date.now() - pollStart >= POLL_TIMEOUT_MS) {
@@ -151,21 +149,13 @@ const trainingWorker = new Worker(
       }
 
       const mlDuration = Date.now() - mlStart;
-      logger.info('[WORKER]', `📋 Step 3/5 — ML training complete in ${mlDuration}ms`, {
-        ml_experiment_id: mlExperimentId,
-        base_models_count: (result?.base_models ?? result?.models ?? []).length,
-        failed_models_count: (result?.failed_models ?? []).length,
-      });
+      const modelCount = (result?.base_models ?? result?.models ?? []).length;
+
       await job.updateProgress(90);
 
       // ── Data-validation failure returned by ML service ───
       if (result?.status === 'failed' && result?.error_type === 'DATA_VALIDATION_ERROR') {
         const errMsg = `DATA_VALIDATION_ERROR: ${result.message}`;
-        logger.warn('[WORKER]', '⚠️  Dataset validation failed — stopping without retry', {
-          experiment_id,
-          message: result.message,
-          details: result.details,
-        });
         if (job_db_id) {
           await trainingService.updateTrainingJobStatus(job_db_id, 'failed', errMsg);
         }
@@ -178,43 +168,36 @@ const trainingWorker = new Worker(
       const failed = result?.failed_models ?? [];
 
       // Store in database with plots and feature importance
-      try {
-        await trainingService.storeModelResults(
-          experiment_id,
-          task_type,
-          target_column,
-          successful,
-          user_id
-        );
-        logger.info('[WORKER]', `📋 Step 4/5 — Results stored in DB`, {
-          experiment_id,
-          count: successful.length,
-        });
-      } catch (dbError) {
-        logger.error('[WORKER]', '⚠️  Failed to store in DB', { error: dbError.message });
-        throw dbError;
+      if (successful.length === 0) {
+      } else {
+        try {
+          const startDbWrite = Date.now();
+          await trainingService.storeModelResults(
+            experiment_id,
+            task_type,
+            target_column,
+            successful,
+            user_id
+          );
+          const dbWriteTime = Date.now() - startDbWrite;
+        } catch (dbError) {
+          // Mark as failed in training_jobs before throwing
+          if (job_db_id) {
+            await trainingService.updateTrainingJobStatus(
+              job_db_id, 
+              'failed', 
+              `DB write failed: ${dbError.message}`
+            );
+          }
+          throw dbError;
+        }
       }
 
       successful.forEach((m, i) => {
-        const primary =
-          task_type === 'classification'
-            ? `accuracy=${m.accuracy?.toFixed(4) ?? 'N/A'}`
-            : `r2=${m.r2_score?.toFixed(4) ?? 'N/A'}`;
-        logger.info('[ML]', `  ✅ [${i + 1}/${totalModels}] ${m.model ?? m.name} — ${primary}, time=${m.training_time_ms ?? '?'}ms`);
       });
 
       failed.forEach((m) => {
-        logger.warn('[ML]', `  ❌ ${m.model ?? m.name} — FAILED: ${m.error ?? 'unknown error'}`);
       });
-
-      if (result?.best_model) {
-        const bm = result.best_model;
-        const metric =
-          task_type === 'classification'
-            ? `accuracy=${bm.accuracy?.toFixed(4)}`
-            : `r2=${bm.r2_score?.toFixed(4)}`;
-        logger.info('[ML]', `  🏆 Best model: ${bm.model ?? bm.name} (${metric})`);
-      }
 
       // ── Step 5: Mark completed in DB ─────────────────────
       if (job_db_id) {
@@ -223,32 +206,11 @@ const trainingWorker = new Worker(
       await job.updateProgress(100);
 
       const totalDuration = Date.now() - jobStart;
-      logger.info('[WORKER]', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      logger.info('[WORKER]', '✅ TRAINING SESSION COMPLETE', {
-        job_id: job.id,
-        experiment_id,
-        successful: successful.length,
-        failed: failed.length,
-        total_models: totalModels,
-        ml_time_ms: mlDuration,
-        total_time_ms: totalDuration,
-      });
-      logger.info('[WORKER]', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
       return result;
 
     } catch (error) {
       const totalDuration = Date.now() - jobStart;
-      logger.error('[WORKER]', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      logger.error('[WORKER]', '❌ TRAINING SESSION FAILED', {
-        job_id: job.id,
-        experiment_id,
-        error: error.message,
-        elapsed_ms: totalDuration,
-        attempt: job.attemptsMade + 1,
-        max_attempts: 3,
-      });
-      logger.error('[WORKER]', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
       if (job_db_id) {
         await trainingService.updateTrainingJobStatus(job_db_id, 'failed', error.message);
@@ -286,30 +248,15 @@ const trainingWorker = new Worker(
 // ─────────────────────────────────────────────────────────────────────────────
 
 trainingWorker.on('active', (job) => {
-  logger.info('[WORKER]', `⚡ Job picked up by worker`, {
-    job_id: job.id,
-    experiment_id: job.data.experiment_id,
-    models: job.data.selected_models,
-  });
   // TODO: Emit WebSocket event for real-time UI update
   // broadcastTrainingProgress({ experiment_id, status: 'running', progress: 0 });
 });
 
 trainingWorker.on('progress', (job, progress) => {
-  logger.debug('[WORKER]', `📊 Job progress`, {
-    job_id: job.id,
-    experiment_id: job.data.experiment_id,
-    progress: `${progress}%`,
-  });
   // TODO: Emit WebSocket event with progress
 });
 
 trainingWorker.on('completed', (job, result) => {
-  logger.info('[WORKER]', `🔓 Job completed successfully`, {
-    job_id: job.id,
-    experiment_id: job.data.experiment_id,
-    duration_ms: job.finishedOn - job.processedOn,
-  });
   // TODO: Emit WebSocket event: completion, results
 });
 
@@ -317,30 +264,16 @@ trainingWorker.on('failed', (job, err) => {
   if (job) {
     const willRetry = job.attemptsMade < 3;
     if (willRetry) {
-      logger.warn('[WORKER]', `🔁 Job will retry (attempt ${job.attemptsMade}/3)`, {
-        job_id: job.id,
-        experiment_id: job.data.experiment_id,
-        error: err.message,
-      });
     } else {
-      logger.error('[WORKER]', `💀 Job exhausted all retries`, {
-        job_id: job.id,
-        experiment_id: job.data.experiment_id,
-        error: err.message,
-      });
     }
   }
   // TODO: Emit WebSocket event: failure notification
 });
 
 trainingWorker.on('stalled', (jobId) => {
-  logger.warn('[WORKER]', `⚠️  Job stalled (will be recovered by scheduler)`, {
-    job_id: jobId,
-  });
 });
 
 trainingWorker.on('error', (err) => {
-  logger.error('[WORKER]', 'Worker process error', { error: err.message });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -348,25 +281,19 @@ trainingWorker.on('error', (err) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 process.on('SIGTERM', async () => {
-  logger.warn('[WORKER]', 'SIGTERM received, closing worker gracefully...');
   try {
     await trainingWorker.close();
-    logger.info('[WORKER]', '✅ Worker closed successfully');
     process.exit(0);
   } catch (error) {
-    logger.error('[WORKER]', 'Error closing worker', { error: error.message });
     process.exit(1);
   }
 });
 
 process.on('SIGINT', async () => {
-  logger.warn('[WORKER]', 'SIGINT received, closing worker gracefully...');
   try {
     await trainingWorker.close();
-    logger.info('[WORKER]', '✅ Worker closed successfully');
     process.exit(0);
   } catch (error) {
-    logger.error('[WORKER]', 'Error closing worker', { error: error.message });
     process.exit(1);
   }
 });

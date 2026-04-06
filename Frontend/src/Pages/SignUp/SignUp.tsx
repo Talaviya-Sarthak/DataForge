@@ -34,22 +34,14 @@ export default function SignUp() {
     const { login } = useAuth()
     const navigate = useNavigate();
 
-    const getTokenFromResponse = (data: any): string | null => {
-        return (
-            data?.token ||
-            data?.accessToken ||
-            data?.jwt ||
-            data?.data?.token ||
-            data?.data?.accessToken ||
-            data?.data?.jwt ||
-            null
-        );
-    }
-
-    const handleOnboardingComplete = (formData: any) => {
-        const token = getTokenFromResponse(tempUserData)
-        if (token) {
-            localStorage.setItem('token', token)
+    const handleOnboardingComplete = (
+        formData: any,
+        auth?: { accessToken: string; refreshToken: string; expiresIn?: number }
+    ) => {
+        if (!auth?.accessToken || !auth?.refreshToken) {
+            show({ type: "error", message: "Session setup failed. Please sign in again." });
+            navigate("/SignIn");
+            return;
         }
 
         const userData = {
@@ -63,7 +55,11 @@ export default function SignUp() {
             avatar: undefined,
         }
 
-        login(userData)
+        login(userData, {
+            accessToken: auth.accessToken,
+            refreshToken: auth.refreshToken,
+            expiresIn: auth.expiresIn,
+        })
         show({ type: "success", message: "Welcome to DataForge! Your account is ready." });
         navigate("/HomePage");
     }
@@ -125,11 +121,6 @@ export default function SignUp() {
             .then(async (r) => {
                 const data = await r.json().catch(() => ({}));
                 if (!r.ok) throw new Error(data?.error || "Signup failed");
-
-                const token = getTokenFromResponse(data)
-                if (token) {
-                    localStorage.setItem('token', token)
-                }
 
                 // Store temp user data and show onboarding
                 setTempUserData({ name, email, ...data });

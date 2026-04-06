@@ -6,6 +6,8 @@ import { useMutation } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
 import { useDataset } from "@/contexts/DatasetContext"
 import { getUserDatasets, resumeDataset, DatasetListItem } from "@/services/cleaning.service"
+import { useToast } from "@/components/ui/toast/Toast"
+import { apiRequest, getAccessToken } from "@/services/api.client"
 
 // Lazy load DataTable since it's only needed when data is uploaded
 const DataTable = lazy(() => import("@/components/ui/DataTable"))
@@ -24,25 +26,11 @@ const uploadDataset = async (file: File) => {
   const formData = new FormData()
   formData.append("file", file)
 
-  const token = localStorage.getItem('token')
-  if (!token) {
-    throw new Error('Please login to upload datasets')
-  }
-
-  const res = await fetch(`${apiBase}/api/datasets/upload`, {
+  const data = await apiRequest<any>(`${apiBase}/api/datasets/upload`, {
     method: "POST",
-    headers: {
-      'Authorization': `Bearer ${token}`
-    },
     body: formData,
+    retryOnUnauthorized: true,
   })
-
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({ message: 'Upload failed' }))
-    throw new Error(errorData.message || errorData.error || 'Upload failed')
-  }
-
-  const data = await res.json()
 
   // Validate successful upload based on ML service response format
   if (!data.data || !Array.isArray(data.data)) {
@@ -77,7 +65,6 @@ export const useDatasetUpload = () => {
       }
     },
     onError: (error) => {
-      console.error('Dataset upload failed:', error)
       clearDataset()
     }
   })
@@ -123,6 +110,7 @@ const Dataset_tabledata = ({
   resetUpload: () => void
 }) => {
   const { dataset, setDataset } = useDataset()
+  const toast = useToast()
   const currentDataset = uploadMutation.data || dataset
   const loading = uploadMutation.isPending
   const error = uploadMutation.isError
@@ -134,7 +122,7 @@ const Dataset_tabledata = ({
 
   useEffect(() => {
     if (!currentDataset) {
-      const token = localStorage.getItem('token')
+      const token = getAccessToken()
       if (token) {
         getUserDatasets()
           .then(ds => setPreviousDatasets(ds.filter(d => d.status === 'in_progress' && (d.total_steps ?? 0) > 0)))
@@ -155,7 +143,8 @@ const Dataset_tabledata = ({
       const result = await resumeDataset(resumingId, file)
       setDataset(result)
     } catch (err: any) {
-      console.error('Resume failed:', err)
+      const errorMsg = err.message || 'Failed to resume dataset'
+      toast.show({ message: errorMsg, type: 'error', duration: 5000 })
     } finally {
       setResumingId(null)
       if (resumeFileRef.current) resumeFileRef.current.value = ''

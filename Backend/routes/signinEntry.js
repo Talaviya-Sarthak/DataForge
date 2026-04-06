@@ -11,6 +11,12 @@ const {
 const ACCESS_TOKEN_EXPIRY = process.env.ACCESS_TOKEN_EXPIRY || "30m";
 const REFRESH_TOKEN_EXPIRY = process.env.REFRESH_TOKEN_EXPIRY || "7d";
 
+const getExpiresInSeconds = (token) => {
+  const decoded = jwt.decode(token);
+  if (!decoded?.exp) return 0;
+  return Math.max(0, decoded.exp - Math.floor(Date.now() / 1000));
+};
+
 // =======================
 // ✅ SIGNIN ROUTE
 // =======================
@@ -63,13 +69,15 @@ router.post("/signin", async (req, res) => {
       { expiresIn: REFRESH_TOKEN_EXPIRY }
     );
 
+    const accessTokenExpiresIn = getExpiresInSeconds(accessToken);
+
     // 6️⃣ Success - return both tokens
     return res.status(200).json({
       message: "Signin successful",
       token: accessToken,           // Backward compatible
       access_token: accessToken,
       refresh_token: refreshToken,
-      expires_in: 30 * 60,          // 30 minutes in seconds
+      expires_in: accessTokenExpiresIn,
       user: {
         id: user.id,
         name: user.name,
@@ -78,7 +86,6 @@ router.post("/signin", async (req, res) => {
     });
 
   } catch (err) {
-    console.error("❌ Signin Error:", err);
     return res.status(500).json({
       error: "Internal server error"
     });
@@ -159,16 +166,17 @@ router.post("/refresh", async (req, res) => {
       { expiresIn: REFRESH_TOKEN_EXPIRY }
     );
 
+    const accessTokenExpiresIn = getExpiresInSeconds(newAccessToken);
+
     return res.status(200).json({
       message: "Token refreshed successfully",
       token: newAccessToken,           // Backward compatible
       access_token: newAccessToken,
       refresh_token: newRefreshToken,  // Rotated refresh token
-      expires_in: 30 * 60
+      expires_in: accessTokenExpiresIn
     });
 
   } catch (err) {
-    console.error("❌ Refresh Token Error:", err);
     return res.status(500).json({
       error: "Internal server error"
     });

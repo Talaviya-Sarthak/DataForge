@@ -1,27 +1,16 @@
 const axios = require('axios');
-const logger = require('../utils/logger');
 
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL;
 
 // ── Shared helper: timed axios call with structured logs ──────────────────────
 async function mlCall(tag, method, url, data, config = {}) {
-    logger.info('[ML]', `→ ${method.toUpperCase()} ${url}`, data
-        ? { payload_keys: Object.keys(data) }
-        : undefined
-    );
     const start = Date.now();
     try {
         const response = method === 'get'
             ? await axios.get(url, config)
             : await axios.post(url, data, { headers: { 'Content-Type': 'application/json' }, ...config });
-        logger.info('[ML]', `← ${method.toUpperCase()} ${url} — ${Date.now() - start}ms [${response.status}]`);
         return response;
     } catch (error) {
-        logger.error('[ML]', `✗ ${method.toUpperCase()} ${url} — ${Date.now() - start}ms`, {
-            status: error.response?.status,
-            error:  error.response?.data?.detail || error.message,
-            code:   error.code,
-        });
         if (error.code === 'ECONNREFUSED' || error.code === 'ECONNABORTED') {
             throw new Error(`ML Service not reachable at ${ML_SERVICE_URL}. Please ensure it's running.`);
         }
@@ -40,17 +29,14 @@ exports.uploadDataset = async (file, userId, datasetId = 0) => {
     formData.append('dataset_id', String(datasetId));
 
     const url = `${ML_SERVICE_URL}/api/data/upload`;
-    logger.info('[ML]', `→ POST ${url}`, { user_id: userId, dataset_id: datasetId, file: file.originalname });
     const start = Date.now();
     try {
         const response = await axios.post(url, formData, { headers: formData.getHeaders() });
-        logger.info('[ML]', `← POST ${url} — ${Date.now() - start}ms [${response.status}]`);
         const data = response.data;
         data.numerical_columns  = Array.isArray(data.numerical_columns)  ? data.numerical_columns  : [];
         data.categorical_columns = Array.isArray(data.categorical_columns) ? data.categorical_columns : [];
         return data;
     } catch (error) {
-        logger.error('[ML]', `✗ POST ${url} — ${Date.now() - start}ms`, { error: error.message });
         if (error.code === 'ECONNREFUSED') throw new Error(`ML Service not reachable at ${ML_SERVICE_URL}.`);
         throw new Error(error.response?.data?.detail || error.message);
     }
@@ -91,11 +77,6 @@ exports.finalizePipeline = async (payload) => {
 
 // ── 5. TRAIN (legacy) ─────────────────────────────────────────────────────────
 exports.trainPipeline = async (payload) => {
-    logger.info('[ML]', '🚀 Legacy train pipeline starting', {
-        pipeline_id:   payload.pipeline_id,
-        task_type:     payload.task_type,
-        target_column: payload.target_column,
-    });
     const response = await mlCall('train', 'post', `${ML_SERVICE_URL}/api/train`, payload);
     return response.data;
 };
@@ -127,42 +108,40 @@ exports.getAvailableModels = async (taskType) => {
     return response.data;
 };
 
+// ── 7b. REHYDRATE DATASET ─────────────────────────────────────────────────────
+// Re-uploads the cached file buffer to the ML Service if it lost the dataset
+// (e.g. after a restart). No-ops if the dataset is already present.
+exports.rehydrateIfNeeded = async (userId, datasetId) => {
+    const datasetCache = require('./dataset.cache');
+    const cached = await datasetCache.get(userId, datasetId);
+    if (!cached) {
+        throw new Error(
+            `Dataset u${userId}_d${datasetId} not found in backend cache. ` +
+            `Please re-upload the dataset.`
+        );
+    }
+    await exports.uploadDataset(cached, userId, datasetId);
+};
+
 // ── 8. EXPERIMENT TRAIN ───────────────────────────────────────────────────────
 exports.experimentTrain = async (payload) => {
-    logger.info('[ML]', '🚀 Sending experiment train request to ML Service', {
-        user_id:       payload.user_id,
-        task_type:     payload.task_type,
-        target_column: payload.target_column,
-        models:        payload.selected_models,
-        total_models:  payload.selected_models?.length,
-        dataset_id:    payload.dataset_id,
-        pipeline_id:   payload.pipeline_id,
-        steps_count:   payload.preprocessing_steps?.length ?? 0,
-    });
     const response = await mlCall('experimentTrain', 'post', `${ML_SERVICE_URL}/api/experiment/train`, payload);
     const result = response.data;
-    logger.info('[ML]', '📦 ML Service accepted experiment train', {
-        ml_experiment_id: result.experiment_id,
-        status:           result.status,
-    });
     return result;
 };
 
 
 exports.getExperiment = async (experimentId) => {
     const url = `${ML_SERVICE_URL}/api/experiment/${experimentId}`;
-    logger.debug('[ML]', `→ GET ${url}`);
     const start = Date.now();
     try {
         const response = await axios.get(url, { timeout: 10000 });
-        logger.debug('[ML]', `← GET ${url} — ${Date.now() - start}ms [${response.status}]`);
         return response.data;
     } catch (error) {
         if (error.code === 'ECONNREFUSED' || error.code === 'ECONNABORTED') {
             throw new Error(`ML Service not reachable at ${ML_SERVICE_URL}.`);
         }
         if (error.response?.status === 404) return null;
-        logger.error('[ML]', `✗ GET ${url}`, { error: error.message });
         throw new Error(error.response?.data?.detail || error.message);
     }
 };
@@ -170,13 +149,11 @@ exports.getExperiment = async (experimentId) => {
 // ── 11. GET EXPERIMENT PLOTS ──────────────────────────────────────────────────
 exports.getExperimentPlots = async (experimentId, modelName) => {
     const url = `${ML_SERVICE_URL}/api/experiment/${experimentId}/plots/${modelName}`;
-    logger.debug('[ML]', `→ GET ${url}`);
     try {
         const response = await axios.get(url);
         return response.data;
     } catch (error) {
         if (error.response?.status === 404) return null;
-        logger.error('[ML]', `✗ GET ${url}`, { error: error.message });
         throw new Error(error.response?.data?.detail || error.message);
     }
 };
@@ -193,7 +170,6 @@ exports.listExperiments = async (pipelineId = null) => {
         return response.data;
     } catch (error) {
         if (error.message?.includes('not reachable') || error.response?.status === 404) {
-            logger.warn('[ML]', 'ML Service unreachable for listExperiments — returning empty list');
             return { experiments: [], count: 0 };
         }
         throw error;

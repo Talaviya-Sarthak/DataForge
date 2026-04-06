@@ -43,7 +43,6 @@ router.post("/onboarding", async (req, res) => {
     });
 
   } catch (err) {
-    console.error("❌ Onboarding Error:", err);
     return res.status(500).json({
       error: "Server error during onboarding"
     });
@@ -63,7 +62,6 @@ router.get("/onboarding/profile", async (req, res) => {
       role: onboarding?.profession || null
     });
   } catch (err) {
-    console.error("❌ Fetch Onboarding Profile Error:", err);
     return res.status(500).json({
       error: "Server error while fetching onboarding profile"
     });

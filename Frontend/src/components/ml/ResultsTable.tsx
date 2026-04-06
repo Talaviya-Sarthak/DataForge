@@ -54,7 +54,6 @@ export const ResultsTable = () => {
         try {
             await trainingService.downloadModel(modelId);
         } catch (err: any) {
-            console.error('Download failed:', err);
         } finally {
             setDownloading(null);
         }
@@ -65,7 +64,6 @@ export const ResultsTable = () => {
         try {
             await deleteModel(modelId);
         } catch (err: any) {
-            console.error('Delete failed:', err);
         } finally {
             setTerminating(null);
             setConfirmTarget(null);

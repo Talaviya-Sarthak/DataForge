@@ -17,15 +17,12 @@ const connection = new IORedis(redisConfig);
 
 // Connection event handlers
 connection.on('connect', () => {
-  console.log('✅ Redis connected successfully');
 });
 
 connection.on('error', (err) => {
-  console.error('❌ Redis connection error:', err.message);
 });
 
 connection.on('close', () => {
-  console.warn('⚠️ Redis connection closed');
 });
 
 module.exports = { connection, redisConfig };

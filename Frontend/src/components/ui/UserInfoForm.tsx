@@ -66,7 +66,7 @@ const contentVariants = {
 };
 
 interface UserInfoFormProps {
-  onComplete: (data: FormData) => void;
+  onComplete: (data: FormData, auth?: { accessToken: string; refreshToken: string; expiresIn?: number }) => void;
   initialData?: Partial<FormData>;
   userCredentials?: { email: string; password: string };
 }
@@ -120,7 +120,6 @@ const UserInfoForm = ({ onComplete, initialData, userCredentials }: UserInfoForm
   const handleSubmit = async () => {
     // Get credentials from props only (no localStorage fallback)
     if (!userCredentials?.email || !userCredentials?.password) {
-      console.error('User credentials are required for onboarding submission');
       alert('Authentication error: Unable to complete onboarding. Please sign up again.');
       return;
     }
@@ -142,13 +141,20 @@ const UserInfoForm = ({ onComplete, initialData, userCredentials }: UserInfoForm
       }
 
       const signinData = await signinResponse.json();
-      if (signinData?.token) {
-        localStorage.setItem('token', signinData.token);
+      const accessToken = signinData?.access_token || signinData?.token;
+      const refreshToken = signinData?.refresh_token;
+
+      if (!accessToken || !refreshToken) {
+        throw new Error('Authentication response missing token pair');
       }
-      await submitOnboardingData(formData, signinData.token);
-      onComplete(formData);
+
+      await submitOnboardingData(formData, accessToken);
+      onComplete(formData, {
+        accessToken,
+        refreshToken,
+        expiresIn: signinData?.expires_in,
+      });
     } catch (error) {
-      console.error('Failed to submit onboarding data:', error);
     } finally {
       setIsSubmitting(false);
     }

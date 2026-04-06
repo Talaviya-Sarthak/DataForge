@@ -98,14 +98,12 @@ const MLDashboardContent = () => {
             const expId = startResponse.experiment_id;
             setExperimentId(expId);
 
-            console.log('✅ Training job queued:', expId);
 
             // Use WebSocket for real-time updates; fall back to polling on completed
             await new Promise<void>((resolve, reject) => {
                 let unsubscribed = false;
                 const unsubscribe = subscribeToJob(expId, {
                     onProgress: ({ progress, models_completed }) => {
-                        console.log('📊 Progress update:', { progress, models_completed });
                         setTrainingProgress(progress);
                         setModelsCompleted(models_completed);
                     },
@@ -113,41 +111,49 @@ const MLDashboardContent = () => {
                         if (unsubscribed) return;
                         unsubscribed = true;
                         unsubscribe();
-                        console.log('✅ Training completed, fetching results...');
                         
                         try {
-                            // Add a small delay to ensure DB writes are complete
-                            await new Promise(r => setTimeout(r, 1000));
+                            // CRITICAL: Worker may have just returned before DB writes complete
+                            // Add longer initial delay to ensure DB persistence
+                            await new Promise(r => setTimeout(r, 2000));
                             
-                            // Retry logic for fetching results
-                            let retries = 3;
+                            // Aggressive retry logic for fetching results
+                            let retries = 8; // Increased from 3
+                            let retryDelayMs = 1500; // Start with longer delays
                             let finalResults = null;
                             
-                            while (retries > 0 && !finalResults) {
+                            while (retries > 0) {
                                 try {
                                     finalResults = await getExperiment(expId);
+                                    
+                                    // Check if training actually failed at ML service
+                                    if (finalResults?.status === 'failed') {
+                                        const errorMsg = finalResults.error || 'Training failed for unknown reason';
+                                        reject(new Error(errorMsg));
+                                        return;
+                                    }
                                     
                                     // Check if results are valid
                                     if (finalResults && (finalResults.base_models?.length > 0 || finalResults.models?.length > 0)) {
                                         break;
                                     }
                                     
-                                    // If status is still running, wait and retry
+                                    // If status is still running/queued, wait and retry
                                     if (finalResults?.status === 'running' || finalResults?.status === 'queued') {
-                                        console.log('⏳ Results not ready yet, retrying...', retries);
-                                        await new Promise(r => setTimeout(r, 2000));
+                                        await new Promise(r => setTimeout(r, retryDelayMs));
                                         retries--;
                                         finalResults = null;
+                                        retryDelayMs = Math.min(retryDelayMs + 500, 3000); // Increase delay each retry, max 3s
                                         continue;
                                     }
                                     
+                                    // If we get here with no models and no status, it's an error state
                                     break;
                                 } catch (fetchError: any) {
-                                    console.error('❌ Error fetching results:', fetchError.message);
                                     if (fetchError.message?.includes('not found') && retries > 1) {
-                                        console.log('⏳ Experiment not found yet, retrying...', retries);
-                                        await new Promise(r => setTimeout(r, 2000));
+                                        await new Promise(r => setTimeout(r, retryDelayMs));
                                         retries--;
+                                        retryDelayMs = Math.min(retryDelayMs + 500, 3000);
                                     } else {
                                         throw fetchError;
                                     }
@@ -162,7 +168,6 @@ const MLDashboardContent = () => {
                                 throw new Error('No training results found after completion');
                             }
                         } catch (e: any) {
-                            console.error('❌ Failed to fetch results:', e);
                             reject(e);
                         }
                     },
@@ -170,20 +175,28 @@ const MLDashboardContent = () => {
                         if (unsubscribed) return;
                         unsubscribed = true;
                         unsubscribe();
-                        console.error('❌ Training failed:', error);
                         reject(new Error(error));
                     },
                 });
             });
         } catch (err: any) {
-            console.error('❌ Training error:', err);
             // Handle specific error cases with toast notifications
-            if (err.message?.includes('already in progress') || err.message?.includes('Training already')) {
+            if (err.message?.includes('SESSION_EXPIRED') || err.message?.includes('no longer in memory') || err.message?.includes('Cannot resume training')) {
+                show({ 
+                    type: 'error', 
+                    message: 'Dataset session expired. Please upload your dataset again and restart training.' 
+                });
+            } else if (err.message?.includes('already in progress') || err.message?.includes('Training already')) {
                 show({ type: 'error', message: 'Training already in progress. Please wait for the current training to complete.' });
             } else if (err.message?.includes('rate limit')) {
                 show({ type: 'error', message: 'Too many requests. Please wait a moment and try again.' });
             } else if (err.message?.includes('not found')) {
-                show({ type: 'error', message: 'Training completed but results are not available yet. Please refresh the page.' });
+                show({ type: 'error', message: 'Training completed but results are not available. Please refresh the page.' });
+            } else if (err.message?.includes('No training results found')) {
+                show({ 
+                    type: 'error', 
+                    message: 'Training was executed but no models were produced. This may indicate an issue with your data or model selection. Please check your dataset and try again.' 
+                });
             } else {
                 show({ type: 'error', message: err.message || 'Training failed. Please try again.' });
             }
@@ -197,11 +210,9 @@ const MLDashboardContent = () => {
 
     // Click handler - FORCES IMMEDIATE RENDER
     const handleTrain = () => {
-        console.log('🔵 Train clicked');
         
         // Hard guard
         if (isTraining || isResultsLoading) {
-            console.log('⚠️ Already training');
             return;
         }
 
@@ -215,7 +226,6 @@ const MLDashboardContent = () => {
         }
 
         // CRITICAL: Set states FIRST (synchronous)
-        console.log('🔵 Setting loader states to TRUE');
         setIsTraining(true);
         setIsResultsLoading(true);
         setError(null);
@@ -223,18 +233,15 @@ const MLDashboardContent = () => {
         setModelsCompleted(0);
         clearExperiment();
 
-        console.log('🔵 Loader state:', true);
 
         // CRITICAL: Defer async work to next tick
         setTimeout(() => {
-            console.log('🔵 Starting training execution...');
             executeTraining();
         }, 0);
 
         // Safety timeout
         setTimeout(() => {
             if (isTraining || isResultsLoading) {
-                console.log('⚠️ Safety timeout triggered');
                 setIsTraining(false);
                 setIsResultsLoading(false);
             }

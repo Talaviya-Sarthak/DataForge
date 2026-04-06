@@ -38,7 +38,10 @@ const ToastContext = createContext<ToastContextType | null>(null)
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toast, setToast] = useState<ToastProps | null>(null)
 
-  const show = (t: ToastProps) => setToast(t)
+  const show = (t: ToastProps) => {
+    if ((t.type ?? "info") !== "error") return
+    setToast({ ...t, type: "error" })
+  }
 
   return (
     <ToastContext.Provider value={{ show }}>

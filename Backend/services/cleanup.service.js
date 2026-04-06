@@ -1,5 +1,4 @@
 const pool = require('../Database/db');
-const logger = require('../utils/logger');
 const fs = require('fs').promises;
 const path = require('path');
 
@@ -22,11 +21,9 @@ const deleteExpiredModels = async () => {
     );
 
     if (expiredModels.length === 0) {
-      logger.info('[CLEANUP]', 'No expired models found');
       return { deleted: 0, failed: 0 };
     }
 
-    logger.info('[CLEANUP]', `Found ${expiredModels.length} expired models to delete`);
 
     let deleted = 0;
     let failed = 0;
@@ -43,9 +40,7 @@ const deleteExpiredModels = async () => {
 
           try {
             await fs.unlink(fullPath);
-            logger.info('[CLEANUP]', `Deleted model file: ${fullPath}`);
           } catch (fileErr) {
-            logger.warn('[CLEANUP]', `Model file not found or already deleted: ${fullPath}`);
           }
         }
 
@@ -55,25 +50,14 @@ const deleteExpiredModels = async () => {
         await connection.commit();
         deleted++;
         
-        logger.info('[CLEANUP]', `Deleted expired model`, {
-          id: model.id,
-          name: model.model_name,
-          experiment_id: model.experiment_id,
-        });
       } catch (error) {
         await connection.rollback();
         failed++;
-        logger.error('[CLEANUP]', `Failed to delete model ${model.id}`, {
-          error: error.message,
-          model: model.model_name,
-        });
       }
     }
 
-    logger.info('[CLEANUP]', `Cleanup completed: ${deleted} deleted, ${failed} failed`);
     return { deleted, failed, total: expiredModels.length };
   } catch (error) {
-    logger.error('[CLEANUP]', 'Cleanup job failed', { error: error.message });
     throw error;
   } finally {
     connection.release();
