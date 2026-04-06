@@ -1,6 +1,5 @@
 const { trainingQueue } = require('../queues/training.queue');
 const pool = require('../Database/db');
-const logger = require('../utils/logger');
 
 /**
  * Get job status from Redis queue
@@ -30,7 +29,6 @@ const getJobStatus = async (jobId) => {
       finishedOn: job.finishedOn,
     };
   } catch (error) {
-    logger.error('[QUEUE]', 'Error getting job status', { error: error.message });
     throw error;
   }
 };
@@ -56,7 +54,6 @@ const getExperimentStatus = async (experimentId) => {
       result: job.returnvalue || null,
     };
   } catch (error) {
-    logger.error('[QUEUE]', 'Error getting experiment status', { error: error.message });
     throw error;
   }
 };
@@ -76,7 +73,6 @@ const cancelJob = async (jobId) => {
     
     return { success: true, message: 'Job cancelled successfully' };
   } catch (error) {
-    logger.error('[QUEUE]', 'Error cancelling job', { error: error.message });
     throw error;
   }
 };
@@ -103,7 +99,6 @@ const getQueueMetrics = async () => {
       total: waiting + active + completed + failed + delayed,
     };
   } catch (error) {
-    logger.error('[QUEUE]', 'Error getting queue metrics', { error: error.message });
     throw error;
   }
 };
@@ -121,7 +116,6 @@ const cleanQueue = async (grace = 86400000) => {
     
     return { success: true, message: 'Queue cleaned successfully' };
   } catch (error) {
-    logger.error('[QUEUE]', 'Error cleaning queue', { error: error.message });
     throw error;
   }
 };

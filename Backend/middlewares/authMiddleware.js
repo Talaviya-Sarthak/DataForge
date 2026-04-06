@@ -1,5 +1,4 @@
 const jwt = require('jsonwebtoken');
-const logger = require('../utils/logger');
 
 const authMiddleware = (req, res, next) => {
     const authHeader = req.headers.authorization;
@@ -17,7 +16,6 @@ const authMiddleware = (req, res, next) => {
         req.user = { id: decoded.id };
         next();
     } catch (err) {
-        logger.warn('[AUTH]', 'Token verification failed', { error: err.message, path: req.originalUrl });
         return res.status(401).json({ error: 'Invalid or expired token' });
     }
 };

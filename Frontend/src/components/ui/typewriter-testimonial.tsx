@@ -66,7 +66,6 @@ export const Component: React.FC<ComponentProps> = ({ testimonials }) => {
     const newAudio = new Audio(`/audio/${testimonials[index].audio}`);
     audioPlayerRef.current = newAudio;
     newAudio.play().catch(e => {
-      console.warn("Audio playback prevented or failed:", e);
     });
     
     setHasBeenHovered(prev => {

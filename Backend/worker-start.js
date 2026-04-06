@@ -26,40 +26,35 @@ logger.info('[WORKER]', 'Starting training worker...', {
 logger.info('[WORKER]', '✅ Training worker ready');
 logger.info('[WORKER]', 'Listening for training jobs on "training-queue"...');
 
+
 // ─────────────────────────────────────────────────────────────────────────────
 // GRACEFUL SHUTDOWN
 // ─────────────────────────────────────────────────────────────────────────────
 
 process.on('SIGTERM', async () => {
-  logger.warn('[WORKER]', 'SIGTERM received, initiating graceful shutdown...');
   try {
     await trainingWorker.close();
     logger.info('[WORKER]', '✅ Worker closed successfully');
     process.exit(0);
   } catch (error) {
-    logger.error('[WORKER]', 'Error during shutdown', { error: error.message });
     process.exit(1);
   }
 });
 
 process.on('SIGINT', async () => {
-  logger.warn('[WORKER]', 'SIGINT received, initiating graceful shutdown...');
   try {
     await trainingWorker.close();
     logger.info('[WORKER]', '✅ Worker closed successfully');
     process.exit(0);
   } catch (error) {
-    logger.error('[WORKER]', 'Error during shutdown', { error: error.message });
     process.exit(1);
   }
 });
 
 process.on('uncaughtException', (error) => {
-  logger.error('[WORKER]', 'Uncaught exception', { error: error.message, stack: error.stack });
   process.exit(1);
 });
 
 process.on('unhandledRejection', (reason) => {
-  logger.error('[WORKER]', 'Unhandled rejection', { reason: String(reason) });
   process.exit(1);
 });

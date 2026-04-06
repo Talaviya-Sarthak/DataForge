@@ -19,7 +19,6 @@ export const ModelSelectionPanel = ({ onTrain }: ModelSelectionPanelProps) => {
                 const response = await getAvailableModels(config.taskType);
                 setAvailableModels(response.models || []);
             } catch (err) {
-                console.error('Failed to fetch models:', err);
                 // Fallback models
                 setAvailableModels(
                     config.taskType === 'classification'

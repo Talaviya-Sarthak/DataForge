@@ -36,7 +36,6 @@ router.post("/project-types", async (req, res) => {
     });
 
   } catch (err) {
-    console.error("❌ Project Types Error:", err);
     return res.status(500).json({
       error: "Server error while saving project types"
     });

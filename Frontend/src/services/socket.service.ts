@@ -1,4 +1,5 @@
 import { io, Socket } from 'socket.io-client';
+import { getAccessToken } from './api.client';
 
 const WS_URL = import.meta.env.VITE_NODE_API_URL || 'http://localhost:5000';
 
@@ -9,7 +10,7 @@ export const getSocket = (): Socket => {
         socket = io(WS_URL, {
             // Read token at connect-time, not at module-load-time,
             // so a refreshed token is always used on reconnect.
-            auth: (cb) => cb({ token: localStorage.getItem('token') }),
+            auth: (cb) => cb({ token: getAccessToken() }),
             transports: ['websocket'],
             reconnectionAttempts: 5,
             // Debounce reconnects: 2s base, doubles each attempt (2s, 4s, 8s, 16s, 32s)
@@ -18,10 +19,10 @@ export const getSocket = (): Socket => {
             randomizationFactor: 0.3,
         });
 
-        socket.on('connect',       () => console.info('[WS] Connected', socket!.id));
-        socket.on('disconnect',    (reason) => console.warn('[WS] Disconnected:', reason));
-        socket.on('connect_error', (err) => console.error('[WS] Error:', err.message));
-        socket.on('reconnect_failed', () => console.error('[WS] Reconnect failed after 5 attempts'));
+        socket.on('connect', () => {});
+        socket.on('disconnect', () => {});
+        socket.on('connect_error', () => {});
+        socket.on('reconnect_failed', () => {});
     }
     return socket;
 };

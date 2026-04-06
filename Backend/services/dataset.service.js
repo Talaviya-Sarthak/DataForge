@@ -63,6 +63,16 @@ const updateDatasetMetadata = async (datasetId, column_names, total_rows) => {
   );
 };
 
+/**
+ * Persist the file path of the uploaded CSV for later re-hydration.
+ */
+const updateDatasetFilePath = async (datasetId, filePath) => {
+  await pool.execute(
+    'UPDATE datasets SET file_path = ? WHERE id = ?',
+    [filePath, datasetId]
+  );
+};
+
 // =========================================
 // 2. DATASET QUERIES
 // =========================================
@@ -285,10 +295,8 @@ const initializeSystem = async () => {
       "UPDATE pipelines SET status = 'paused' WHERE status = 'running'"
     );
     if (result.affectedRows > 0) {
-      console.log(`⚙️ Marked ${result.affectedRows} running pipelines as paused for recovery`);
     }
   } catch (error) {
-    console.error('System initialization error:', error.message);
     throw error;
   }
 };
@@ -296,6 +304,7 @@ const initializeSystem = async () => {
 module.exports = {
   insertDatasetMetadata,
   updateDatasetMetadata,
+  updateDatasetFilePath,
   getActiveDataset,
   getDatasetById,
   getUserDatasets,

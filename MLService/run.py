@@ -8,5 +8,6 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=port,
         reload=False,
-        log_level="info"
+        log_level="error",
+        access_log=False
     )

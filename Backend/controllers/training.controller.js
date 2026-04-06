@@ -3,7 +3,7 @@ const trainingService = require("../services/training.service");
 const datasetService = require("../services/dataset.service");
 const { trainingQueue } = require("../queues/training.queue");
 const jobService = require("../services/job.service");
-const logger = require("../utils/logger");
+
 // =========================================
 // POST /api/training/train
 // =========================================
@@ -59,7 +59,6 @@ exports.getTrainingResults = async (req, res) => {
     }
     return res.status(200).json(result);
   } catch (error) {
-    logger.error('[TRAIN]', 'Get results error', { error: error.message });
     return res.status(500).json({ status: 'error', message: 'Failed to fetch training results' });
   }
 };
@@ -84,7 +83,6 @@ exports.getAvailableModels = async (req, res) => {
       ...result,
     });
   } catch (error) {
-    logger.error('[TRAIN]', 'Get available models error', { error: error.message });
     return res.status(500).json({
       status: "error",
       message: "Failed to fetch available models",
@@ -155,26 +153,16 @@ exports.experimentTrain = async (req, res) => {
     // Generate experiment ID
     const experiment_id = `exp_${userId}_${Date.now()}`;
 
-    logger.info('[API]', '📥 Train request received', {
-      experiment_id,
-      user_id: userId,
-      task_type,
-      target_column,
-      models: selected_models,
-      total_models: selected_models.length,
-      pipeline_id: pipeId || '(none)',
-      dataset_id: dsId || 0,
-    });
 
     // Create training job in database
     const jobDbId = await trainingService.createTrainingJob(
+      experiment_id,
       pipeId || experiment_id,
       userId,
       dsId,
       task_type,
       target_column
     );
-    logger.info('[API]', '📋 DB training job created', { job_db_id: jobDbId, experiment_id });
 
     // Add job to Redis queue
     const job = await trainingQueue.add(
@@ -201,12 +189,6 @@ exports.experimentTrain = async (req, res) => {
       }
     );
 
-    logger.info('[QUEUE]', '📬 Job added to Redis queue', {
-      job_id: job.id,
-      experiment_id,
-      queue: 'training-queue',
-      models: selected_models,
-    });
 
     // ═══════════════════════════════════════════════════════════════════════════
     // NOTE: Per-user lock REMOVED - was causing the "training in progress" issue
@@ -223,7 +205,6 @@ exports.experimentTrain = async (req, res) => {
       queue_status: "queued",
     });
   } catch (error) {
-    logger.error('[TRAIN]', 'Experiment train error', { error: error.message });
 
     if (error.message.includes("not reachable")) {
       return res.status(503).json({
@@ -281,7 +262,8 @@ exports.getExperiment = async (req, res) => {
     }
 
     // 2. Job is completed (or not in queue at all) — DB is the authoritative source
-    const dbResult = await trainingService.getExperimentResults(experimentId, req.user.id);
+    // Increased retries to 8 to accommodate slow DB writes (can take 10-15 seconds)
+    const dbResult = await trainingService.getExperimentResults(experimentId, req.user.id, 8);
     if (dbResult) return res.status(200).json(dbResult);
 
     // 3. DB has no rows yet — check training_jobs for status clues
@@ -312,7 +294,6 @@ exports.getExperiment = async (req, res) => {
     });
 
   } catch (error) {
-    logger.error('[TRAIN]', 'Get experiment error', { error: error.message, stack: error.stack });
     if (error.message?.includes('not reachable') || error.code === 'ECONNREFUSED') {
       return res.status(503).json({ status: 'error', message: 'ML Service is unavailable.' });
     }
@@ -340,7 +321,6 @@ exports.getExperimentPlots = async (req, res) => {
       ...result,
     });
   } catch (error) {
-    logger.error('[TRAIN]', 'Get experiment plots error', { error: error.message });
     return res.status(500).json({
       status: "error",
       message: "Failed to fetch plot data",
@@ -363,7 +343,6 @@ exports.listExperiments = async (req, res) => {
       ...result,
     });
   } catch (error) {
-    logger.error('[TRAIN]', 'List experiments error', { error: error.message });
     return res.status(500).json({
       status: "error",
       message: "Failed to list experiments",
@@ -393,7 +372,6 @@ exports.getJobStatus = async (req, res) => {
       ...jobStatus,
     });
   } catch (error) {
-    logger.error('[TRAIN]', 'Get job status error', { error: error.message });
     return res.status(500).json({
       status: "error",
       message: "Failed to fetch job status",
@@ -416,7 +394,6 @@ exports.cancelJob = async (req, res) => {
       ...result,
     });
   } catch (error) {
-    logger.error('[TRAIN]', 'Cancel job error', { error: error.message });
     return res.status(500).json({
       status: "error",
       message: "Failed to cancel job",
@@ -437,7 +414,6 @@ exports.getQueueMetrics = async (req, res) => {
       metrics,
     });
   } catch (error) {
-    logger.error('[TRAIN]', 'Get queue metrics error', { error: error.message });
     return res.status(500).json({
       status: "error",
       message: "Failed to fetch queue metrics",
@@ -481,7 +457,6 @@ exports.getQueueStatus = async (req, res) => {
       },
     });
   } catch (error) {
-    logger.error('[TRAIN]', 'Get queue status error', { error: error.message });
     return res.status(500).json({
       status: "error",
       message: "Failed to fetch queue status",
@@ -507,7 +482,6 @@ exports.getResults = async (req, res) => {
 
     return res.status(200).json(result);
   } catch (error) {
-    logger.error('[TRAIN]', 'Get results error', { error: error.message });
     return res.status(500).json({
       status: 'error',
       message: 'Failed to fetch training results',
@@ -536,7 +510,6 @@ exports.getModelDetails = async (req, res) => {
       model,
     });
   } catch (error) {
-    logger.error('[TRAIN]', 'Get model details error', { error: error.message });
     return res.status(500).json({
       status: 'error',
       message: 'Failed to fetch model details',
@@ -570,7 +543,6 @@ exports.listModels = async (req, res) => {
       ...result,
     });
   } catch (error) {
-    logger.error('[TRAIN]', 'List models error', { error: error.message });
     return res.status(500).json({
       status: 'error',
       message: 'Failed to fetch trained models',
@@ -620,7 +592,6 @@ exports.downloadModel = async (req, res) => {
     // Send file for download
     res.download(modelPath, fileName, async (err) => {
       if (err) {
-        logger.error('[TRAIN]', 'Model download error', { error: err.message });
         if (!res.headersSent) {
           res.status(500).json({
             status: 'error',
@@ -631,16 +602,12 @@ exports.downloadModel = async (req, res) => {
       }
 
       try {
-        logger.info('[TRAIN]', 'Download successful, deleting model data', { modelId });
 
         await trainingService.deleteModelAndArtifacts(modelId, req.user.id);
-        logger.info('[TRAIN]', 'Model lifecycle completed', { modelId, fileName });
       } catch (deleteError) {
-        logger.error('[TRAIN]', 'Failed to cleanup after download', { error: deleteError.message });
       }
     });
   } catch (error) {
-    logger.error('[TRAIN]', 'Download model error', { error: error.message });
     return res.status(500).json({
       status: 'error',
       message: 'Failed to download model',
@@ -664,7 +631,6 @@ exports.deleteModel = async (req, res) => {
     });
   } catch (error) {
     const statusCode = error.message === 'Model not found' ? 404 : 500;
-    logger.error('[TRAIN]', 'Delete model error', { error: error.message });
     return res.status(statusCode).json({
       status: 'error',
       message: error.message === 'Model not found' ? 'Model not found' : 'Failed to delete model',
@@ -725,7 +691,6 @@ exports.compareModels = async (req, res) => {
       comparison,
     });
   } catch (error) {
-    logger.error('[TRAIN]', 'Compare models error', { error: error.message });
     return res.status(500).json({
       status: 'error',
       message: 'Failed to compare models',

@@ -43,7 +43,6 @@ router.post("/preferences", async (req, res) => {
     });
 
   } catch (err) {
-    console.error("❌ Preferences Error:", err);
     return res.status(500).json({
       error: "Server error while saving preferences"
     });

@@ -1,8 +1,7 @@
 "use client";
 
-import { FaAmazon, FaApple, FaGithub, FaGoogle, FaMicrosoft, FaPaypal } from "react-icons/fa";
+import { FaAmazon, FaApple, FaGithub, FaGoogle, FaMicrosoft, FaPaypal, FaReact, FaNode, FaPython, FaDocker, FaAws } from "react-icons/fa";
 import { FaMeta } from "react-icons/fa6";
-import { SiAccenture, SiAdobe, SiAirbnb, SiAtlassian, SiCanva, SiIntel, SiLinkedin, SiNetflix, SiNotion, SiOracle, SiSamsung, SiSpotify, SiStripe, SiTesla, SiUber } from "react-icons/si";
 import { useEffect, useState } from "react";
 import {
   Carousel,
@@ -36,24 +35,14 @@ function Case() {
     FaApple,
     FaMeta,
     FaGithub,
-    SiAccenture,
-    SiNetflix,
-    SiAdobe,
-    SiIntel,
-    SiSpotify,
-    SiUber,
-    FiFigma,
-    SiAtlassian,
-    SiSamsung,
-    SiTesla,
-    SiNotion,
-    SiCanva,
-    SiLinkedin,
-    SiStripe,
-    SiAirbnb,
     FaAmazon,
     FaPaypal,
-    SiOracle,
+    FiFigma,
+    FaReact,
+    FaNode,
+    FaPython,
+    FaDocker,
+    FaAws,
   ];
 
   return (
