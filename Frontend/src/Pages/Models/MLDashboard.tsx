@@ -11,10 +11,11 @@ import { experimentTrain, getExperiment } from '../../services/training.service'
 import { subscribeToJob } from '../../services/socket.service';
 import Header from '@/components/layouts/Header';
 import { Footer } from '@/components/layouts/Footer';
-import { AlertTriangle, X, Trash2 } from 'lucide-react';
+import { AlertTriangle, X, Trash2, Loader2 } from 'lucide-react';
 import { useToast } from '@/components/ui/toast/Toast';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { flushSync } from 'react-dom';
 
 const MLDashboardContent = () => {
     const navigate = useNavigate();
@@ -225,19 +226,20 @@ const MLDashboardContent = () => {
             return;
         }
 
-        // CRITICAL: Set states FIRST (synchronous)
-        setIsTraining(true);
-        setIsResultsLoading(true);
-        setError(null);
-        setTrainingProgress(0);
-        setModelsCompleted(0);
-        clearExperiment();
+        // Force an immediate UI commit so the loader appears right away.
+        flushSync(() => {
+            clearExperiment();
+            setIsTraining(true);
+            setIsResultsLoading(true);
+            setError(null);
+            setTrainingProgress(0);
+            setModelsCompleted(0);
+        });
 
-
-        // CRITICAL: Defer async work to next tick
-        setTimeout(() => {
+        // Start training after next paint frame.
+        requestAnimationFrame(() => {
             executeTraining();
-        }, 0);
+        });
 
         // Safety timeout
         setTimeout(() => {
@@ -466,6 +468,16 @@ const MLDashboardContent = () => {
 
             {/* Real-time training status panel (non-blocking) */}
             <TrainingStatusPanel />
+
+            {/* Processing Overlay (same style as Cleaning page) */}
+            {(isTraining || isResultsLoading) && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                    <div className="flex flex-col items-center gap-3 rounded-xl border border-neutral-800 bg-neutral-900/95 px-8 py-6 shadow-2xl">
+                        <Loader2 className="h-8 w-8 text-blue-400 animate-spin" />
+                        <p className="text-sm text-neutral-300 font-medium">Training started...</p>
+                    </div>
+                </div>
+            )}
 
             {/* Delete All Confirmation Dialog */}
             <Dialog open={showDeleteAllDialog} onOpenChange={setShowDeleteAllDialog}>

@@ -1,7 +1,5 @@
-version: '3.8'
-
 services:
-  # Redis for job queue management
+
   redis:
     image: redis:7-alpine
     container_name: dataforge-redis
@@ -11,12 +9,44 @@ services:
       - redis_data:/data
     command: redis-server --appendonly yes
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
+
+  backend:
+    build: ./backend
+    container_name: dataforge-backend
+    ports:
+      - "5000:5000"
+    depends_on:
+      - redis
+    env_file:
+      - ./backend/.env   # 🔥 CRITICAL FIX
+    command: node server.js
+    restart: unless-stopped
+
+  worker:
+    build: ./backend
+    container_name: dataforge-worker
+    depends_on:
+      - redis
+    env_file:
+      - ./backend/.env   # 🔥 CRITICAL FIX
+    command: node worker-start.js
+    restart: unless-stopped
+
+  mlservice:
+    build: ./mlservice
+    container_name: dataforge-ml
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: dataforge-frontend
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    restart: unless-stopped
 
 volumes:
   redis_data:
-    driver: local

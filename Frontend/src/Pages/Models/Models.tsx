@@ -370,43 +370,6 @@ export default function Models() {
               {isTraining ? "Training Models..." : "Loading Models..."}
             </h1>
 
-            {isTraining && (
-              <div className="bg-zinc-900 rounded-lg p-6 border border-zinc-800">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                  <div>
-                    <h2 className="text-xl font-semibold">Training in Progress</h2>
-                    <p className="text-sm text-zinc-400">Training all models from registry...</p>
-                  </div>
-                </div>
-
-                {/* Training Logs */}
-                <div className="bg-black rounded-lg p-4 font-mono text-sm max-h-125 overflow-y-auto">
-                  {trainingLogs.map((log, idx) => (
-                    <div key={idx} className="text-green-400 mb-1">
-                      {log}
-                    </div>
-                  ))}
-                  {trainingLogs.length > 0 && (
-                    <div className="text-green-400 animate-pulse">▊</div>
-                  )}
-                </div>
-
-                {/* Progress Bar */}
-                <div className="mt-6">
-                  <div className="w-full bg-zinc-800 rounded-full h-3">
-                    <div
-                      className="bg-linear-to-r from-blue-500 to-purple-500 h-3 rounded-full transition-all duration-500"
-                      style={{ width: `${Math.min((trainingLogs.length / 20) * 100, 100)}%` }}
-                    />
-                  </div>
-                  <p className="text-xs text-zinc-500 mt-2 text-center">
-                    {trainingLogs.length} / ~20 steps completed
-                  </p>
-                </div>
-              </div>
-            )}
-
             {!isTraining && (
               <div className="flex items-center justify-center h-96">
                 <div className="text-center">

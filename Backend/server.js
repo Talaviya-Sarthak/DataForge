@@ -20,7 +20,9 @@ const PORT = process.env.PORT || 5000;
 (async () => {
   try {
     await datasetService.initializeSystem();
+    console.log("✅ System initialized");
   } catch (error) {
+    console.error("❌ Initialization error:", error);
   }
 })();
 
@@ -84,8 +86,10 @@ app.use((req, res) => {
 // GLOBAL ERROR HANDLER
 // =======================
 app.use((err, req, res, next) => {
+  console.error("🔥 ERROR:", err);   // VERY IMPORTANT
+
   res.status(500).json({
-    error: "Internal server error"
+    error: err.message || "Internal server error"
   });
 });
 
