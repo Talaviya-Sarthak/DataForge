@@ -1,18 +1,14 @@
 -- =========================================
--- DATAFORGE - CORRECTED PRODUCTION SCHEMA
+-- DATAFORGE - SIMPLIFIED PRODUCTION SCHEMA
 -- =========================================
--- Improvements:
--- 1. Added proper indexes for performance
--- 2. Added ENUM constraints for data integrity
--- 3. Improved foreign key relationships
--- 4. Added created_at indexes for time-based queries
+-- Focus: Stable, simple architecture
+-- Training jobs use Redis queue + minimal DB tracking
 -- =========================================
 
--- Use existing database
 USE dataforge;
 
 -- =========================================
--- USERS (Improved)
+-- USERS
 -- =========================================
 CREATE TABLE IF NOT EXISTS users (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -25,7 +21,7 @@ CREATE TABLE IF NOT EXISTS users (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =========================================
--- USER ONBOARDING (Improved)
+-- USER ONBOARDING
 -- =========================================
 CREATE TABLE IF NOT EXISTS user_onboarding (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -43,7 +39,7 @@ CREATE TABLE IF NOT EXISTS user_onboarding (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =========================================
--- USER TOOLS (Improved)
+-- USER TOOLS
 -- =========================================
 CREATE TABLE IF NOT EXISTS user_tools (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -56,7 +52,7 @@ CREATE TABLE IF NOT EXISTS user_tools (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =========================================
--- USER PROJECT TYPES (Improved)
+-- USER PROJECT TYPES
 -- =========================================
 CREATE TABLE IF NOT EXISTS user_project_types (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -69,7 +65,7 @@ CREATE TABLE IF NOT EXISTS user_project_types (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =========================================
--- USER PREFERENCES (Improved)
+-- USER PREFERENCES
 -- =========================================
 CREATE TABLE IF NOT EXISTS user_preferences (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -84,7 +80,7 @@ CREATE TABLE IF NOT EXISTS user_preferences (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =========================================
--- DATASETS (Improved)
+-- DATASETS
 -- =========================================
 CREATE TABLE IF NOT EXISTS datasets (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -105,7 +101,7 @@ CREATE TABLE IF NOT EXISTS datasets (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =========================================
--- PIPELINES (Improved)
+-- PIPELINES
 -- =========================================
 CREATE TABLE IF NOT EXISTS pipelines (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -126,7 +122,7 @@ CREATE TABLE IF NOT EXISTS pipelines (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =========================================
--- PIPELINE STEPS (Improved)
+-- PIPELINE STEPS
 -- =========================================
 CREATE TABLE IF NOT EXISTS pipeline_steps (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -146,21 +142,23 @@ CREATE TABLE IF NOT EXISTS pipeline_steps (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =========================================
--- TRAINING JOBS (Improved with ENUM)
+-- TRAINING JOBS (Simplified - tracks Redis queue jobs)
 -- =========================================
 CREATE TABLE IF NOT EXISTS training_jobs (
   id INT AUTO_INCREMENT PRIMARY KEY,
+  experiment_id VARCHAR(255) NOT NULL UNIQUE,
   pipeline_id VARCHAR(255) NOT NULL,
   dataset_id INT,
   user_id INT NOT NULL,
   task_type ENUM('classification', 'regression') NOT NULL,
   target_column VARCHAR(255) NOT NULL,
-  status ENUM('pending', 'running', 'completed', 'failed') DEFAULT 'pending',
+  status ENUM('pending', 'queued', 'running', 'completed', 'failed') DEFAULT 'pending',
   error_message TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (dataset_id) REFERENCES datasets(id) ON DELETE SET NULL,
+  INDEX idx_experiment_id (experiment_id),
   INDEX idx_pipeline_id (pipeline_id),
   INDEX idx_user_id (user_id),
   INDEX idx_status (status),
@@ -169,7 +167,7 @@ CREATE TABLE IF NOT EXISTS training_jobs (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =========================================
--- TRAINED MODELS (Improved with ENUM)
+-- TRAINED MODELS
 -- =========================================
 CREATE TABLE IF NOT EXISTS trained_models (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -195,16 +193,18 @@ CREATE TABLE IF NOT EXISTS trained_models (
 
   training_time_ms INT DEFAULT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  expires_at TIMESTAMP NULL DEFAULT NULL,
 
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   INDEX idx_experiment_id (experiment_id),
   INDEX idx_user_id (user_id),
   INDEX idx_model_type (model_type),
-  INDEX idx_created_at (created_at)
+  INDEX idx_created_at (created_at),
+  INDEX idx_expires_at (expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =========================================
--- MODEL PLOTS (Improved)
+-- MODEL PLOTS
 -- =========================================
 CREATE TABLE IF NOT EXISTS model_plots (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -230,21 +230,8 @@ CREATE TABLE IF NOT EXISTS model_plots (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =========================================
--- DATASET STATISTICS (Improved)
--- =========================================
-CREATE TABLE IF NOT EXISTS dataset_stats (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  experiment_id VARCHAR(255) NOT NULL UNIQUE,
-  num_rows INT NOT NULL,
-  num_columns INT NOT NULL,
-  missing_values JSON DEFAULT NULL,
-  correlation_matrix JSON DEFAULT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_experiment_id (experiment_id),
-  INDEX idx_created_at (created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
+-- DATASET STATISTICS
 -- =========================================
 -- VERIFICATION
 -- =========================================
-SELECT 'Corrected schema applied successfully!' AS status;
+SELECT 'Simplified schema applied successfully!' AS status;

@@ -1,4 +1,5 @@
 const API_BASE = "http://localhost:5000/api";
+import { apiRequest, getAccessToken } from "./api.client";
 
 export interface TrainModelRequest {
   pipeline_id: string;
@@ -7,93 +8,55 @@ export interface TrainModelRequest {
 }
 
 export const trainModel = async (request: TrainModelRequest) => {
-  const token = localStorage.getItem("token");
-  const response = await fetch(`${API_BASE}/training/train`, {
+  return apiRequest(`${API_BASE}/training/train`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(request),
+    retryOnUnauthorized: true,
   });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || "Training failed");
-  }
-
-  return response.json();
 };
 
 export const getTrainingResults = async (pipelineId: string) => {
-  const token = localStorage.getItem("token");
-  const response = await fetch(`${API_BASE}/training/${pipelineId}/results`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+  return apiRequest(`${API_BASE}/training/${pipelineId}/results`, {
+    retryOnUnauthorized: true,
   });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || "Failed to fetch results");
-  }
-
-  return response.json();
 };
 
 export const getAvailableModels = async (taskType: string) => {
-  const token = localStorage.getItem("token");
-  const response = await fetch(
+  return apiRequest(
     `${API_BASE}/training/models/available?task_type=${taskType}`,
     {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      retryOnUnauthorized: true,
     }
   );
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || "Failed to fetch available models");
-  }
-
-  return response.json();
 };
 
 
 export const experimentTrain = async (config: any) => {
-  const token = localStorage.getItem("token");
-  const response = await fetch(`${API_BASE}/training/experiment/train`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(config),
-  });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || "Training failed");
+  try {
+    const result = await apiRequest(`${API_BASE}/training/experiment/train`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(config),
+      retryOnUnauthorized: true,
+    });
+    return result;
+  } catch (error: any) {
+    if (error.message === 'Failed to fetch') {
+      throw new Error('Cannot connect to backend server. Please ensure the server is running on http://localhost:5000');
+    }
+    throw error;
   }
-
-  return response.json();
 };
 
 export const getExperiment = async (experimentId: string) => {
-  const token = localStorage.getItem("token");
-  const response = await fetch(`${API_BASE}/training/experiment/${experimentId}`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+  return apiRequest(`${API_BASE}/training/experiment/${experimentId}`, {
+    retryOnUnauthorized: true,
   });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || "Failed to fetch experiment");
-  }
-
-  return response.json();
 };
 
 export interface FeatureImportance {
@@ -160,12 +123,6 @@ export interface TrainResponse {
   results_table?: any[];
 }
 
-export interface TuneResponse {
-  status: string;
-  experiment_id: string;
-  model: ModelResult;
-}
-
 export const trainingService = {
   trainModel,
   getTrainingResults,
@@ -173,7 +130,8 @@ export const trainingService = {
   experimentTrain,
   getExperiment,
   downloadModel: async (modelId: number): Promise<void> => {
-    const token = localStorage.getItem('token');
+    const token = getAccessToken();
+    if (!token) throw new Error('Authentication required');
     const response = await fetch(`${API_BASE}/training/models/${modelId}/download`, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -194,14 +152,15 @@ export const trainingService = {
     URL.revokeObjectURL(url);
   },
   deleteModel: async (modelId: number): Promise<void> => {
-    const token = localStorage.getItem('token');
-    const response = await fetch(`${API_BASE}/training/models/${modelId}`, {
+    await apiRequest(`${API_BASE}/training/models/${modelId}`, {
       method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
+      retryOnUnauthorized: true,
     });
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.message || 'Delete failed');
-    }
+  },
+  deleteAllModels: async (pipelineId: string): Promise<void> => {
+    await apiRequest(`${API_BASE}/training/${pipelineId}/models`, {
+      method: 'DELETE',
+      retryOnUnauthorized: true,
+    });
   },
 };

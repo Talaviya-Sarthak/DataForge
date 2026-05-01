@@ -22,7 +22,6 @@ const statusDot: Record<string, string> = {
 export const TrainingStatusPanel = ({ onCancel }: TrainingStatusPanelProps) => {
     const {
         isTraining,
-        isTuning,
         trainingProgress,
         modelsCompleted,
         config,
@@ -30,7 +29,7 @@ export const TrainingStatusPanel = ({ onCancel }: TrainingStatusPanelProps) => {
         setError,
     } = useMLExperiment();
 
-    if (!isTraining && !isTuning) return null;
+    if (!isTraining) return null;
 
     const total = config.selectedModels.length;
     const completed = modelsCompleted;
@@ -44,7 +43,7 @@ export const TrainingStatusPanel = ({ onCancel }: TrainingStatusPanelProps) => {
                 <div className="flex items-center gap-2">
                     <div className="w-2.5 h-2.5 rounded-full bg-purple-500 animate-pulse" />
                     <span className="font-semibold text-white text-sm">
-                        {isTraining ? 'Training in Progress' : 'Tuning Hyperparameters'}
+                        Training in Progress
                     </span>
                 </div>
                 {onCancel && (
@@ -72,8 +71,7 @@ export const TrainingStatusPanel = ({ onCancel }: TrainingStatusPanelProps) => {
             </div>
 
             {/* Model status breakdown */}
-            {isTraining && (
-                <div className="space-y-1.5">
+            <div className="space-y-1.5">
                     {[
                         { label: 'Completed', count: completed, state: 'completed' },
                         { label: 'Running',   count: running,   state: 'running'   },
@@ -91,7 +89,6 @@ export const TrainingStatusPanel = ({ onCancel }: TrainingStatusPanelProps) => {
                         </div>
                     ))}
                 </div>
-            )}
 
             {/* Error inline */}
             {error && (

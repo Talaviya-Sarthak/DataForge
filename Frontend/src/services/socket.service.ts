@@ -32,27 +32,6 @@ export const disconnectSocket = () => {
     socket = null;
 };
 
-/** Subscribe to tuning events for a specific experiment. */
-export const subscribeToTuning = (
-    experimentId: string,
-    handlers: {
-        onCompleted?: (result: any) => void;
-        onFailed?: (error: string) => void;
-    }
-) => {
-    const s = getSocket();
-    s.emit('subscribe:tuning', { experimentId });
-
-    if (handlers.onCompleted) s.on(`tuning:${experimentId}:completed`, handlers.onCompleted);
-    if (handlers.onFailed)    s.on(`tuning:${experimentId}:failed`,    handlers.onFailed);
-
-    return () => {
-        s.emit('unsubscribe:tuning', { experimentId });
-        s.off(`tuning:${experimentId}:completed`);
-        s.off(`tuning:${experimentId}:failed`);
-    };
-};
-
 export const subscribeToJob = (
     experimentId: string,
     handlers: {

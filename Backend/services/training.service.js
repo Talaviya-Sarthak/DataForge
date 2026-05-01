@@ -1,6 +1,5 @@
 const path = require('path');
 const pool = require("../Database/db");
-const logger = require("../utils/logger");
 
 // Absolute path to the ML service root — used to resolve legacy relative model paths.
 // ML_SERVICE_PATH can be set in .env; falls back to sibling MLService directory.
@@ -25,21 +24,18 @@ const storeModelResults = async (experimentId, taskType, targetColumn, baseModel
       [experimentId]
     );
 
-    for (const m of baseModels) {
-      if (!m.model_path) {
-        logger.warn('[DB]', `Skipping model ${m.model || m.name} — missing model_path`);
-        continue;
-      }
+    for (let i = 0; i < baseModels.length; i++) {
+      const m = baseModels[i];
 
       const [result] = await connection.execute(
         `INSERT INTO trained_models
          (experiment_id, user_id, target_column, model_name, model_type, model_path,
           accuracy, \`precision\`, recall, f1_score, roc_auc,
-          r2_score, mse, rmse, mae, training_time_ms)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          r2_score, mse, rmse, mae, training_time_ms, expires_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 5 DAY))`,
         [
           experimentId, userId, targetColumn,
-          m.model || m.name, taskType, m.model_path,
+          m.model || m.name, taskType, m.model_path || null,
           m.accuracy ?? null, m.precision ?? null, m.recall ?? null,
           m.f1_score ?? null, m.roc_auc ?? null,
           m.r2_score ?? null, m.mse ?? null, m.rmse ?? null, m.mae ?? null,
@@ -48,6 +44,7 @@ const storeModelResults = async (experimentId, taskType, targetColumn, baseModel
       );
 
       const modelId = result.insertId;
+
       const plots = m.plots || {};
       // feature_importance lives inside plots from the clean ML response
       const fi = plots.feature_importance || m.feature_importance || null;
@@ -71,11 +68,9 @@ const storeModelResults = async (experimentId, taskType, targetColumn, baseModel
     }
 
     await connection.commit();
-    logger.info('[DB]', `Stored ${baseModels.length} models for experiment ${experimentId}`);
     return baseModels.length;
   } catch (error) {
     await connection.rollback();
-    logger.error('[DB]', 'Failed to store model results', { error: error.message });
     throw error;
   } finally {
     connection.release();
@@ -140,6 +135,8 @@ function formatModelForResponse(row) {
     model_path: row.model_path,
     absolute_model_path: absoluteModelPath,
     training_time_ms: row.training_time_ms,
+    created_at: row.created_at,
+    expires_at: row.expires_at,
     metrics,
     plots: {
       confusion_matrix:       safeJsonParse(row.confusion_matrix),
@@ -158,7 +155,7 @@ function formatModelForResponse(row) {
 /**
  * Get experiment results
  */
-const getExperimentResults = async (experimentId, userId = null, retries = 3) => {
+const getExperimentResults = async (experimentId, userId = null, retries = 5) => {
   for (let i = 0; i < retries; i++) {
     const models = await getModelsByExperiment(experimentId, userId);
     if (models.length) {
@@ -172,7 +169,10 @@ const getExperimentResults = async (experimentId, userId = null, retries = 3) =>
         best_model: formattedModels[0],
       };
     }
-    if (i < retries - 1) await new Promise((r) => setTimeout(r, 500));
+    if (i < retries - 1) {
+      const delayMs = 1000;
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
   }
   return null;
 };
@@ -231,12 +231,10 @@ const deleteModel = async (modelId) => {
     await connection.execute('DELETE FROM trained_models WHERE id = ?', [modelId]);
     
     await connection.commit();
-    logger.info('[DB]', `Deleted model ${modelId}`);
     
     return modelInfo;
   } catch (error) {
     await connection.rollback();
-    logger.error('[DB]', 'Failed to delete model', { error: error.message });
     throw error;
   } finally {
     connection.release();
@@ -246,12 +244,12 @@ const deleteModel = async (modelId) => {
 /**
  * Create training job
  */
-const createTrainingJob = async (pipelineId, userId, datasetId, taskType, targetColumn) => {
+const createTrainingJob = async (experimentId, pipelineId, userId, datasetId, taskType, targetColumn) => {
   const [result] = await pool.execute(
     `INSERT INTO training_jobs
-     (pipeline_id, user_id, dataset_id, task_type, target_column, status)
-     VALUES (?, ?, ?, ?, ?, 'running')`,
-    [pipelineId, userId, datasetId ?? null, taskType, targetColumn]
+     (experiment_id, pipeline_id, user_id, dataset_id, task_type, target_column, status)
+     VALUES (?, ?, ?, ?, ?, ?, 'queued')`,
+    [experimentId, pipelineId, userId, datasetId ?? null, taskType, targetColumn]
   );
   return result.insertId;
 };
@@ -270,9 +268,8 @@ const updateTrainingJobStatus = async (jobId, status, errorMessage = null) => {
  * Get training job by experiment
  */
 const getTrainingJobByExperiment = async (experimentId, userId = null) => {
-  let query = `SELECT * FROM training_jobs
-     WHERE pipeline_id = ? OR pipeline_id LIKE ?`;
-  const params = [experimentId, `%${experimentId}%`];
+  let query = `SELECT * FROM training_jobs WHERE experiment_id = ?`;
+  const params = [experimentId];
   
   if (userId) {
     query += ` AND user_id = ?`;
@@ -348,9 +345,7 @@ const deleteModelAndArtifacts = async (modelId, userId) => {
       
       try {
         await fs.unlink(fullPath);
-        logger.info('[DB]', 'Model file deleted', { path: fullPath });
       } catch (err) {
-        logger.warn('[DB]', 'Model file not found or already deleted', { path: fullPath });
       }
     }
     
@@ -358,12 +353,10 @@ const deleteModelAndArtifacts = async (modelId, userId) => {
     await connection.execute('DELETE FROM trained_models WHERE id = ?', [modelId]);
     
     await connection.commit();
-    logger.info('[DB]', 'Deleted model and artifacts', { modelId, modelName: modelInfo.model_name });
     
     return modelInfo;
   } catch (error) {
     await connection.rollback();
-    logger.error('[DB]', 'Failed to delete model', { error: error.message });
     throw error;
   } finally {
     connection.release();

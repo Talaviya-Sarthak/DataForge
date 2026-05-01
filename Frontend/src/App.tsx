@@ -4,6 +4,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { DatasetProvider } from "@/contexts/DatasetContext";
 import ProtectedRoute from "@/components/ui/ProtectedRoute";
+import { DatasetProtectedRoute } from "@/components/ui/DatasetProtectedRoute";
 
 // Lazy load all page components for better code splitting
 const HomePage = lazy(() => import("./Pages/HomePage/HomePage"));
@@ -38,8 +39,23 @@ function App() {
 
                 {/* Protected routes - require authentication */}
                 <Route path='/DataSet' element={<ProtectedRoute><Dataset /></ProtectedRoute>} />
-                <Route path='/Cleaning' element={<ProtectedRoute><Cleaning /></ProtectedRoute>} />
-                <Route path='/Models' element={<ProtectedRoute><MLDashboard /></ProtectedRoute>} />
+                
+                {/* Dataset-protected routes - require authentication AND dataset */}
+                <Route path='/Cleaning' element={
+                  <ProtectedRoute>
+                    <DatasetProtectedRoute>
+                      <Cleaning />
+                    </DatasetProtectedRoute>
+                  </ProtectedRoute>
+                } />
+                <Route path='/Models' element={
+                  <ProtectedRoute>
+                    <DatasetProtectedRoute>
+                      <MLDashboard />
+                    </DatasetProtectedRoute>
+                  </ProtectedRoute>
+                } />
+                
                 <Route path='/FAQ' element={<ProtectedRoute><FAQDemo /></ProtectedRoute>} />
                 <Route path='/About' element={<ProtectedRoute><AboutPage /></ProtectedRoute>} />
 

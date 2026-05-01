@@ -1,12 +1,16 @@
 import { useState, useEffect, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
-import { BarChart3, TrendingUp, Eye } from "lucide-react";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { BarChart3, TrendingUp, Eye, Download, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, ScatterChart, Scatter } from "recharts";
 import Header from "@/components/layouts/Header";
 import { Footer } from "@/components/layouts/Footer";
+import { useDataset } from "@/contexts/DatasetContext";
+import { useToast } from "@/components/ui/toast/Toast";
+import { trainingService } from "@/services/training.service";
+import { apiRequest } from "@/services/api.client";
 
 interface TrainedModel {
   id: number;
@@ -31,6 +35,9 @@ let lastTrainingCall = 0;
 
 export default function Models() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { dataset } = useDataset();
+  const { show } = useToast();
   const pipelineId = searchParams.get("pipelineId");
   const startTraining = searchParams.get("startTraining") === "true";
   const [models, setModels] = useState<TrainedModel[]>([]);
@@ -39,12 +46,25 @@ export default function Models() {
   const [taskType, setTaskType] = useState<string>("");
   const [trainingLogs, setTrainingLogs] = useState<string[]>([]);
   const [isTraining, setIsTraining] = useState(false);
+  const [showDeleteAllDialog, setShowDeleteAllDialog] = useState(false);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
 
   // Training configuration dialog state
   const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
   const [targetColumn, setTargetColumn] = useState<string>("");
   const [selectedTaskType, setSelectedTaskType] = useState<string>("");
   const [columns, setColumns] = useState<string[]>([]);
+
+  // Navigation guard - redirect if no dataset (runs on every render)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!dataset && !pipelineId) {
+        show({ type: "error", message: "Please upload dataset first" });
+        navigate('/DataSet', { replace: true });
+      }
+    }, 100)
+    return () => clearTimeout(timer)
+  }, [dataset, pipelineId, navigate, show]);
 
   // SINGLE useEffect - only for initial load
   useEffect(() => {
@@ -55,11 +75,9 @@ export default function Models() {
 
     // If startTraining flag is set, open dialog instead of auto-training
     if (startTraining && !trainingLock) {
-      console.log('🎯 Initial training trigger from URL parameter');
       setIsConfigDialogOpen(true);
     } else if (!startTraining) {
       // Only fetch existing results if NOT training
-      console.log('📊 Fetching existing results');
       setLoading(true);
       fetchModels();
     }
@@ -73,18 +91,11 @@ export default function Models() {
     if (!pipelineId) return;
 
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`http://localhost:5000/api/training/${pipelineId}/info`, {
-        headers: { Authorization: `Bearer ${token}` }
+      const data = await apiRequest<any>(`http://localhost:5000/api/training/${pipelineId}/info`, {
+        retryOnUnauthorized: true,
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        setColumns(data.columns || []);
-        console.log('✅ Pipeline columns loaded:', data.columns);
-      }
+      setColumns(data.columns || []);
     } catch (error) {
-      console.error("❌ Failed to fetch pipeline info:", error);
     }
   };
 
@@ -95,49 +106,47 @@ export default function Models() {
     setSelectedTaskType("");
   };
 
-  const handleTrainSubmit = async () => {
+  const handleTrainSubmit = () => {
     if (!targetColumn || !selectedTaskType) return;
 
     // Close dialog
     setIsConfigDialogOpen(false);
 
-    // Start training with selected configuration
-    await startModelTraining({
-      pipeline_id: pipelineId,
-      target_column: targetColumn,
-      task_type: selectedTaskType
-    });
+    // Set loading state IMMEDIATELY (before async call)
+    setIsTraining(true);
+    setLoading(true);
+    setTrainingLogs([]);
+    setModels([]);
+    setTaskType("");
+
+    // Force UI render before starting training
+    setTimeout(() => {
+      startModelTraining({
+        pipeline_id: pipelineId,
+        target_column: targetColumn,
+        task_type: selectedTaskType
+      });
+    }, 0);
   };
 
   const startModelTraining = async (config?: { pipeline_id: string | null, target_column: string, task_type: string }) => {
     // HARD LOCK - Prevent ANY duplicate calls
     const now = Date.now();
     if (trainingLock) {
-      console.log('❌ BLOCKED: Training already in progress (hard lock active)');
       return;
     }
 
     // Debounce - prevent rapid clicks
     if (now - lastTrainingCall < 3000) {
-      console.log('❌ BLOCKED: Too soon since last call (debounce)');
       return;
     }
 
-    console.log('\n🚀 ========== TRAIN API CALLED ==========');
-    console.log('🕒 Timestamp:', new Date().toISOString());
-    console.log('📊 Pipeline ID:', pipelineId);
 
     // Activate locks
     trainingLock = true;
     lastTrainingCall = now;
-    setIsTraining(true);
-    setLoading(true);
-    setTrainingLogs([]);
 
-    // CRITICAL: Clear old models to prevent showing stale data
-    setModels([]);
-    setTaskType("");
-
+    // State is already set in handleTrainSubmit, just add initial log
     addLog("🚀 Initializing training pipeline...");
     addLog("📊 Loading finalized dataset...");
 
@@ -155,8 +164,6 @@ export default function Models() {
     addLog("");
 
     try {
-      const token = localStorage.getItem("token");
-
       // Simulate training multiple models
       const modelNames = [
         "Logistic Regression",
@@ -174,13 +181,9 @@ export default function Models() {
         addLog("");
       }
 
-      addLog("🔧 Performing hyperparameter tuning...");
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      addLog("✅ Hyperparameter tuning completed");
       addLog("");
       addLog("📊 Evaluating model performance...");
 
-      console.log('📡 Making API request to /api/training/train');
 
       // Make actual API call with configuration
       const requestBody = config ? {
@@ -191,37 +194,18 @@ export default function Models() {
         pipeline_id: pipelineId
       };
 
-      console.log('📦 Request payload:', requestBody);
 
-      const response = await fetch(`http://localhost:5000/api/training/train`, {
+      const data = await apiRequest<any>(`http://localhost:5000/api/training/train`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
           "Cache-Control": "no-cache",
           "Pragma": "no-cache"
         },
         body: JSON.stringify(requestBody),
-        cache: "no-store"
+        cache: "no-store",
+        retryOnUnauthorized: true,
       });
-
-      console.log('📡 Training API Response Status:', response.status);
-
-      // Handle 429 Too Many Requests
-      if (response.status === 429) {
-        console.error('❌ 429 Too Many Requests');
-        addLog("❌ Too many requests. Please wait 30 seconds and try again.");
-        throw new Error("Too many requests. Please wait before trying again.");
-      }
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Training request failed' }));
-        console.error('❌ Training API Error:', errorData);
-        throw new Error(errorData.detail || errorData.message || errorData.error || `Training failed with status ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log('✅ Training API Response:', data);
 
       if (data.status === "success") {
         addLog("✅ All models trained successfully!");
@@ -231,7 +215,6 @@ export default function Models() {
 
         // Use leaderboard if available, otherwise use base_models
         const modelsToSet = data.leaderboard || data.base_models || [];
-        console.log('✅ Setting', modelsToSet.length, 'models');
 
         setModels(modelsToSet);
         setTaskType(data.task_type);
@@ -239,13 +222,17 @@ export default function Models() {
         // Wait a bit before hiding training UI
         await new Promise(resolve => setTimeout(resolve, 1500));
 
-        console.log('✅ ========== TRAINING COMPLETE ==========\n');
+        // Show success toast
+        show({ type: "success", message: "Training completed successfully" });
+
       } else {
         throw new Error(data.message || "Training failed");
       }
     } catch (error: any) {
-      console.error('❌ Training error:', error);
       addLog(`❌ Error: ${error.message}`);
+      
+      // Show error toast
+      show({ type: "error", message: error.message || "Training failed. Please try again" });
 
       // Don't try to fetch if it's a rate limit error
       if (!error.message.includes('Too many requests')) {
@@ -265,13 +252,15 @@ export default function Models() {
         }
       }
     } finally {
+      // Add slight delay before hiding loader to prevent flicker
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
       setIsTraining(false);
       setLoading(false);
 
       // Release lock after cooldown period
       setTimeout(() => {
         trainingLock = false;
-        console.log('🔓 Training lock released');
       }, 5000);
     }
   };
@@ -279,44 +268,76 @@ export default function Models() {
   const fetchModels = async () => {
     if (!pipelineId) return;
 
-    console.log('🔍 Fetching models for pipelineId:', pipelineId);
 
     try {
-      const token = localStorage.getItem("token");
       const timestamp = new Date().getTime();
-      const response = await fetch(`http://localhost:5000/api/training/${pipelineId}/results?t=${timestamp}`, {
+      const data = await apiRequest<any>(`http://localhost:5000/api/training/${pipelineId}/results?t=${timestamp}`, {
         headers: {
-          Authorization: `Bearer ${token}`,
           "Cache-Control": "no-cache",
           "Pragma": "no-cache"
         },
-        cache: "no-store"
+        cache: "no-store",
+        retryOnUnauthorized: true,
       });
 
-      console.log('📡 Fetch results status:', response.status);
-      const data = await response.json();
-
-      console.log('📦 Raw response data:', data);
 
       if (data.status === "success") {
-        console.log('✅ Loaded', data.leaderboard?.length || 0, 'models');
-        console.log('📊 Models data:', data.leaderboard);
         setModels(data.leaderboard || []);
         setTaskType(data.task_type);
       } else {
-        console.log('⚠️ No models found');
         setModels([]);
       }
     } catch (error) {
-      console.error("❌ Failed to fetch models:", error);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleDownloadModel = async (modelId: number) => {
+    try {
+      await trainingService.downloadModel(modelId);
+      show({ type: "success", message: "Model downloaded successfully" });
+      setModels(prev => prev.filter(m => m.id !== modelId));
+    } catch (error: any) {
+      show({ type: "error", message: error.message || "Download failed" });
+    }
+  };
+
+  const handleDeleteModel = async (modelId: number, silent = false) => {
+    try {
+      await trainingService.deleteModel(modelId);
+      if (!silent) {
+        show({ type: "success", message: "Model deleted successfully" });
+      }
+      setModels(prev => prev.filter(m => m.id !== modelId));
+    } catch (error: any) {
+      if (!silent) {
+        show({ type: "error", message: error.message || "Delete failed" });
+      }
+      throw error;
+    }
+  };
+
+  const handleDeleteAllModels = async () => {
+    if (!sortedModels || sortedModels.length === 0) return;
+    
+    setShowDeleteAllDialog(false);
+    setIsDeletingAll(true);
+    
+    try {
+      // Loop through all models and reuse existing delete function
+      for (const model of sortedModels) {
+        await handleDeleteModel(model.id, true); // silent mode
+      }
+      show({ type: "success", message: "All models deleted successfully" });
+    } catch (error: any) {
+      show({ type: "error", message: error.message || "Failed to delete all models" });
+    } finally {
+      setIsDeletingAll(false);
+    }
+  };
+
   const sortedModels = useMemo(() => {
-    console.log('🔄 Sorting models. Total models:', models.length);
-    console.log('📋 Models data:', models);
     return [...models].sort((a, b) => {
       const metricA = taskType === "classification" ? (a.accuracy ?? 0) : (a.r2_score ?? 0);
       const metricB = taskType === "classification" ? (b.accuracy ?? 0) : (b.r2_score ?? 0);
@@ -349,43 +370,6 @@ export default function Models() {
               {isTraining ? "Training Models..." : "Loading Models..."}
             </h1>
 
-            {isTraining && (
-              <div className="bg-zinc-900 rounded-lg p-6 border border-zinc-800">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                  <div>
-                    <h2 className="text-xl font-semibold">Training in Progress</h2>
-                    <p className="text-sm text-zinc-400">Training all models from registry...</p>
-                  </div>
-                </div>
-
-                {/* Training Logs */}
-                <div className="bg-black rounded-lg p-4 font-mono text-sm max-h-125 overflow-y-auto">
-                  {trainingLogs.map((log, idx) => (
-                    <div key={idx} className="text-green-400 mb-1">
-                      {log}
-                    </div>
-                  ))}
-                  {trainingLogs.length > 0 && (
-                    <div className="text-green-400 animate-pulse">▊</div>
-                  )}
-                </div>
-
-                {/* Progress Bar */}
-                <div className="mt-6">
-                  <div className="w-full bg-zinc-800 rounded-full h-3">
-                    <div
-                      className="bg-linear-to-r from-blue-500 to-purple-500 h-3 rounded-full transition-all duration-500"
-                      style={{ width: `${Math.min((trainingLogs.length / 20) * 100, 100)}%` }}
-                    />
-                  </div>
-                  <p className="text-xs text-zinc-500 mt-2 text-center">
-                    {trainingLogs.length} / ~20 steps completed
-                  </p>
-                </div>
-              </div>
-            )}
-
             {!isTraining && (
               <div className="flex items-center justify-center h-96">
                 <div className="text-center">
@@ -410,16 +394,57 @@ export default function Models() {
             Model Leaderboard
           </h1>
 
-          {/* Train Models Button */}
-          <div className="mb-6">
+          {/* Train Models Button with Loading State */}
+          <div className="mb-6 flex items-center justify-between">
             <Button
               onClick={handleOpenConfigDialog}
               disabled={isTraining || !pipelineId}
-              className="bg-linear-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
+              className="bg-zinc-800 border border-zinc-700 text-white hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              🤖 Train Models
+              {isTraining ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Training models...
+                </>
+              ) : (
+                <>
+                  🤖 Train Models
+                </>
+              )}
+            </Button>
+            {/* Terminate All Button - Always visible when not training */}
+            <Button
+              onClick={() => setShowDeleteAllDialog(true)}
+              disabled={isTraining || sortedModels.length === 0 || isDeletingAll}
+              variant="outline"
+              className="border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-300 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              {isDeletingAll ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Terminate All
+                </>
+              )}
             </Button>
           </div>
+
+          {/* Global Training Indicator - Top Banner */}
+          {isTraining && (
+            <div className="mb-6 bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+              <div className="flex items-center gap-3">
+                <Loader2 className="h-5 w-5 text-cyan-400 animate-spin" />
+                <div className="flex-1">
+                  <h3 className="text-white font-medium">Training in progress</h3>
+                  <p className="text-sm text-zinc-400">Please wait while models are being trained...</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Table Section */}
           {sortedModels.length === 0 ? (
@@ -454,7 +479,7 @@ export default function Models() {
                       </>
                     )}
                     <th className="px-6 py-4 text-right">Training Time (s)</th>
-                    <th className="px-6 py-4 text-center">Visualization</th>
+                    <th className="px-6 py-4 text-center">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -491,14 +516,32 @@ export default function Models() {
                         {model.training_time_ms ? (model.training_time_ms / 1000).toFixed(2) : "N/A"}
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setSelectedModel(model)}
-                          className="hover:bg-blue-600/20"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center justify-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setSelectedModel(model)}
+                            className="hover:bg-blue-600/20"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDownloadModel(model.id)}
+                            className="hover:bg-green-600/20"
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDeleteModel(model.id)}
+                            className="hover:bg-red-600/20"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -703,6 +746,33 @@ export default function Models() {
                     Start Training
                   </Button>
                 </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Delete All Confirmation Dialog */}
+          <Dialog open={showDeleteAllDialog} onOpenChange={setShowDeleteAllDialog}>
+            <DialogContent className="border-zinc-800 bg-zinc-950 text-zinc-100">
+              <DialogHeader>
+                <DialogTitle className="text-2xl">Terminate All Models</DialogTitle>
+                <DialogDescription className="text-zinc-400">
+                  Are you sure you want to delete all trained models? This action cannot be undone.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex gap-3 pt-4">
+                <Button
+                  onClick={() => setShowDeleteAllDialog(false)}
+                  variant="outline"
+                  className="flex-1 border-zinc-700 hover:bg-zinc-800"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleDeleteAllModels}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                >
+                  Delete All
+                </Button>
               </div>
             </DialogContent>
           </Dialog>

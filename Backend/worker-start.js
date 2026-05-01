@@ -1,15 +1,15 @@
 require('dotenv').config();
 
 const { trainingWorker } = require('./workers/training.worker');
-const logger = require('./utils/logger');
+const { cleanupWorker } = require('./workers/cleanup.worker');
+const { setupCleanupJob } = require('./queues/cleanup.queue');
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // WORKER STARTUP
 // ═══════════════════════════════════════════════════════════════════════════════
-// This script starts the Training Worker which:
-// 1. Processes jobs from the queue
-// 2. Handles stalled job recovery (via maxStalledCount configuration)
-// 3. Manages long-running ML training tasks
+// This script starts:
+// 1. Training Worker - Processes ML training jobs
+// 2. Cleanup Worker - Deletes expired models (runs every hour)
 //
 // Note: BullMQ Workers automatically handle stalled job detection and recovery
 // without needing a separate QueueScheduler process.
@@ -17,14 +17,11 @@ const logger = require('./utils/logger');
 
 const concurrency = parseInt(process.env.WORKER_CONCURRENCY || '2', 10);
 
-logger.info('[WORKER]', 'Starting training worker...', {
-  redis: `${process.env.REDIS_HOST || '127.0.0.1'}:${process.env.REDIS_PORT || '6379'}`,
-  concurrency,
-  stalledRecovery: 'enabled',
+
+// Setup cleanup repeatable job
+setupCleanupJob().catch((err) => {
 });
 
-logger.info('[WORKER]', '✅ Training worker ready');
-logger.info('[WORKER]', 'Listening for training jobs on "training-queue"...');
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -33,8 +30,10 @@ logger.info('[WORKER]', 'Listening for training jobs on "training-queue"...');
 
 process.on('SIGTERM', async () => {
   try {
-    await trainingWorker.close();
-    logger.info('[WORKER]', '✅ Worker closed successfully');
+    await Promise.all([
+      trainingWorker.close(),
+      cleanupWorker.close(),
+    ]);
     process.exit(0);
   } catch (error) {
     process.exit(1);
@@ -43,8 +42,10 @@ process.on('SIGTERM', async () => {
 
 process.on('SIGINT', async () => {
   try {
-    await trainingWorker.close();
-    logger.info('[WORKER]', '✅ Worker closed successfully');
+    await Promise.all([
+      trainingWorker.close(),
+      cleanupWorker.close(),
+    ]);
     process.exit(0);
   } catch (error) {
     process.exit(1);

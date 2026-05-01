@@ -1195,23 +1195,6 @@ const Cleaning = () => {
                       <CheckCircle className="h-3.5 w-3.5" />
                       Finalize Dataset
                     </button>
-
-                    {/* Proceed to Model Training */}
-                    <div className="pt-2 border-t border-neutral-700/50">
-                      <button
-                        onClick={() => navigate('/Models')}
-                        disabled={!dataset}
-                        className="w-full px-3 py-2.5 bg-gradient-to-r from-purple-600/30 to-blue-600/30 text-white rounded border border-purple-500/50 hover:from-purple-600/40 hover:to-blue-600/40 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium flex items-center justify-center gap-2 transition-all"
-                      >
-                        Proceed to Training
-                        <ArrowRight className="h-4 w-4" />
-                      </button>
-                      {!dataset && (
-                        <p className="text-[10px] text-neutral-500 mt-1 text-center">
-                          Upload a dataset first
-                        </p>
-                      )}
-                    </div>
                   </div>
                 </div>
               </div>
@@ -1220,6 +1203,23 @@ const Cleaning = () => {
 
         </div>
       </div>
+
+      {/* Start Training Button - Bottom Center Aligned like Dataset page */}
+      {dataset && (
+        <div className="flex justify-center mt-10 mb-16">
+          <button 
+            onClick={() => navigate('/Models')}
+            className="group relative px-8 py-3 rounded-lg text-white text-sm font-medium bg-gradient-to-r from-purple-600/20 to-blue-600/20 border border-purple-500/50 overflow-hidden transition-all duration-300 hover:shadow-[0_0_25px_#8B5CF655] hover:border-purple-400 hover:from-purple-600/30 hover:to-blue-600/30"
+          >
+            <span className="relative z-10 flex items-center gap-2">
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              Start Training
+            </span>
+          </button>
+        </div>
+      )}
 
       {/* Column Info Dialog */}
       {showColumnInfo && selectedColumn && (

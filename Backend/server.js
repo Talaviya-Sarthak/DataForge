@@ -7,7 +7,6 @@ const cors = require("cors");
 const datasetService = require("./services/dataset.service");
 const { apiLimiter, authLimiter, uploadLimiter, sanitizeInput } = require("./middlewares/rateLimiter.middleware");
 const { initWebSocket } = require('./websocket/ws.server');
-const logger = require('./utils/logger');
 
 // Initialize queue events monitoring
 const { trainingQueueEvents } = require('./queues/training.events');
@@ -21,9 +20,9 @@ const PORT = process.env.PORT || 5000;
 (async () => {
   try {
     await datasetService.initializeSystem();
-    logger.info('[SERVER]', 'Pipeline system initialized');
+    console.log("✅ System initialized");
   } catch (error) {
-    logger.error('[SERVER]', 'Pipeline system initialization failed', { error: error.message });
+    console.error("❌ Initialization error:", error);
   }
 })();
 
@@ -87,9 +86,10 @@ app.use((req, res) => {
 // GLOBAL ERROR HANDLER
 // =======================
 app.use((err, req, res, next) => {
-  logger.error('[SERVER]', 'Unhandled error', { error: err.message, path: req.originalUrl });
+  console.error("🔥 ERROR:", err);   // VERY IMPORTANT
+
   res.status(500).json({
-    error: "Internal server error"
+    error: err.message || "Internal server error"
   });
 });
 
@@ -99,6 +99,5 @@ app.use((err, req, res, next) => {
 const httpServer = http.createServer(app);
 const io = initWebSocket(httpServer);
 
-httpServer.listen(PORT, () => {
-  logger.info('[SERVER]', `Running on port ${PORT}`);
+httpServer.listen(PORT, "0.0.0.0", () => {
 });
