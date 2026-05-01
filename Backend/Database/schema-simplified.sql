@@ -86,7 +86,6 @@ CREATE TABLE IF NOT EXISTS datasets (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT NOT NULL,
   original_filename VARCHAR(255) NOT NULL,
-  file_path VARCHAR(512) DEFAULT NULL,
   column_names JSON NOT NULL,
   total_rows INT NOT NULL,
   is_active BOOLEAN DEFAULT FALSE,
@@ -231,6 +230,19 @@ CREATE TABLE IF NOT EXISTS model_plots (
 
 -- =========================================
 -- DATASET STATISTICS
+-- =========================================
+CREATE TABLE IF NOT EXISTS dataset_stats (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  experiment_id VARCHAR(255) NOT NULL UNIQUE,
+  num_rows INT NOT NULL,
+  num_columns INT NOT NULL,
+  missing_values JSON DEFAULT NULL,
+  correlation_matrix JSON DEFAULT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_experiment_id (experiment_id),
+  INDEX idx_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- =========================================
 -- VERIFICATION
 -- =========================================
